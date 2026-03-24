@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 from datetime import datetime
 from task_manager import get_pending_tasks, get_tasks_for_date, get_overdue_tasks, get_stats
 from reminder_engine import get_user_reminders
@@ -5,7 +6,7 @@ from calendar_manager import get_all_events, format_events_text
 
 
 def generate_morning_briefing(user_id, user_name=""):
-    today = datetime.now()
+    today = now_bz()
     date_str = today.strftime("%Y-%m-%d")
     day_names_es = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"]
     month_names_es = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",

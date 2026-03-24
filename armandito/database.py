@@ -18,7 +18,7 @@ def init_db():
             user_id INTEGER PRIMARY KEY,
             name TEXT,
             telegram_id INTEGER UNIQUE,
-            timezone TEXT DEFAULT 'America/Mexico_City',
+            timezone TEXT DEFAULT 'America/Belize',
             language TEXT DEFAULT 'es',
             briefing_hour TEXT DEFAULT '07:00',
             created_at TEXT DEFAULT (datetime('now')),

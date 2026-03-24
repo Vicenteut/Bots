@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 import re
 from datetime import datetime, timedelta
 
@@ -36,7 +37,7 @@ def normalize(text):
 
 def parse_date(text):
     """Extract date from natural language (Spanish)."""
-    now = datetime.now()
+    now = now_bz()
     t = normalize(text)
 
     # "hoy"
@@ -106,7 +107,7 @@ def parse_time(text):
     if m:
         n = int(m.group(1))
         unit = m.group(2)
-        now = datetime.now()
+        now = now_bz()
         if "min" in unit:
             target = now + timedelta(minutes=n)
         else:
@@ -180,6 +181,49 @@ def parse_intent(text):
         result["intent"] = INTENT_LIST_REMINDERS
         return result
 
+    # Create folder
+    m = re.match(r"(?:crear? carpeta|nueva carpeta|carpeta nueva)\s*:?\s+(.+)", t)
+    if m:
+        result["intent"] = INTENT_CREATE_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+
+    # Add to folder: "guardar en Clientes VIP: Juan Perez - 555-1234"
+    # MUST be before Add note to avoid "guardar" matching as note
+    m = re.match(r"(?:guardar en|agregar en|añadir en|agregar a|guardar a|añadir a)\s+(.+?)\s*:\s*(.+)", t)
+    if m:
+        result["intent"] = INTENT_ADD_TO_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        result["entities"]["content"] = m.group(2).strip()
+        return result
+
+    # View folder: "ver carpeta Clientes VIP"
+    m = re.match(r"(?:ver carpeta|abrir carpeta|carpeta|ver)\s+(.+)$", t)
+    if m:
+        result["intent"] = INTENT_VIEW_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+
+    # Search in folder: "buscar en Clientes VIP: Juan"
+    m = re.match(r"(?:buscar en)\s+(.+?)\s*:\s*(.+)", t)
+    if m:
+        result["intent"] = INTENT_SEARCH_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        result["entities"]["query"] = m.group(2).strip()
+        return result
+
+    # List folders
+    if re.match(r"(carpetas|mis carpetas|folders)", t):
+        result["intent"] = INTENT_LIST_FOLDERS
+        return result
+
+    # Delete folder: "eliminar carpeta Clientes VIP"
+    m = re.match(r"(?:eliminar carpeta|borrar carpeta|delete folder)\s+(.+)", t)
+    if m:
+        result["intent"] = INTENT_DELETE_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+
     # Add note
     m = re.match(r"(?:nota|guarda|guardar|anotar?|apuntar?)\s*:?\s+(.+)", t)
     if m:
@@ -203,48 +247,6 @@ def parse_intent(text):
     # List notes
     if re.match(r"(notas|mis notas)", t):
         result["intent"] = INTENT_LIST_NOTES
-        return result
-
-    # Create folder
-    m = re.match(r"(?:crear? carpeta|nueva carpeta|carpeta nueva)\s*:?\s+(.+)", t)
-    if m:
-        result["intent"] = INTENT_CREATE_FOLDER
-        result["entities"]["folder_name"] = m.group(1).strip()
-        return result
-
-    # Add to folder: "guardar en Clientes: Juan Perez - 555-1234"
-    m = re.match(r"(?:guardar en|agregar en|añadir en|agregar a|guardar a|añadir a)\s+(\w+)\s*:\s*(.+)", t)
-    if m:
-        result["intent"] = INTENT_ADD_TO_FOLDER
-        result["entities"]["folder_name"] = m.group(1).strip()
-        result["entities"]["content"] = m.group(2).strip()
-        return result
-
-    # View folder: "ver carpeta Clientes"
-    m = re.match(r"(?:ver carpeta|abrir carpeta|carpeta|ver)\s+(\w+)$", t)
-    if m:
-        result["intent"] = INTENT_VIEW_FOLDER
-        result["entities"]["folder_name"] = m.group(1).strip()
-        return result
-
-    # Search in folder: "buscar en Clientes: Juan"
-    m = re.match(r"(?:buscar en)\s+(\w+)\s*:?\s+(.+)", t)
-    if m:
-        result["intent"] = INTENT_SEARCH_FOLDER
-        result["entities"]["folder_name"] = m.group(1).strip()
-        result["entities"]["query"] = m.group(2).strip()
-        return result
-
-    # List folders
-    if re.match(r"(carpetas|mis carpetas|folders)", t):
-        result["intent"] = INTENT_LIST_FOLDERS
-        return result
-
-    # Delete folder: "eliminar carpeta Clientes"
-    m = re.match(r"(?:eliminar carpeta|borrar carpeta|delete folder)\s+(.+)", t)
-    if m:
-        result["intent"] = INTENT_DELETE_FOLDER
-        result["entities"]["folder_name"] = m.group(1).strip()
         return result
 
     # Add task (catch-all for task-like messages)

@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 """Calendar manager — supports Google Calendar and Microsoft Outlook/Teams."""
 
 import os
@@ -61,7 +62,7 @@ def get_google_events(date_str=None, days=1):
         if date_str:
             start = datetime.strptime(date_str, "%Y-%m-%d")
         else:
-            start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start = now_bz().replace(hour=0, minute=0, second=0, microsecond=0)
 
         end = start + timedelta(days=days)
 
@@ -154,7 +155,7 @@ def ms_get_token():
         token_data = json.load(f)
 
     # Check if token is still valid
-    if token_data.get("expires_at", 0) > datetime.now().timestamp():
+    if token_data.get("expires_at", 0) > now_bz().timestamp():
         return token_data["access_token"]
 
     # Refresh token
@@ -175,7 +176,7 @@ def ms_get_token():
 
     if resp.status_code == 200:
         new_data = resp.json()
-        new_data["expires_at"] = datetime.now().timestamp() + new_data.get("expires_in", 3600)
+        new_data["expires_at"] = now_bz().timestamp() + new_data.get("expires_in", 3600)
         with open(MS_TOKEN_FILE, "w") as f:
             json.dump(new_data, f)
         return new_data["access_token"]
@@ -215,7 +216,7 @@ def ms_exchange_code(code):
 
     if resp.status_code == 200:
         token_data = resp.json()
-        token_data["expires_at"] = datetime.now().timestamp() + token_data.get("expires_in", 3600)
+        token_data["expires_at"] = now_bz().timestamp() + token_data.get("expires_in", 3600)
         with open(MS_TOKEN_FILE, "w") as f:
             json.dump(token_data, f)
         return True
@@ -233,7 +234,7 @@ def get_microsoft_events(date_str=None, days=1):
     if date_str:
         start = datetime.strptime(date_str, "%Y-%m-%d")
     else:
-        start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start = now_bz().replace(hour=0, minute=0, second=0, microsecond=0)
 
     end = start + timedelta(days=days)
 

@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 """AI fallback for messages that can't be parsed by regex."""
 
 import os
@@ -50,7 +51,7 @@ async def ask_ai(user_message, conversation_history=None):
     if not ANTHROPIC_API_KEY:
         return {"type": "text", "content": "No tengo configurada la API de AI. Intenta con comandos directos como 'tareas', 'notas', 'recordatorios'."}
 
-    current_dt = datetime.now().strftime("%Y-%m-%d %H:%M")
+    current_dt = now_bz().strftime("%Y-%m-%d %H:%M")
     system = SYSTEM_PROMPT_TEMPLATE.replace("{current_datetime}", current_dt)
 
     messages = []

@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 """Main message router — parses intent and executes actions."""
 
 from datetime import datetime
@@ -135,7 +136,7 @@ async def handle_message(telegram_id, user_name, text):
 
     elif intent == INTENT_ADD_REMINDER:
         r_text = entities.get("text", text)
-        r_date = entities.get("date") or datetime.now().strftime("%Y-%m-%d")
+        r_date = entities.get("date") or now_bz().strftime("%Y-%m-%d")
         r_time = entities.get("time") or "09:00"
         remind_at = f"{r_date} {r_time}"
         add_reminder(user_id, r_text, remind_at)

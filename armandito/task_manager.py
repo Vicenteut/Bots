@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 from database import get_db
 from datetime import datetime, timedelta
 
@@ -81,7 +82,7 @@ def get_tasks_for_date(user_id, date_str):
 
 
 def get_overdue_tasks(user_id):
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = now_bz().strftime("%Y-%m-%d")
     conn = get_db()
     rows = conn.execute(
         """SELECT task_id, title, due_date, priority
@@ -95,7 +96,7 @@ def get_overdue_tasks(user_id):
 
 
 def get_week_tasks(user_id):
-    today = datetime.now()
+    today = now_bz()
     end = today + timedelta(days=7)
     conn = get_db()
     rows = conn.execute(

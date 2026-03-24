@@ -118,7 +118,8 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Download photo
         from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+from tz_helper import now_bz
+        timestamp = now_bz().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{photo.file_unique_id}.jpg"
         filepath = os.path.join(photos_dir, filename)
         await file.download_to_drive(filepath)

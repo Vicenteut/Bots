@@ -1,3 +1,4 @@
+from tz_helper import now_bz
 from database import get_db
 from datetime import datetime, timedelta
 import re
@@ -18,7 +19,7 @@ def add_reminder(user_id, text, remind_at, task_id=None, recurrence=None):
 
 def get_pending_reminders():
     """Get all reminders that should fire now (within the last 2 minutes)."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = now_bz().strftime("%Y-%m-%d %H:%M")
     conn = get_db()
     rows = conn.execute(
         """SELECT r.reminder_id, r.user_id, r.text, r.remind_at, r.recurrence,
