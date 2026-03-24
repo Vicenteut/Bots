@@ -1,0 +1,12 @@
+.env
+node_modules/
+images/custom/
+images/*.jpg
+images/*.png
+backups/
+logs/
+__pycache__/
+*.pyc
+cookies.json
+*.session
+*.session-journal
