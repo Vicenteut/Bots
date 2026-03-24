@@ -10,6 +10,7 @@ Usage:
 """
 
 import json
+import re
 import os
 import sys
 import time
@@ -45,6 +46,160 @@ def load_env(path):
 
 
 load_env(ENV_PATH)
+# ---------------------------------------------------------------------------
+# Flag emoji replacement (Threads doesn't render flag emojis)
+# ---------------------------------------------------------------------------
+
+FLAG_MAP = {
+    '🇺🇸': '[USA]',
+    '🇮🇷': '[Irán]',
+    '🇮🇱': '[Israel]',
+    '🇷🇺': '[Rusia]',
+    '🇨🇳': '[China]',
+    '🇨🇺': '[Cuba]',
+    '🇰🇵': '[Corea del Norte]',
+    '🇰🇷': '[Corea del Sur]',
+    '🇬🇧': '[UK]',
+    '🇪🇺': '[UE]',
+    '🇩🇪': '[Alemania]',
+    '🇫🇷': '[Francia]',
+    '🇯🇵': '[Japón]',
+    '🇦🇪': '[Emiratos]',
+    '🇸🇦': '[Arabia Saudita]',
+    '🇹🇷': '[Turquía]',
+    '🇺🇦': '[Ucrania]',
+    '🇲🇽': '[México]',
+    '🇦🇷': '[Argentina]',
+    '🇧🇷': '[Brasil]',
+    '🇮🇳': '[India]',
+    '🇵🇸': '[Palestina]',
+    '🇱🇧': '[Líbano]',
+    '🇸🇾': '[Siria]',
+    '🇮🇶': '[Irak]',
+    '🇻🇪': '[Venezuela]',
+    '🇨🇴': '[Colombia]',
+    '🇪🇸': '[España]',
+    '🇵🇱': '[Polonia]',
+    '🇹🇼': '[Taiwán]',
+}
+
+
+def replace_flags(text):
+    """Remove flag emojis for Threads (platform doesn't render them)."""
+    import re
+    text = re.compile('[🇠-🇿]{2}').sub('', text)
+    # Clean up extra spaces left behind
+    text = re.sub(r'  +', ' ', text).strip()
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Auto-topic detection — adds the best #Label to Threads posts
+# ---------------------------------------------------------------------------
+
+TOPIC_RULES = [
+    {
+        "label": "#Breaking",
+        "keywords": [
+            "última hora", "ultima hora", "breaking", "urgente", "alerta",
+            "ahora mismo", "de último momento", "de ultima hora",
+            "just in", "developing"
+        ],
+        "priority": 10,
+    },
+    {
+        "label": "#Crypto",
+        "keywords": [
+            "bitcoin", "btc", "ethereum", "eth", "crypto", "cripto",
+            "criptomoneda", "altcoin", "blockchain", "defi", "nft",
+            "binance", "coinbase", "solana", "sol", "xrp", "ripple",
+            "dogecoin", "doge", "memecoin", "token", "stablecoin",
+            "usdt", "usdc", "mining", "minería", "halving", "whale",
+            "exchange", "ledger", "wallet", "satoshi", "web3"
+        ],
+        "priority": 5,
+    },
+    {
+        "label": "#Finance",
+        "keywords": [
+            "mercado", "bolsa", "wall street", "nasdaq", "s&p",
+            "dow jones", "acciones", "stock", "inversión", "inversion",
+            "fed", "reserva federal", "tasa de interés", "tasa de interes",
+            "inflación", "inflacion", "recesión", "recesion", "pib",
+            "gdp", "banco central", "bonos", "treasury", "yield",
+            "dividendo", "earnings", "ipo", "oro", "gold", "petroleo",
+            "petróleo", "oil", "commodity", "dólar", "dolar", "euro",
+            "deuda", "deficit", "déficit", "aranceles", "tariff",
+            "sancion", "sanción", "comercio"
+        ],
+        "priority": 4,
+    },
+    {
+        "label": "#News",
+        "keywords": [
+            "guerra", "conflicto", "militar", "ejército", "ejercito",
+            "misil", "bomba", "ataque", "invasión", "invasion",
+            "otan", "nato", "onu", "g7", "g20", "brics",
+            "tratado", "diplomacia", "embajada",
+            "geopolítica", "geopolitica", "presidente", "gobierno",
+            "elecciones", "golpe de estado", "protesta", "crisis",
+            "refugiados", "fronteras", "espionaje", "nuclear",
+            "trump", "biden", "putin", "zelensky", "xi jinping",
+            "medio oriente", "ucrania", "rusia", "china", "iran",
+            "israel", "palestina", "corea del norte", "taiwan",
+            "latinoamérica", "latinoamerica", "venezuela", "cuba"
+        ],
+        "priority": 3,
+    },
+    {
+        "label": "#Technology",
+        "keywords": [
+            "inteligencia artificial", "ia", "ai", "chatgpt", "openai",
+            "google", "apple", "microsoft", "tesla", "spacex", "elon musk",
+            "robot", "chip", "semiconductor", "nvidia", "tecnología",
+            "tecnologia", "software", "hardware", "ciberseguridad",
+            "hack", "data", "5g", "quantum"
+        ],
+        "priority": 2,
+    },
+]
+
+
+def detect_topic(text):
+    """Detect the best topic label for a post based on keywords."""
+    text_lower = text.lower()
+
+    best_label = None
+    best_priority = -1
+    best_matches = 0
+
+    for rule in TOPIC_RULES:
+        matches = sum(1 for kw in rule["keywords"] if kw in text_lower)
+        if matches > 0:
+            if (rule["priority"] > best_priority) or \
+               (rule["priority"] == best_priority and matches > best_matches):
+                best_label = rule["label"]
+                best_priority = rule["priority"]
+                best_matches = matches
+
+    if not best_label:
+        best_label = "#News"  # default fallback
+
+    return best_label
+
+
+def add_topic_to_text(text):
+    """Add the auto-detected topic label to the end of the post text."""
+    # Don't add if text already has a hashtag/topic
+    if re.search(r'#\w+', text):
+        return text
+
+    topic = detect_topic(text)
+    print(f"  Auto-topic detected: {topic}")
+
+    return f"{text}\n\n{topic}"
+
+
 
 ACCESS_TOKEN = os.environ.get("THREADS_ACCESS_TOKEN", "")
 USER_ID = os.environ.get("THREADS_USER_ID", "")
@@ -61,9 +216,10 @@ if not ACCESS_TOKEN or not USER_ID:
 # ---------------------------------------------------------------------------
 
 def api_post(url, params):
-    """Send a POST request with form-encoded params and return parsed JSON."""
-    data = urllib.parse.urlencode(params).encode("utf-8")
+    """Send a POST request with JSON-encoded params and return parsed JSON."""
+    data = json.dumps(params, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             body = resp.read().decode("utf-8")
@@ -142,6 +298,7 @@ def wait_for_container(container_id, max_wait=30, interval=2):
 
 def create_container(text, media_type="TEXT", image_url=None, reply_to_id=None):
     """Create a media container (step 1)."""
+    text = replace_flags(text)
     url = f"{BASE_URL}/{USER_ID}/threads"
     params = {
         "media_type": media_type,
@@ -183,6 +340,7 @@ def publish_container(container_id):
 
 def publish_text(text):
     """Publish a text-only post."""
+    text = add_topic_to_text(text)
     print(f"[THREADS] Publishing text post ({len(text)} chars)...")
     container_id = create_container(text, media_type="TEXT")
     if not container_id:
@@ -202,8 +360,43 @@ def publish_text(text):
     return None
 
 
+
+def upload_image_for_threads(local_path):
+    """Upload a local image and return the public URL for Threads API."""
+    import subprocess
+    
+    if local_path.startswith('http'):
+        return local_path  # Already a URL
+    
+    if not os.path.exists(local_path):
+        print(f'[ERROR] Image file not found: {local_path}')
+        return None
+    
+    print(f'  Uploading image to get public URL...')
+    
+    # Primary: catbox.moe (reliable, no API key needed)
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-F', 'reqtype=fileupload',
+             '-F', f'fileToUpload=@{local_path}',
+             'https://catbox.moe/user/api.php'],
+            capture_output=True, text=True, timeout=60
+        )
+        url = result.stdout.strip()
+        if url.startswith('http'):
+            print(f'  Image uploaded: {url}')
+            return url
+    except Exception as e:
+        print(f'  catbox.moe upload failed: {e}')
+    
+    # Fallback: use Unsplash-hosted URL directly if available
+    print('[ERROR] Could not upload image')
+    return None
+
+
 def publish_image(text, image_url):
     """Publish a post with an image."""
+    text = add_topic_to_text(text)
     print(f"[THREADS] Publishing image post...")
     print(f"  Image: {image_url}")
     container_id = create_container(text, media_type="IMAGE", image_url=image_url)
@@ -236,6 +429,8 @@ def publish_thread(texts):
         return None
 
     print(f"[THREADS] Publishing thread ({len(texts)} posts)...")
+    # Add topic only to first post of the thread
+    texts[0] = add_topic_to_text(texts[0])
     post_ids = []
     reply_to = None
 
@@ -244,6 +439,11 @@ def publish_thread(texts):
         container_id = create_container(text, media_type="TEXT", reply_to_id=reply_to)
         if not container_id:
             print(f"[ERROR] Failed to create container for post {i + 1}.")
+            return post_ids
+
+        # Wait for container to finish processing before publishing
+        if not wait_for_container(container_id, max_wait=30, interval=2):
+            print(f"[ERROR] Container for post {i + 1} failed to process.")
             return post_ids
 
         post_id = publish_container(container_id)
@@ -255,9 +455,9 @@ def publish_thread(texts):
         post_ids.append(post_id)
         reply_to = post_id
 
-        # Small delay between posts to avoid rate limits
+        # Delay between posts to avoid rate limits
         if i < len(texts) - 1:
-            time.sleep(1)
+            time.sleep(3)
 
     print(f"\n[SUCCESS] Thread published! {len(post_ids)} posts.")
     for idx, pid in enumerate(post_ids):
@@ -314,6 +514,44 @@ def refresh_token():
     return new_token
 
 
+
+
+def split_thread_blob(texts):
+    """Split thread input - handles both separate args and single blob formats.
+
+    Supports:
+    - Multiple separate args: ["post1", "post2", "post3"]
+    - Single blob with --- separator: ["post1\n---\npost2\n---\npost3"]
+    - Single blob with (1/N) markers: ["(1/3) post1\n\n(2/3) post2\n\n(3/3) post3"]
+    """
+    if len(texts) >= 2:
+        # Already separate args, just clean them
+        return [t.strip() for t in texts if t.strip()]
+
+    if len(texts) == 1:
+        blob = texts[0]
+
+        # Try splitting by ---
+        if "---" in blob:
+            parts = [p.strip() for p in blob.split("---") if p.strip()]
+            if len(parts) >= 2:
+                return parts
+
+        # Try splitting by (1/N) markers
+        numbered = re.split(r'\(\d+/\d+\)\s*', blob)
+        numbered = [p.strip() for p in numbered if p.strip()]
+        if len(numbered) >= 2:
+            return numbered
+
+        # Try splitting by numbered lines like "1. " or "1) "
+        numbered2 = re.split(r'\n\s*\d+[.)\-]\s+', blob)
+        numbered2 = [p.strip() for p in numbered2 if p.strip()]
+        if len(numbered2) >= 2:
+            return numbered2
+
+    return texts
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -338,17 +576,29 @@ def main():
 
     elif args[0] == "--image":
         if len(args) < 3:
-            print("[ERROR] --image requires an image URL and caption text.")
+            print("[ERROR] --image requires an image path/URL and caption text.")
+            print('  python3 threads_publisher.py --image "/path/to/img.jpg" "caption"')
             print('  python3 threads_publisher.py --image "https://url/img.jpg" "caption"')
             sys.exit(1)
-        image_url = args[1]
+        image_input = args[1]
         caption = args[2]
-        publish_image(caption, image_url)
+        # Support local files by uploading them first
+        image_url = upload_image_for_threads(image_input)
+        if not image_url:
+            print("[ERROR] Could not get image URL. Publishing as text only.")
+            publish_text(caption)
+        else:
+            publish_image(caption, image_url)
 
     elif args[0] == "--thread":
-        texts = args[1:]
+        raw_texts = args[1:]
+        if not raw_texts:
+            print("[ERROR] --thread requires post text.")
+            sys.exit(1)
+        texts = split_thread_blob(raw_texts)
         if len(texts) < 2:
-            print("[ERROR] --thread requires at least 2 posts.")
+            print("[ERROR] --thread requires at least 2 posts. Got 1 after parsing.")
+            print("  Use --- or (1/N) markers to separate posts in a single string.")
             sys.exit(1)
         publish_thread(texts)
 
@@ -358,8 +608,8 @@ def main():
         sys.exit(1)
 
     else:
-        # Single text post
-        text = args[0]
+        # Single text post — join all args in case passed without quotes
+        text = " ".join(args)
         publish_text(text)
 
 

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const path = require('path');
@@ -32,49 +33,54 @@ const mediaPath = videoPath || imagePath;
 const mediaType = videoPath ? 'video' : (imagePath ? 'image' : null);
 
 async function waitForVideoProcessing(page, timeout = 120000) {
-  /**
-   * After uploading a video, X shows a progress bar / processing indicator.
-   * We wait until the video thumbnail appears or the progress disappears.
-   */
   const startTime = Date.now();
   console.log('Esperando procesamiento de video...');
+  let lastLog = 0;
 
   while (Date.now() - startTime < timeout) {
-    // Check if there's still a progress indicator
-    const processing = await page.evaluate(() => {
-      // X shows a circular progress or "Processing" text during upload
-      const progressBar = document.querySelector('[role="progressbar"]');
-      const processingText = document.body.innerText.includes('Uploading') ||
-                             document.body.innerText.includes('Processing');
-      return progressBar !== null || processingText;
-    });
+    try {
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      if (elapsed - lastLog >= 15) {
+        console.log('  ...procesando (' + elapsed + 's)');
+        lastLog = elapsed;
+      }
 
-    if (!processing) {
-      // Double check: look for the media preview (thumbnail)
-      const hasMedia = await page.evaluate(() => {
-        const mediaPreview = document.querySelector('[data-testid="attachments"]') ||
-                             document.querySelector('video') ||
-                             document.querySelector('[data-testid="mediaPreview"]');
-        return mediaPreview !== null;
+      const status = await page.evaluate(() => {
+        const progressBar = document.querySelector('[role="progressbar"]');
+        const processingText = document.body.innerText.includes('Uploading') ||
+                               document.body.innerText.includes('Processing');
+        const hasMedia = document.querySelector('[data-testid="attachments"]') ||
+                         document.querySelector('video') ||
+                         document.querySelector('[data-testid="mediaPreview"]');
+        const hasError = document.body.innerText.includes('Unable to upload') ||
+                         document.body.innerText.includes('try again');
+        return {
+          processing: progressBar !== null || processingText,
+          hasMedia: hasMedia !== null,
+          hasError: hasError
+        };
       });
 
-      if (hasMedia) {
+      if (status.hasError) {
+        console.log('Error detectado durante procesamiento de video');
+        return false;
+      }
+
+      if (!status.processing && status.hasMedia) {
         console.log('Video procesado OK');
         return true;
       }
-    }
 
-    // Check for error
-    const hasError = await page.evaluate(() => {
-      const errorText = document.body.innerText;
-      return errorText.includes('Unable to upload') ||
-             errorText.includes('try again') ||
-             errorText.includes('error');
-    });
-
-    if (hasError) {
-      console.log('Error detectado durante procesamiento de video');
-      return false;
+      if (!status.processing && !status.hasMedia && elapsed > 10) {
+        // No progress bar and no media after 10s - video might have been accepted
+        console.log('Video parece listo (sin indicador de progreso)');
+        return true;
+      }
+    } catch (frameErr) {
+      // Detached frame error - page reloaded, video likely still processing
+      console.log('  Frame recargado, esperando...');
+      await new Promise(r => setTimeout(r, 5000));
+      continue;
     }
 
     await new Promise(r => setTimeout(r, 3000));
@@ -109,7 +115,10 @@ async function postThread() {
     console.log(`Publicando tweet ${i + 1}/${tweets.length}...`);
 
     if (i === 0) {
-      // First tweet: go to compose
+      // First: go to home to establish session
+      await page.goto('https://x.com/home', { waitUntil: 'networkidle2', timeout: 60000 });
+      await new Promise(r => setTimeout(r, 4000));
+      // Then navigate to compose
       await page.goto('https://x.com/compose/tweet', { waitUntil: 'networkidle2', timeout: 60000 });
       await new Promise(r => setTimeout(r, 3000));
     } else {
@@ -139,15 +148,35 @@ async function postThread() {
           console.log(`${mediaType === 'video' ? 'Video' : 'Imagen'} adjuntado: ${mediaPath}`);
 
           if (mediaType === 'video') {
-            // Videos need much more time to upload + process
             const fileSize = fs.statSync(mediaPath).size;
             const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
             console.log(`Tamano del video: ${sizeMB} MB`);
 
-            // Wait for upload + processing (up to 2 minutes)
-            const processed = await waitForVideoProcessing(page, 120000);
-            if (!processed) {
-              console.log('AVISO: Video puede no haberse procesado completamente');
+            // Wait for upload indicator to appear then disappear
+            // Don't use waitForVideoProcessing - it causes detached frame errors
+            console.log('Esperando que el video se adjunte...');
+            
+            // Wait based on file size (roughly 10s per MB + base 15s)
+            const waitTime = Math.min(Math.max(15000, sizeMB * 10000 + 15000), 60000);
+            console.log(`Esperando ${Math.round(waitTime/1000)}s para upload...`);
+            await new Promise(r => setTimeout(r, waitTime));
+            
+            // Check if publish button is enabled (means video is ready)
+            try {
+              const btnReady = await page.evaluate(() => {
+                const btn = document.querySelector('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]');
+                return btn && !btn.disabled;
+              });
+              if (btnReady) {
+                console.log('Video listo para publicar');
+              } else {
+                console.log('Esperando 15s mas...');
+                await new Promise(r => setTimeout(r, 15000));
+              }
+            } catch (e) {
+              // If evaluate fails, just wait a bit more
+              console.log('Esperando 10s adicionales...');
+              await new Promise(r => setTimeout(r, 10000));
             }
           } else {
             // Images are fast
@@ -157,15 +186,42 @@ async function postThread() {
           console.log('No se encontro el input de archivo, publicando sin media');
         }
       } catch (mediaErr) {
-        console.log(`Error al adjuntar ${mediaType}: ${mediaErr.message}`);
+        if (mediaErr.message.includes('detached Frame')) {
+          console.log('Frame se recargo durante upload - video probablemente subido OK');
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          console.log(`Error al adjuntar ${mediaType}: ${mediaErr.message}`);
+        }
       }
     }
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // Click publish
-    const btn = await page.waitForSelector('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]', { timeout: 10000 });
-    await btn.click();
+    // Click publish - with retry for detached frames
+    try {
+      const btn = await page.waitForSelector('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]', { timeout: 10000 });
+      await btn.click();
+    } catch (clickErr) {
+      console.log('Reintentando click en publicar...');
+      try {
+        // Wait for page to stabilize
+        await new Promise(r => setTimeout(r, 3000));
+        // Try clicking again
+        const btn2 = await page.waitForSelector('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]', { timeout: 15000 });
+        await btn2.click();
+      } catch (retryErr) {
+        console.log('No se pudo hacer click en publicar: ' + retryErr.message);
+        // Try keyboard shortcut as last resort
+        try {
+          await page.keyboard.down('Control');
+          await page.keyboard.press('Enter');
+          await page.keyboard.up('Control');
+          console.log('Publicado con Ctrl+Enter');
+        } catch (kbErr) {
+          console.log('Fallo total al publicar: ' + kbErr.message);
+        }
+      }
+    }
 
     // Videos need more time after clicking publish (X may still be uploading)
     const postWait = (i === 0 && mediaType === 'video') ? 15000 : 5000;

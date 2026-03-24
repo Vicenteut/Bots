@@ -1,42 +1,44 @@
 from telethon import TelegramClient, events
 import asyncio
-import urllib.request
-import json
 
-API_ID = 31328352
-API_HASH = "644e51daa95d310cdff2a25565185eae"
-BOT_TOKEN = "8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM"
-CHAT_ID = 6054558214
+from config import BASE_DIR, get_list_env, get_required_env
+from telegram_client import send_message
 
-CANALES = [
-    -1002006131201,
-    -1001556054753
-]
+API_ID = get_required_env("TELEGRAM_API_ID", cast=int)
+API_HASH = get_required_env("TELEGRAM_API_HASH")
+CANALES = [int(channel_id) for channel_id in get_list_env("TELEGRAM_SOURCE_CHANNEL_IDS")]
 
-client = TelegramClient("/root/x-bot/monitor_session", API_ID, API_HASH)
+client = TelegramClient(str(BASE_DIR / "monitor_session"), API_ID, API_HASH)
+
 
 def enviar_telegram(texto):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = json.dumps({"chat_id": CHAT_ID, "text": texto}).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    urllib.request.urlopen(req)
+    try:
+        send_message(texto)
+    except Exception as exc:
+        print(f"Telegram send failed: {exc}")
+
 
 @client.on(events.NewMessage(chats=CANALES))
 async def handler(event):
-    mensaje = event.message.message
-    if not mensaje or len(mensaje) < 20:
-        return
-    canal = event.chat.username or "canal"
-    texto = f"📡 @{canal}:\n\n{mensaje}\n\n¿Genero un tweet?"
-    enviar_telegram(texto)
-    print(f"Enviada: {mensaje[:80]}")
+    try:
+        mensaje = event.message.message
+        if not mensaje or len(mensaje) < 20:
+            return
+        canal = event.chat.username or "canal"
+        texto = f"\U0001f4e1 @{canal}:\n\n{mensaje}\n\n\u00bfGenero un tweet?"
+        enviar_telegram(texto)
+        print(f"Enviada: {mensaje[:80]}")
+    except Exception as exc:
+        print(f"Monitor handler error: {exc}")
+
 
 async def main():
     await client.connect()
     if not await client.is_user_authorized():
-        print("ERROR: Sesión no válida")
+        print("ERROR: Sesion no valida")
         return
-    print("Monitoreando WatcherGuru y BRICSNews...")
+    print("Monitoreando canales configurados...")
     await client.run_until_disconnected()
+
 
 asyncio.run(main())

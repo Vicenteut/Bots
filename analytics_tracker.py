@@ -1,163 +1,81 @@
 #!/usr/bin/env python3
 """
-X/Twitter Analytics Tracker for @napoleotics
-Fetches tweet metrics and sends daily report to Telegram.
-
-Cron setup (daily at 8PM CST):
-  0 20 * * * cd /root/x-bot && /usr/bin/python3 analytics_tracker.py >> /root/x-bot/logs/analytics.log 2>&1
-
-Requires: pip install python-dotenv
+X/Twitter Analytics Tracker for @napoleotics.
+Fetches tweet metrics and sends a daily Telegram report.
 """
 
 import json
-import os
 import sys
-import urllib.request
-import urllib.parse
 import urllib.error
-import ssl
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
+import urllib.parse
+from datetime import datetime, timedelta, timezone
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-BASE_DIR = "/root/x-bot"
-ENV_PATH = os.path.join(BASE_DIR, ".env")
+from config import get_bool_env, load_environment
+from http_utils import build_ssl_context, request_json
+from telegram_client import send_message
+from x_client import build_x_headers, get_x_cookies, has_required_x_cookies
 
-BOT_TOKEN = "8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM"
-CHAT_ID = "6054558214"
+load_environment()
+
 SCREEN_NAME = "napoleotics"
-
-BEARER = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-
-# Ignore SSL verification issues on some VPS setups
-SSL_CTX = ssl.create_default_context()
-SSL_CTX.check_hostname = False
-SSL_CTX.verify_mode = ssl.CERT_NONE
-
-
-# ---------------------------------------------------------------------------
-# Env loading
-# ---------------------------------------------------------------------------
-def load_env(path):
-    """Load .env file manually (fallback if dotenv unavailable)."""
-    env = {}
-    if not os.path.isfile(path):
-        return env
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, val = line.partition("=")
-            key = key.strip()
-            val = val.strip().strip("'\"")
-            env[key] = val
-    return env
+ALLOW_INSECURE_SSL = get_bool_env("ALLOW_INSECURE_X_SSL", False)
+SSL_CONTEXT = build_ssl_context(verify=not ALLOW_INSECURE_SSL)
 
 
 def get_cookies():
-    """Return X cookie values from environment."""
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(ENV_PATH)
-    except ImportError:
-        env = load_env(ENV_PATH)
-        for k, v in env.items():
-            os.environ.setdefault(k, v)
-
-    auth_token = os.environ.get("X_AUTH_TOKEN", "")
-    ct0 = os.environ.get("X_CT0", "")
-    twid = os.environ.get("X_TWID", "")
-
-    if not auth_token or not ct0:
+    cookies = get_x_cookies()
+    if not has_required_x_cookies(cookies):
         print("[ERROR] X_AUTH_TOKEN and X_CT0 must be set in .env")
         sys.exit(1)
+    return cookies
 
-    return auth_token, ct0, twid
 
-
-# ---------------------------------------------------------------------------
-# HTTP helpers
-# ---------------------------------------------------------------------------
 def make_request(url, headers, timeout=30):
-    """Perform GET request, return parsed JSON or None."""
-    req = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
-            data = resp.read().decode("utf-8")
-            return json.loads(data)
-    except urllib.error.HTTPError as e:
+        return request_json(url, headers=headers, timeout=timeout, ssl_context=SSL_CONTEXT)
+    except urllib.error.HTTPError as exc:
         body = ""
         try:
-            body = e.read().decode("utf-8", errors="replace")[:500]
+            body = exc.read().decode("utf-8", errors="replace")[:500]
         except Exception:
             pass
-        print(f"[HTTP {e.code}] {url[:80]}...\n{body}")
+        print(f"[HTTP {exc.code}] {url[:80]}...\n{body}")
         return None
-    except Exception as e:
-        print(f"[ERROR] Request failed: {e}")
+    except Exception as exc:
+        print(f"[ERROR] Request failed: {exc}")
         return None
 
 
-def build_headers(auth_token, ct0, twid):
-    """Build headers dict for X API requests."""
-    cookie = f"auth_token={auth_token}; ct0={ct0}"
-    if twid:
-        cookie += f"; twid={twid}"
-    return {
-        "Authorization": BEARER,
-        "Cookie": cookie,
-        "X-Csrf-Token": ct0,
-        "User-Agent": USER_AGENT,
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": f"https://x.com/{SCREEN_NAME}",
-    }
+def build_headers(cookies):
+    return build_x_headers(cookies, referer=f"https://x.com/{SCREEN_NAME}")
 
 
-# ---------------------------------------------------------------------------
-# Fetch tweets — primary: v1.1 API
-# ---------------------------------------------------------------------------
 def fetch_tweets_v1(headers, count=20):
-    """Fetch tweets via v1.1 user_timeline endpoint."""
     params = urllib.parse.urlencode({
-        "screen_name": SCREEN_NAME,
-        "count": count,
-        "tweet_mode": "extended",
-        "include_entities": "false",
+        "screen_name": SCREEN_NAME, "count": count,
+        "tweet_mode": "extended", "include_entities": "false",
     })
     url = f"https://api.x.com/1.1/statuses/user_timeline.json?{params}"
     print(f"[v1.1] Fetching tweets from {SCREEN_NAME}...")
     data = make_request(url, headers)
     if not data or not isinstance(data, list):
         return None
-
     tweets = []
-    for t in data:
-        text = t.get("full_text", t.get("text", ""))
-        # Skip RTs unless own
-        if text.startswith("RT @") and not t.get("retweeted_status"):
+    for tweet in data:
+        text = tweet.get("full_text", tweet.get("text", ""))
+        if text.startswith("RT @") and not tweet.get("retweeted_status"):
             continue
         tweets.append({
-            "id": t.get("id_str", ""),
-            "text": text,
-            "likes": t.get("favorite_count", 0),
-            "retweets": t.get("retweet_count", 0),
-            "replies": t.get("reply_count", 0),
-            "views": 0,  # v1.1 doesn't always return views
-            "created": t.get("created_at", ""),
+            "id": tweet.get("id_str", ""), "text": text,
+            "likes": tweet.get("favorite_count", 0),
+            "retweets": tweet.get("retweet_count", 0),
+            "replies": tweet.get("reply_count", 0),
+            "views": 0, "created": tweet.get("created_at", ""),
         })
     return tweets
 
 
-# ---------------------------------------------------------------------------
-# Fetch tweets — fallback: GraphQL UserTweets
-# ---------------------------------------------------------------------------
 def fetch_user_id(headers):
-    """Resolve screen_name to numeric user ID via v1.1 show endpoint."""
     url = f"https://api.x.com/1.1/users/show.json?screen_name={SCREEN_NAME}"
     data = make_request(url, headers)
     if data and "id_str" in data:
@@ -165,20 +83,31 @@ def fetch_user_id(headers):
     return None
 
 
+def _extract_graphql_tweet(item):
+    result = item.get("tweet_results", {}).get("result", {})
+    legacy = result.get("legacy", {})
+    if not legacy:
+        return None
+    text = legacy.get("full_text", legacy.get("text", ""))
+    return {
+        "id": result.get("rest_id", ""), "text": text,
+        "likes": legacy.get("favorite_count", 0),
+        "retweets": legacy.get("retweet_count", 0),
+        "replies": legacy.get("reply_count", 0),
+        "views": result.get("views", {}).get("count", 0),
+        "created": legacy.get("created_at", ""),
+    }
+
+
 def fetch_tweets_graphql(headers):
-    """Fetch tweets via GraphQL UserTweets endpoint."""
     user_id = fetch_user_id(headers)
     if not user_id:
         print("[GraphQL] Could not resolve user ID")
         return None
-
     variables = json.dumps({
-        "userId": user_id,
-        "count": 20,
-        "includePromotedContent": False,
+        "userId": user_id, "count": 20, "includePromotedContent": False,
         "withQuickPromoteEligibilityTweetFields": False,
-        "withVoice": False,
-        "withV2Timeline": True,
+        "withVoice": False, "withV2Timeline": True,
     })
     features = json.dumps({
         "profile_label_improvements_pcf_label_in_post_enabled": False,
@@ -208,222 +137,106 @@ def fetch_tweets_graphql(headers):
         "longform_notetweets_inline_media_enabled": True,
         "responsive_web_enhance_cards_enabled": False,
     })
-
-    params = urllib.parse.urlencode({
-        "variables": variables,
-        "features": features,
-    })
+    params = urllib.parse.urlencode({"variables": variables, "features": features})
     url = f"https://api.x.com/graphql/V7H0Ap3_Hh2FyS75OCDO3Q/UserTweets?{params}"
     print(f"[GraphQL] Fetching tweets for user {user_id}...")
-
     gql_headers = dict(headers)
     gql_headers["Content-Type"] = "application/json"
-
     data = make_request(url, gql_headers)
     if not data:
         return None
-
     tweets = []
     try:
         instructions = (
-            data.get("data", {})
-            .get("user", {})
-            .get("result", {})
-            .get("timeline_v2", {})
-            .get("timeline", {})
-            .get("instructions", [])
+            data.get("data", {}).get("user", {}).get("result", {})
+            .get("timeline_v2", {}).get("timeline", {}).get("instructions", [])
         )
         entries = []
         for instr in instructions:
             if instr.get("type") == "TimelineAddEntries":
                 entries = instr.get("entries", [])
                 break
-
         for entry in entries:
             content = entry.get("content", {})
             item = content.get("itemContent", {})
             if not item:
-                # Could be a module with items
-                items = content.get("items", [])
-                for sub in items:
-                    item = sub.get("item", {}).get("itemContent", {})
-                    tweet = _extract_graphql_tweet(item)
+                for sub in content.get("items", []):
+                    nested_item = sub.get("item", {}).get("itemContent", {})
+                    tweet = _extract_graphql_tweet(nested_item)
                     if tweet:
                         tweets.append(tweet)
                 continue
             tweet = _extract_graphql_tweet(item)
             if tweet:
                 tweets.append(tweet)
-    except Exception as e:
-        print(f"[GraphQL] Parse error: {e}")
+    except Exception as exc:
+        print(f"[GraphQL] Parse error: {exc}")
         return None
+    return tweets or None
 
-    return tweets if tweets else None
+
+def get_recent_tweets(headers):
+    tweets = fetch_tweets_v1(headers)
+    if tweets:
+        return tweets
+    print("[Fallback] v1.1 failed, trying GraphQL...")
+    return fetch_tweets_graphql(headers)
 
 
-def _extract_graphql_tweet(item):
-    """Extract tweet data from a GraphQL timeline item."""
-    if item.get("tweet_display_type") not in ("Tweet", None):
+def _parse_twitter_datetime(value):
+    if not value:
         return None
-    result = item.get("tweet_results", {}).get("result", {})
-    if not result:
-        return None
-    # Handle TweetWithVisibilityResults wrapper
-    if result.get("__typename") == "TweetWithVisibilityResults":
-        result = result.get("tweet", {})
-
-    legacy = result.get("legacy", {})
-    if not legacy:
-        return None
-
-    text = legacy.get("full_text", "")
-    if text.startswith("RT @"):
-        return None
-
-    views_info = result.get("views", {})
-    views = int(views_info.get("count", 0)) if views_info.get("count") else 0
-
-    return {
-        "id": legacy.get("id_str", result.get("rest_id", "")),
-        "text": text,
-        "likes": legacy.get("favorite_count", 0),
-        "retweets": legacy.get("retweet_count", 0),
-        "replies": legacy.get("reply_count", 0),
-        "views": views,
-        "created": legacy.get("created_at", ""),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Telegram
-# ---------------------------------------------------------------------------
-def send_telegram(message):
-    """Send message to Telegram via Bot API."""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = json.dumps({
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15, context=SSL_CTX) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            if result.get("ok"):
-                print("[Telegram] Report sent successfully")
-            else:
-                print(f"[Telegram] API error: {result}")
-    except Exception as e:
-        print(f"[Telegram] Failed to send: {e}")
+        return datetime.strptime(value, "%a %b %d %H:%M:%S %z %Y")
+    except Exception:
+        return None
 
 
-# ---------------------------------------------------------------------------
-# Report
-# ---------------------------------------------------------------------------
+def filter_last_24h(tweets):
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent = []
+    for tweet in tweets or []:
+        created = _parse_twitter_datetime(tweet.get("created", ""))
+        if created and created >= cutoff:
+            recent.append(tweet)
+    return recent
+
+
 def build_report(tweets):
-    """Build the formatted daily report string."""
-    cst = timezone(timedelta(hours=-6))
-    now = datetime.now(cst)
-    date_str = now.strftime("%Y-%m-%d %H:%M CST")
-
-    lines = []
-    lines.append(f"\U0001F4CA <b>REPORTE DIARIO — @{SCREEN_NAME}</b>")
-    lines.append(f"Fecha: {date_str}")
-    lines.append("")
-
     if not tweets:
-        lines.append("No se encontraron tweets recientes.")
-        return "\n".join(lines)
-
-    total_likes = 0
-    total_rts = 0
-    total_views = 0
-    best_tweet = None
-    best_likes = -1
-
-    for i, t in enumerate(tweets[:15], 1):
-        short = t["text"][:50].replace("\n", " ").strip()
-        if len(t["text"]) > 50:
-            short += "..."
-        likes = t["likes"]
-        rts = t["retweets"]
-        views = t["views"]
-        replies = t["replies"]
-
-        total_likes += likes
-        total_rts += rts
-        total_views += views
-
-        if likes > best_likes:
-            best_likes = likes
-            best_tweet = t
-
-        view_str = f"  \U0001F441 {views:,}" if views else ""
-        lines.append(f"<b>Tweet {i}:</b> \"{short}\"")
-        lines.append(
-            f"\u2764\ufe0f {likes:,}  \U0001F501 {rts:,}{view_str}  \U0001F4AC {replies:,}"
-        )
-        lines.append("")
-
-    count = min(len(tweets), 15)
-    avg_likes = total_likes / count if count else 0
-
-    lines.append(f"\U0001F4C8 <b>RESUMEN:</b>")
-    lines.append(f"Total tweets: {count}")
-    if best_tweet:
-        best_short = best_tweet["text"][:40].replace("\n", " ").strip()
-        if len(best_tweet["text"]) > 40:
-            best_short += "..."
-        lines.append(f"Mejor tweet: \"{best_short}\" ({best_likes:,} likes)")
-    lines.append(f"Promedio likes: {avg_likes:.1f}")
-    if total_views:
-        lines.append(f"Total views: {total_views:,}")
-
+        return "No se encontraron tweets recientes en las ultimas 24h."
+    total_likes = sum(int(tweet.get("likes", 0) or 0) for tweet in tweets)
+    total_retweets = sum(int(tweet.get("retweets", 0) or 0) for tweet in tweets)
+    total_replies = sum(int(tweet.get("replies", 0) or 0) for tweet in tweets)
+    total_views = sum(int(tweet.get("views", 0) or 0) for tweet in tweets)
+    best = max(tweets, key=lambda t: (int(t.get("views", 0) or 0), int(t.get("likes", 0) or 0)))
+    lines = [
+        "<b>Reporte X (24h)</b>", "",
+        f"Tweets analizados: <b>{len(tweets)}</b>",
+        f"Likes: <b>{total_likes}</b>",
+        f"Retweets: <b>{total_retweets}</b>",
+        f"Replies: <b>{total_replies}</b>",
+        f"Views: <b>{total_views}</b>", "",
+        "<b>Mejor tweet</b>",
+        best.get("text", "")[:220], "",
+        f"Likes: {best.get('likes', 0)} | RTs: {best.get('retweets', 0)} | "
+        f"Replies: {best.get('replies', 0)} | Views: {best.get('views', 0)}",
+    ]
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
-    print(f"=== Analytics Tracker — {datetime.utcnow().isoformat()}Z ===")
-
-    auth_token, ct0, twid = get_cookies()
-    headers = build_headers(auth_token, ct0, twid)
-
-    # Try v1.1 first, then GraphQL fallback
-    tweets = fetch_tweets_v1(headers)
-
-    if not tweets:
-        print("[v1.1] Failed or empty, trying GraphQL fallback...")
-        tweets = fetch_tweets_graphql(headers)
-
-    if not tweets:
-        print("[WARN] No tweets retrieved from any source")
-        error_msg = (
-            f"\u26A0\ufe0f <b>Analytics Tracker</b>\n"
-            f"No se pudieron obtener tweets de @{SCREEN_NAME}.\n"
-            f"Verificar cookies en .env (pueden estar expiradas)."
-        )
-        send_telegram(error_msg)
-        sys.exit(1)
-
-    print(f"[OK] Retrieved {len(tweets)} tweets")
-    report = build_report(tweets)
-
-    # Print to stdout for CLI review
-    print("\n" + report.replace("<b>", "").replace("</b>", "") + "\n")
-
-    # Send to Telegram
-    send_telegram(report)
-    print("=== Done ===")
-
+    headers = build_headers(get_cookies())
+    tweets = get_recent_tweets(headers)
+    recent_tweets = filter_last_24h(tweets or [])
+    report = build_report(recent_tweets)
+    print(report.replace("<b>", "").replace("</b>", ""))
+    try:
+        send_message(report, parse_mode="HTML")
+    except Exception as exc:
+        print(f"[ERROR] Failed to send Telegram report: {exc}")
+        return 1
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
