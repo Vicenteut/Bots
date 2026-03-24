@@ -145,7 +145,7 @@ def main():
     try:
         send_message(tg_msg)
     except Exception:
-        pass
+        print("[WARN] Telegram notification failed")
 
     sys.exit(0 if (x_ok and threads_ok) else 1)
 

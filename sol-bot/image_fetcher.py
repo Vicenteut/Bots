@@ -69,7 +69,7 @@ def fetch_image(headline_text, output_name='tweet_image.jpg'):
     if dl:
         try:
             urllib.request.urlopen(urllib.request.Request(dl, headers={'Authorization': 'Client-ID ' + UNSPLASH_KEY}), timeout=5)
-        except: pass
+        except Exception as e: print(f"[WARN] Unsplash tracking failed: {e}")
     print(f'Image: {output_path} ({os.path.getsize(output_path)} bytes) by {photographer}')
     return output_path
 
