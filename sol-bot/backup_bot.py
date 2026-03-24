@@ -24,8 +24,12 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Config ---
-BOT_TOKEN = "8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM"
-CHAT_ID = 6054558214
+# Load .env
+from dotenv import load_dotenv
+load_dotenv("/root/x-bot/.env")
+
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 BACKUP_DIR = "/root/x-bot/backups"
 MAX_BACKUPS = 7
 BOT_ROOT = "/root/x-bot"

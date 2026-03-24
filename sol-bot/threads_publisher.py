@@ -25,8 +25,7 @@ import urllib.error
 ENV_PATH = "/root/x-bot/.env"
 BASE_URL = "https://graph.threads.net/v1.0"
 
-TG_BOT_TOKEN = "8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM"
-TG_CHAT_ID = "6054558214"
+# TG tokens loaded after load_env() below
 
 
 def load_env(path):
@@ -46,6 +45,9 @@ def load_env(path):
 
 
 load_env(ENV_PATH)
+
+TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TG_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 # ---------------------------------------------------------------------------
 # Flag emoji replacement (Threads doesn't render flag emojis)
 # ---------------------------------------------------------------------------
