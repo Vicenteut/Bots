@@ -22,6 +22,10 @@ INTENT_VIEW_FOLDER = "view_folder"
 INTENT_SEARCH_FOLDER = "search_folder"
 INTENT_LIST_FOLDERS = "list_folders"
 INTENT_DELETE_FOLDER = "delete_folder"
+INTENT_SOL_STATUS = "sol_status"
+INTENT_SOL_PUBLISH = "sol_publish"
+INTENT_SOL_ANALYTICS = "sol_analytics"
+INTENT_SOL_RUN = "sol_run"
 INTENT_UNKNOWN = "unknown"
 
 # Day mappings (Spanish)
@@ -256,6 +260,28 @@ def parse_intent(text):
         result["intent"] = INTENT_ADD_TASK
         result["entities"]["title"] = body
         result["entities"]["date"] = parse_date(body)
+        return result
+
+    # Sol: publish draft — "publica 1", "publica 2", "publicar 1"
+    m = re.match(r"(?:publica(?:r)?)\s+(\d+)$", t)
+    if m:
+        result["intent"] = INTENT_SOL_PUBLISH
+        result["entities"]["index"] = int(m.group(1))
+        return result
+
+    # Sol: analytics — "analytics sol", "reporte sol", "sol analytics", "sol reporte"
+    if re.match(r"(analytics sol|reporte sol|sol analytics|sol reporte|analytics de sol)", t):
+        result["intent"] = INTENT_SOL_ANALYTICS
+        return result
+
+    # Sol: run scheduler — "sol run", "ejecutar sol", "correr sol", "generar sol", "sol generar"
+    if re.match(r"(sol run|ejecutar sol|correr sol|generar sol|sol generar|sol scheduler|sol noticias)", t):
+        result["intent"] = INTENT_SOL_RUN
+        return result
+
+    # Sol: status — "sol", "estado sol", "sol status", "ver sol"
+    if re.match(r"(sol|estado sol|sol status|ver sol|sol estado)$", t):
+        result["intent"] = INTENT_SOL_STATUS
         return result
 
     # Fallback: if it looks like an instruction, treat as unknown (send to AI)

@@ -9,6 +9,7 @@ from intent_parser import (
     INTENT_TODAY, INTENT_STATS, INTENT_HELP, INTENT_DELETE_TASK,
     INTENT_CREATE_FOLDER, INTENT_ADD_TO_FOLDER, INTENT_VIEW_FOLDER,
     INTENT_SEARCH_FOLDER, INTENT_LIST_FOLDERS, INTENT_DELETE_FOLDER,
+    INTENT_SOL_STATUS, INTENT_SOL_PUBLISH, INTENT_SOL_ANALYTICS, INTENT_SOL_RUN,
     INTENT_UNKNOWN
 )
 from task_manager import (
@@ -255,6 +256,23 @@ async def handle_message(telegram_id, user_name, text):
         delete_folder(user_id, fname)
         response = f"Carpeta '{fname}' eliminada."
 
+    elif intent == INTENT_SOL_STATUS:
+        from sol_bridge import get_status
+        response = get_status()
+
+    elif intent == INTENT_SOL_PUBLISH:
+        from sol_bridge import publish_draft
+        index = entities.get("index", 1)
+        response = publish_draft(index)
+
+    elif intent == INTENT_SOL_ANALYTICS:
+        from sol_bridge import run_analytics
+        response = run_analytics()
+
+    elif intent == INTENT_SOL_RUN:
+        from sol_bridge import run_scheduler
+        response = run_scheduler()
+
     elif intent == INTENT_UNKNOWN:
         # AI fallback
         history = get_conversation_history(user_id)
@@ -384,5 +402,11 @@ Calendario:
 Resumen:
   - "que tengo hoy" — briefing del dia
   - "stats" — estadisticas
+
+Sol (bot de noticias):
+  - "sol" — ver estado y borradores pendientes
+  - "sol run" — generar nuevos borradores de tweets
+  - "publica 1" — publicar borrador 1 en X y Threads
+  - "analytics sol" — reporte de metricas de @napoleotics
 
 Tambien puedes escribirme de forma natural y hare lo mejor para entenderte."""
