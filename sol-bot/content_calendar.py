@@ -1,200 +1,177 @@
 #!/usr/bin/env python3
 """
-Content Calendar for @napoleotics X/Twitter bot.
-Generates daily content based on tweet type schedule.
-Can be imported by scheduler.py or run standalone.
+content_calendar.py — Reactive content calendar for Sol Bot.
+Implements weighted day-based type selection + breaking news override.
+FIXED: Now passes SYSTEM_PROMPT to all Claude API calls.
 """
 
 import random
+import logging
 from datetime import datetime
 
 from config import load_environment, get_env, get_required_env
 from telegram_client import send_message
+from generator import SYSTEM_PROMPT, get_model, _detect_topic, _get_client, _call_api
+from memory import get_memory
 
 load_environment()
 
-get_required_env("TELEGRAM_BOT_TOKEN")
-get_required_env("TELEGRAM_CHAT_ID")
-ANTHROPIC_KEY = get_env("ANTHROPIC_API_KEY")
-MODEL = "claude-haiku-4-5-20251001"
+logger = logging.getLogger(__name__)
 
-SCHEDULE = {
-    0: {
-        "tipo": "ANALISIS", "emoji": "\U0001f52c",
-        "description": "Analisis profundo",
-        "prompt": (
-            "Analiza esta noticia en profundidad. Genera un hilo de 3-5 tweets "
-            "en espanol. Cada tweet max 280 chars. Separar con ---. Incluir datos "
-            "concretos, causa-efecto, y que significa para inversores."
-        ),
-        "headlines_needed": 1, "is_thread": True,
-    },
-    1: {
-        "tipo": "DEBATE", "emoji": "\U0001f525",
-        "description": "Take controversial",
-        "prompt": (
-            "Genera un tweet controversial pero fundamentado sobre esta noticia. "
-            "Debe provocar respuestas. Max 280 chars. En espanol. Una opinion "
-            "fuerte con un dato que la respalde."
-        ),
-        "headlines_needed": 1, "is_thread": False,
-    },
-    2: {
-        "tipo": "HILO EDUCATIVO", "emoji": "\U0001f4da",
-        "description": "Hilo educativo",
-        "prompt": (
-            "Explica el concepto detras de esta noticia como si fuera un "
-            "mini-curso. 5-7 tweets, separados con ---. Cada uno max 280 chars. "
-            "En espanol. Usa analogias simples."
-        ),
-        "headlines_needed": 1, "is_thread": True,
-    },
-    3: {
-        "tipo": "CONEXION", "emoji": "\U0001f517",
-        "description": "Conexion inesperada",
-        "prompt": (
-            "Conecta estas dos noticias aparentemente no relacionadas. Un tweet, "
-            "max 280 chars. En espanol. El formato es: dato1 + dato2 = "
-            "conclusion sorprendente."
-        ),
-        "headlines_needed": 2, "is_thread": False,
-    },
-    4: {
-        "tipo": "PREDICCION", "emoji": "\U0001f52e",
-        "description": "Prediccion semanal",
-        "prompt": (
-            "Basandote en esta noticia, haz una prediccion fundamentada para la "
-            "proxima semana. Un tweet, max 280 chars. En espanol. Se especifico "
-            "con numeros o fechas."
-        ),
-        "headlines_needed": 1, "is_thread": False,
-    },
-    5: {
-        "tipo": "RESUMEN SEMANAL", "emoji": "\U0001f4cb",
-        "description": "Resumen de la semana",
-        "prompt": (
-            "Resume las noticias mas importantes de esta semana en 5 tweets. "
-            "Separar con ---. Cada uno max 280 chars. En espanol. Tweet 1 = "
-            "intro, tweets 2-4 = top stories, tweet 5 = que esperar."
-        ),
-        "headlines_needed": 5, "is_thread": True,
-    },
-    6: {
-        "tipo": "DESCANSO", "emoji": "\U0001f634",
-        "description": "Descanso / solo si hay noticia grande",
-        "prompt": (
-            "Solo si esta noticia es REALMENTE importante (crisis, crash, guerra, "
-            "evento historico), genera un tweet breve en espanol. Max 280 chars. "
-            "Si no es tan importante, responde exactamente: SKIP"
-        ),
-        "headlines_needed": 1, "is_thread": False,
-    },
+ANTHROPIC_KEY = get_env("ANTHROPIC_API_KEY")
+DAY_NAMES_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+# ------------------------------------------------------------------
+# Reactive day weights — probability per tweet type per day
+# ------------------------------------------------------------------
+
+DAY_WEIGHTS = {
+    0: {"ANALISIS": 0.60, "DEBATE": 0.20, "CONEXION": 0.15, "WIRE": 0.05},  # Mon
+    1: {"WIRE": 0.30, "DEBATE": 0.35, "ANALISIS": 0.25, "CONEXION": 0.10},  # Tue
+    2: {"ANALISIS": 0.40, "CONEXION": 0.35, "DEBATE": 0.15, "WIRE": 0.10},  # Wed
+    3: {"DEBATE": 0.40, "ANALISIS": 0.35, "CONEXION": 0.15, "WIRE": 0.10},  # Thu
+    4: {"CONEXION": 0.45, "ANALISIS": 0.30, "DEBATE": 0.15, "WIRE": 0.10},  # Fri
+    5: {"ANALISIS": 0.50, "CONEXION": 0.30, "DEBATE": 0.20, "WIRE": 0.00},  # Sat
+    6: {"ANALISIS": 0.55, "CONEXION": 0.30, "DEBATE": 0.15, "WIRE": 0.00},  # Sun
 }
 
-DAY_NAMES_ES = [
-    "Lunes", "Martes", "Miercoles", "Jueves",
-    "Viernes", "Sabado", "Domingo",
+BREAKING_KEYWORDS = [
+    "just in", "breaking", "urgent", "alerta", "ultima hora", "última hora",
+    "confirma", "colapsa", "renuncia", "acuerdo", "ataque", "explosion",
+    "explosión", "crisis", "emergencia", "intervención", "intervencion",
 ]
 
-
-def fetch_headlines(count=5):
-    try:
-        from fetcher import get_latest_headlines
-        headlines = get_latest_headlines()
-        if headlines and len(headlines) > 0:
-            return headlines[:count]
-    except ImportError:
-        print("[calendar] Warning: fetcher module not found")
-    except Exception as e:
-        print(f"[calendar] Error fetching headlines: {e}")
-    return []
+# Thread-type schedule (which days produce threads vs single tweets)
+THREAD_DAYS = {0, 2, 5}  # Mon, Wed, Sat
 
 
-def _format_news_block(headline, *, label):
-    if isinstance(headline, dict):
-        title = headline.get("title", "").strip()
-        summary = headline.get("summary", "").strip()
-        source = headline.get("source", "").strip()
-        parts = [f"{label}:"]
-        if title:
-            parts.append(f"Titulo: {title}")
-        if summary:
-            parts.append(f"Resumen: {summary[:500]}")
-        if source:
-            parts.append(f"Fuente: {source}")
-        return "\n".join(parts)
-    return f"{label}: {str(headline).strip()}"
+# ------------------------------------------------------------------
+# Type selection
+# ------------------------------------------------------------------
+
+def is_breaking(headline: dict) -> bool:
+    text = (headline.get("title", "") + " " + headline.get("summary", "")).lower()
+    return any(kw in text for kw in BREAKING_KEYWORDS)
 
 
-def generate_content(schedule_entry, headlines):
-    import anthropic
+def get_tweet_type(headline: dict) -> str:
+    """Select tweet type reactively: breaking → WIRE, else weighted by day."""
+    if is_breaking(headline):
+        logger.info("[calendar] Breaking news detected → forcing WIRE")
+        return "WIRE"
+    day = datetime.now().weekday()
+    weights = DAY_WEIGHTS[day]
+    # Filter zero-weight types
+    valid = {k: v for k, v in weights.items() if v > 0}
+    return random.choices(list(valid.keys()), weights=list(valid.values()))[0]
 
+
+# ------------------------------------------------------------------
+# Prompt builders per type — all use SYSTEM_PROMPT
+# ------------------------------------------------------------------
+
+def _build_prompt(tipo: str, headlines: list[dict]) -> tuple[str, bool]:
+    """
+    Build (user_prompt, is_thread) for a given tweet type.
+    Returns the prompt and whether to parse as thread.
+    """
+    def fmt(h, label="Noticia"):
+        title = h.get("title", "").strip()
+        summary = h.get("summary", "")[:500].strip()
+        source = h.get("source", "").strip()
+        return f"{label}:\nTítulo: {title}\nResumen: {summary}\nFuente: {source}"
+
+    if tipo == "WIRE":
+        h = headlines[0]
+        return (
+            f"{fmt(h)}\n\nTipo: WIRE\n"
+            "Genera un post urgente y factual. Dato + impacto. Máx 2 líneas. "
+            "Sin hashtags. Solo el texto final.",
+            False,
+        )
+
+    elif tipo == "DEBATE":
+        h = headlines[0]
+        return (
+            f"{fmt(h)}\n\nTipo: DEBATE\n"
+            "Take provocador con sustancia. Di algo que obligue a responder. "
+            "3 líneas. Sin hashtags. Solo el texto final.",
+            False,
+        )
+
+    elif tipo == "ANALISIS":
+        day = datetime.now().weekday()
+        is_thread = day in THREAD_DAYS
+        h = random.choice(headlines[:3])
+        thread_note = (
+            "Genera un HILO de 4-5 tweets separados por ---. "
+            "Tweet 1: hook. Tweets 2-4: datos/ángulos. Tweet 5: resumen + 🔁"
+            if is_thread else
+            "Genera UN tweet de análisis. 3-5 líneas. Conecta puntos que otros no ven."
+        )
+        return (f"{fmt(h)}\n\nTipo: ANALISIS\n{thread_note}\nSin hashtags. Solo el texto.", is_thread)
+
+    elif tipo == "CONEXION":
+        selected = random.sample(headlines[:min(len(headlines), 5)], min(2, len(headlines)))
+        news_block = "\n\n".join(fmt(h, label=f"Noticia {i+1}") for i, h in enumerate(selected))
+        return (
+            f"{news_block}\n\nTipo: CONEXION\n"
+            "Conecta estas dos noticias como un detective. "
+            "Mezcla asombro con preocupación. 3-4 líneas. Sin hashtags. Solo el texto.",
+            False,
+        )
+
+    # Fallback
+    h = headlines[0]
+    return (f"{fmt(h)}\n\nGenera un tweet analítico. Solo el texto.", False)
+
+
+# ------------------------------------------------------------------
+# Content generation — FIXED: always passes system=SYSTEM_PROMPT
+# ------------------------------------------------------------------
+
+def generate_content(tipo: str, headlines: list[dict]) -> str:
+    """Generate content using Claude API with full SYSTEM_PROMPT."""
     if not ANTHROPIC_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set in .env")
-
-    tipo = schedule_entry["tipo"]
-    prompt_template = schedule_entry["prompt"]
-    needed = schedule_entry["headlines_needed"]
-
+        raise ValueError("ANTHROPIC_API_KEY not set")
     if not headlines:
-        raise ValueError("No headlines available to generate content")
+        raise ValueError("No headlines available")
 
-    if tipo == "CONEXION" and len(headlines) >= 2:
-        selected = random.sample(headlines[:min(len(headlines), 5)], 2)
-        news_block = "\n\n".join(
-            _format_news_block(item, label=f"Noticia {index}")
-            for index, item in enumerate(selected, 1)
-        )
-    elif tipo == "RESUMEN SEMANAL":
-        selected = headlines[:min(len(headlines), needed)]
-        news_block = "\n".join(
-            _format_news_block(h, label=f"Noticia {i + 1}")
-            for i, h in enumerate(selected)
-        )
-    else:
-        selected = [random.choice(headlines[:min(len(headlines), 3)])]
-        news_block = _format_news_block(selected[0], label="Noticia")
+    prompt, _ = _build_prompt(tipo, headlines)
+    model = get_model(tipo)
 
-    user_prompt = f"{prompt_template}\n\n{news_block}"
+    # Inject memory continuity
+    memory = get_memory()
+    continuity = memory.build_continuity_prompt()
+    system = SYSTEM_PROMPT + ("\n\n" + continuity if continuity else "")
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    raw = message.content[0].text.strip()
-    return raw
+    client, is_or = _get_client()
+    return _call_api(client, model, system, prompt, 900, is_or)
 
 
-def parse_content(raw_text, is_thread):
+def parse_content(raw: str, is_thread: bool) -> list[str]:
     if not is_thread:
-        tweet = raw_text.replace("---", "").strip()
-        if not tweet:
-            return [""]
-        normalized = "\n\n".join(
-            line.strip()
-            for line in tweet.splitlines()
-            if line.strip()
-        )
-        return [normalized[:280]]
+        tweet = raw.replace("---", "").strip()
+        return [tweet[:280]] if tweet else [""]
 
-    parts = [p.strip() for p in raw_text.split("---") if p.strip()]
+    parts = [p.strip() for p in raw.split("---") if p.strip()]
     tweets = []
     for part in parts:
         clean = part.strip()
-        for prefix in ["1/", "2/", "3/", "4/", "5/", "6/", "7/"]:
+        # Strip leading "1/" "2/" markers if present
+        for prefix in [f"{n}/" for n in range(1, 10)]:
             if clean.startswith(prefix):
                 clean = clean[len(prefix):].strip()
                 break
         tweets.append(clean[:280])
-    return tweets if tweets else [raw_text[:280]]
+    return tweets if tweets else [raw[:280]]
 
 
-def send_to_telegram(tweet_type, day_name, content_list):
-    emoji = SCHEDULE[list(DAY_NAMES_ES).index(day_name)]["emoji"] if day_name in DAY_NAMES_ES else "\U0001f4c5"
+# ------------------------------------------------------------------
+# Telegram delivery
+# ------------------------------------------------------------------
 
+def send_to_telegram(tipo: str, day_name: str, content_list: list[str]) -> bool:
     if len(content_list) == 1:
         content_block = content_list[0]
     else:
@@ -203,56 +180,75 @@ def send_to_telegram(tweet_type, day_name, content_list):
         )
 
     text = (
-        f"\U0001f4c5 CALENDARIO — {day_name}\n"
-        f"Tipo: {emoji} {tweet_type}\n\n"
+        f"📅 CALENDARIO — {day_name}\n"
+        f"Tipo: {tipo}\n\n"
         f"{content_block}\n\n"
         f'Responde "publica" para publicar.'
     )
 
     try:
-        if send_message(text, parse_mode="HTML"):
-            print(f"[calendar] Sent to Telegram: {tweet_type}")
-            return True
-        print("[calendar] Telegram API returned unsuccessful response")
-        return False
+        send_message(text)
+        logger.info(f"[calendar] Sent to Telegram: {tipo}")
+        return True
     except Exception as e:
-        print(f"[calendar] Failed to send to Telegram: {e}")
+        logger.error(f"[calendar] Telegram send failed: {e}")
         return False
 
 
-def get_daily_content(headlines=None):
+# ------------------------------------------------------------------
+# Fetch helpers
+# ------------------------------------------------------------------
+
+def fetch_headlines(count: int = 5) -> list[dict]:
+    try:
+        from fetcher import get_latest_headlines
+        headlines = get_latest_headlines()
+        return headlines[:count] if headlines else []
+    except Exception as e:
+        logger.error(f"[calendar] fetch error: {e}")
+        return []
+
+
+# ------------------------------------------------------------------
+# Main entry
+# ------------------------------------------------------------------
+
+def get_daily_content(headlines: list[dict] = None) -> tuple[str, list[str]]:
     today = datetime.now().weekday()
     day_name = DAY_NAMES_ES[today]
-    entry = SCHEDULE[today]
-    tipo = entry["tipo"]
-
-    print(f"[calendar] {day_name} -> {tipo}")
 
     if headlines is None:
-        headlines = fetch_headlines(count=max(entry["headlines_needed"], 5))
+        headlines = fetch_headlines(count=5)
 
     if not headlines:
-        print("[calendar] No headlines available, skipping")
-        return (tipo, [])
+        logger.warning("[calendar] No headlines, skipping")
+        return ("", [])
 
-    raw = generate_content(entry, headlines)
+    # Pick the dominant headline to drive type selection
+    tipo = get_tweet_type(headlines[0])
+    logger.info(f"[calendar] {day_name} → {tipo}")
 
-    if tipo == "DESCANSO" and "SKIP" in raw.upper():
-        print("[calendar] Sunday: no major news, skipping")
-        return (tipo, [])
+    _, is_thread = _build_prompt(tipo, headlines)
+    raw = generate_content(tipo, headlines)
 
-    content_list = parse_content(raw, entry["is_thread"])
+    content_list = parse_content(raw, is_thread)
+
+    # Save to memory
+    memory = get_memory()
+    topic = _detect_topic(headlines[0])
+    for tweet in content_list[:1]:  # only save first tweet of thread
+        memory.add_tweet(tweet, tipo, topic, "x")
+
     return (tipo, content_list)
 
 
 def run():
     today = datetime.now().weekday()
     day_name = DAY_NAMES_ES[today]
-
     tipo, content_list = get_daily_content()
 
     if not content_list:
-        print("[calendar] Nothing to publish today")
+        logger.info("[calendar] Nothing to publish today")
         return
 
     send_to_telegram(tipo, day_name, content_list)
