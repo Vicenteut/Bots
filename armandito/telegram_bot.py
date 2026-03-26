@@ -16,6 +16,80 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Sticky folder timeout in seconds
+STICKY_FOLDER_TIMEOUT = 60
+
+
+def extract_folder_from_caption(caption):
+    """Extract folder name from natural language caption.
+
+    Handles patterns like:
+      - "guardar en Invoice"
+      - "en carpeta Invoice"
+      - "carpeta: Invoice"
+      - "armandito guarda estos en Invoice"
+      - "quiero que guardes esto en Invoice"
+      - Single word: used as folder name
+    Returns (folder_name, description) or (None, caption)
+    """
+    import re
+    if not caption:
+        return None, ""
+
+    t = caption.strip()
+
+    # Pattern 1: explicit "carpeta: X" or "carpeta X"
+    m = re.search(r"carpeta\s*:?\s+(.+?)(?:\s*$)", t, re.IGNORECASE)
+    if m:
+        return m.group(1).strip(), ""
+
+    # Pattern 2: "guardar/guarda/guardes ... en X" or "en carpeta X"
+    m = re.search(r"(?:guardar?|guardes?|salvar?|almacenar?|meter?)\s+.*?\ben\s+(.+?)(?:\s*$)", t, re.IGNORECASE)
+    if m:
+        folder = m.group(1).strip()
+        # Remove leading "carpeta" / "la carpeta"
+        folder = re.sub(r"^(?:la\s+)?carpeta\s+", "", folder, flags=re.IGNORECASE)
+        return folder, ""
+
+    # Pattern 3: "en carpeta X" or "en X" at the end
+    m = re.search(r"\ben\s+(?:la\s+)?(?:carpeta\s+)?(\S+)\s*$", t, re.IGNORECASE)
+    if m:
+        return m.group(1).strip(), ""
+
+    # Pattern 4: "guardar en X: description"
+    m = re.match(r"(?:carpeta|guardar en|en)\s*:?\s*(.+?)(?:\s*:\s*(.*))?$", t, re.IGNORECASE)
+    if m:
+        folder = m.group(1).strip()
+        desc = (m.group(2) or "").strip()
+        return folder, desc
+
+    # Fallback: single word = folder name
+    words = t.split()
+    if len(words) == 1:
+        return words[0], ""
+
+    return None, t
+
+
+def get_sticky_folder(context, user_id):
+    """Get the sticky folder if still valid (within timeout)."""
+    import time
+    key = f"sticky_folder_{user_id}"
+    ts_key = f"sticky_folder_ts_{user_id}"
+    if key in context.bot_data and ts_key in context.bot_data:
+        elapsed = time.time() - context.bot_data[ts_key]
+        if elapsed < STICKY_FOLDER_TIMEOUT:
+            return context.bot_data[key]
+    return None
+
+
+def set_sticky_folder(context, user_id, folder_name):
+    """Set the sticky folder for subsequent files."""
+    import time
+    context.bot_data[f"sticky_folder_{user_id}"] = folder_name
+    context.bot_data[f"sticky_folder_ts_{user_id}"] = time.time()
+
+
 BOT_TOKEN = os.getenv("ARMANDITO_BOT_TOKEN", "")
 OWNER_TELEGRAM_ID = int(os.getenv("ARMANDITO_OWNER_ID", "0"))
 
@@ -59,13 +133,41 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         response = await handle_message(user.id, user.first_name, text)
-        if response:
-            # Split long messages (Telegram limit: 4096 chars)
-            if len(response) > 4000:
-                for i in range(0, len(response), 4000):
-                    await update.message.reply_text(response[i:i+4000])
+        if not response:
+            return
+
+        # Check if response is a dict (special action like sending files)
+        if isinstance(response, dict) and response.get("type") == "send_files":
+            await update.message.reply_text(response.get("text", "Enviando archivos..."))
+            files = response.get("files", [])
+            sent = 0
+            for f in files:
+                try:
+                    filepath = f["filepath"]
+                    if f["type"] == "photo":
+                        await update.message.reply_photo(
+                            photo=open(filepath, "rb"),
+                            caption=f["filename"]
+                        )
+                    else:
+                        await update.message.reply_document(
+                            document=open(filepath, "rb"),
+                            filename=f["filename"]
+                        )
+                    sent += 1
+                except Exception as e:
+                    logger.error(f"Error sending file {f['filepath']}: {e}")
+                    await update.message.reply_text(f"No pude enviar: {f['filename']}")
+            if sent > 0:
+                await update.message.reply_text(f"Listo, {sent} archivo(s) enviado(s).")
+        else:
+            # Normal text response
+            response_text = str(response)
+            if len(response_text) > 4000:
+                for i in range(0, len(response_text), 4000):
+                    await update.message.reply_text(response_text[i:i+4000])
             else:
-                await update.message.reply_text(response)
+                await update.message.reply_text(response_text)
     except Exception as e:
         logger.error(f"Error handling message: {e}", exc_info=True)
         await update.message.reply_text("Ocurrio un error. Intenta de nuevo.")
@@ -90,27 +192,19 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
 
-        # Determine folder name from caption
-        # Formats: "carpeta: Nombre" or "guardar en Nombre" or just "Nombre"
-        folder_name = None
-        description = ""
+        # Determine folder name from caption (natural language)
+        folder_name, description = extract_folder_from_caption(caption)
 
-        m = re.match(r"(?:carpeta|guardar en|en)\s*:?\s*(\w+)\s*(.*)", caption, re.IGNORECASE)
-        if m:
-            folder_name = m.group(1).strip()
-            description = m.group(2).strip()
-        elif caption:
-            # If just one word, use as folder name
-            words = caption.split()
-            if len(words) == 1:
-                folder_name = words[0]
-            else:
-                # First word = folder, rest = description
-                folder_name = words[0]
-                description = " ".join(words[1:])
+        # If no folder from caption, try sticky folder
+        if not folder_name:
+            folder_name = get_sticky_folder(context, user_id)
 
+        # Default fallback
         if not folder_name:
             folder_name = "Fotos"
+        else:
+            # Set sticky folder for subsequent files
+            set_sticky_folder(context, user_id, folder_name)
 
         # Create photos directory
         photos_dir = os.path.join("/root/armandito/photos", str(user_id), folder_name.lower())
@@ -118,8 +212,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Download photo
         from datetime import datetime
-from tz_helper import now_bz
-        timestamp = now_bz().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{photo.file_unique_id}.jpg"
         filepath = os.path.join(photos_dir, filename)
         await file.download_to_drive(filepath)
@@ -162,21 +255,19 @@ async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         doc = update.message.document
         file = await context.bot.get_file(doc.file_id)
 
-        # Determine folder from caption
-        folder_name = None
-        description = ""
+        # Determine folder from caption (natural language)
+        folder_name, description = extract_folder_from_caption(caption)
 
-        m = re.match(r"(?:carpeta|guardar en|en)\s*:?\s*(\w+)\s*(.*)", caption, re.IGNORECASE)
-        if m:
-            folder_name = m.group(1).strip()
-            description = m.group(2).strip()
-        elif caption:
-            words = caption.split()
-            folder_name = words[0]
-            description = " ".join(words[1:]) if len(words) > 1 else ""
+        # If no folder from caption, try sticky folder
+        if not folder_name:
+            folder_name = get_sticky_folder(context, user_id)
 
+        # Default fallback
         if not folder_name:
             folder_name = "Archivos"
+        else:
+            # Set sticky folder for subsequent files
+            set_sticky_folder(context, user_id, folder_name)
 
         # Create directory
         docs_dir = os.path.join("/root/armandito/files", str(user_id), folder_name.lower())

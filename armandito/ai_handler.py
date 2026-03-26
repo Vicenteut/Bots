@@ -1,4 +1,3 @@
-from tz_helper import now_bz
 """AI fallback for messages that can't be parsed by regex."""
 
 import os
@@ -51,7 +50,7 @@ async def ask_ai(user_message, conversation_history=None):
     if not ANTHROPIC_API_KEY:
         return {"type": "text", "content": "No tengo configurada la API de AI. Intenta con comandos directos como 'tareas', 'notas', 'recordatorios'."}
 
-    current_dt = now_bz().strftime("%Y-%m-%d %H:%M")
+    current_dt = datetime.now().strftime("%Y-%m-%d %H:%M")
     system = SYSTEM_PROMPT_TEMPLATE.replace("{current_datetime}", current_dt)
 
     messages = []
@@ -98,3 +97,77 @@ async def ask_ai(user_message, conversation_history=None):
 
     except Exception as e:
         return {"type": "text", "content": f"Error conectando con AI: {str(e)[:100]}"}
+
+
+async def analyze_folder_contents(folder_name, file_contents):
+    """Analyze folder file contents using Claude AI.
+
+    Args:
+        folder_name: Name of the folder being analyzed
+        file_contents: List of dicts with filename and content
+    Returns:
+        str: Analysis text
+    """
+    if not ANTHROPIC_API_KEY:
+        return "No tengo configurada la API de AI para hacer analisis."
+
+    if not file_contents:
+        return f"La carpeta '{folder_name}' esta vacia o no tiene archivos legibles."
+
+    # Build the content summary for the AI
+    files_text = ""
+    readable_count = 0
+    for f in file_contents:
+        if f["type"] in ("text", "text_item"):
+            files_text += f"\n\n--- {f['filename']} ---\n{f['content']}"
+            readable_count += 1
+        else:
+            files_text += f"\n\n--- {f['filename']} ---\n{f['content']}"
+
+    if readable_count == 0:
+        return f"La carpeta '{folder_name}' no tiene archivos de texto que pueda analizar."
+
+    current_dt = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    system_prompt = f"""Eres Armandito, un asistente personal. Fecha actual: {current_dt}.
+El usuario te pide analizar el contenido de su carpeta '{folder_name}'.
+
+Analiza todos los archivos y genera un resumen completo y util. Adapta tu analisis al tipo de contenido:
+
+- Si son facturas/invoices: totales, promedios, desglose por categoria, mayor/menor
+- Si son notas/documentos: resumen de temas, puntos clave
+- Si son contactos: lista organizada
+- Si son datos/csv: estadisticas y tendencias
+
+Formato tu respuesta de forma clara con emojis moderados y estructura.
+Responde en espanol. Se conciso pero completo.
+NO digas "como modelo de lenguaje". Actua como si tu mismo hubieras revisado los archivos."""
+
+    user_msg = f"Analiza los {len(file_contents)} archivos de mi carpeta '{folder_name}':\n{files_text}"
+
+    # Truncate if too long
+    if len(user_msg) > 16000:
+        user_msg = user_msg[:16000] + "\n\n[... contenido truncado por limite ...]"
+
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": MODEL,
+                    "max_tokens": 1500,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": user_msg}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["content"][0]["text"]
+
+    except Exception as e:
+        return f"Error analizando los archivos: {str(e)[:100]}"

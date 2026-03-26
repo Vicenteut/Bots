@@ -9,6 +9,9 @@ import os
 import random
 import logging
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import anthropic
 try:
     from openai import OpenAI as _OpenAI

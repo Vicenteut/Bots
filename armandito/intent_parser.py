@@ -22,6 +22,8 @@ INTENT_VIEW_FOLDER = "view_folder"
 INTENT_SEARCH_FOLDER = "search_folder"
 INTENT_LIST_FOLDERS = "list_folders"
 INTENT_DELETE_FOLDER = "delete_folder"
+INTENT_SEND_FILES = "send_files"
+INTENT_ANALYZE_FOLDER = "analyze_folder"
 INTENT_UNKNOWN = "unknown"
 
 # Day mappings (Spanish)
@@ -224,6 +226,32 @@ def parse_intent(text):
         result["entities"]["folder_name"] = m.group(1).strip()
         return result
 
+    # Send files from folder: "envíame los archivos de invoice", "descargar de invoice"
+    m = re.match(r"(?:env[ií]ame|manda(?:me)?|dame|descargar?|bajar?|descarga)\s+(?:los\s+)?(?:archivos?|documentos?|fotos?|ficheros?)?\s*(?:de(?:\s+la)?(?:\s+carpeta)?\s+)(.+)", t)
+    if m:
+        result["intent"] = INTENT_SEND_FILES
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+    # Also: "quiero los archivos de invoice", "necesito los documentos de invoice"
+    m = re.match(r"(?:quiero|necesito|pasame|p[aá]same)\s+(?:los\s+)?(?:archivos?|documentos?|fotos?|ficheros?)\s+(?:de(?:\s+la)?(?:\s+carpeta)?\s+)(.+)", t)
+    if m:
+        result["intent"] = INTENT_SEND_FILES
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+
+    # Analyze folder: "analiza invoice", "resumen financiero de invoice"
+    m = re.match(r"(?:analizar?|analiza|resume(?:n)?|revisar?|revisa|examinar?|examina|reportar?|reporte)\s+(?:la\s+)?(?:carpeta\s+)?(?:financier[oa]?\s+)?(?:de\s+)?(?:la\s+)?(?:carpeta\s+)?(.+)", t)
+    if m:
+        result["intent"] = INTENT_ANALYZE_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+    # Also: "que hay en invoice y dame un resumen", "hazme un analisis de invoice"
+    m = re.match(r"(?:hazme|dame|genera|haz)\s+(?:un\s+)?(?:an[aá]lisis|resumen|reporte|revisi[oó]n)\s+(?:de(?:\s+la)?(?:\s+carpeta)?\s+)(.+)", t)
+    if m:
+        result["intent"] = INTENT_ANALYZE_FOLDER
+        result["entities"]["folder_name"] = m.group(1).strip()
+        return result
+
     # Add note
     m = re.match(r"(?:nota|guarda|guardar|anotar?|apuntar?)\s*:?\s+(.+)", t)
     if m:
@@ -248,6 +276,8 @@ def parse_intent(text):
     if re.match(r"(notas|mis notas)", t):
         result["intent"] = INTENT_LIST_NOTES
         return result
+
+
 
     # Add task (catch-all for task-like messages)
     m = re.match(r"(?:agregar? tarea|nueva tarea|tarea|task|añadir|add)\s*:?\s+(.+)", t)

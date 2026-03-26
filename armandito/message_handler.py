@@ -1,4 +1,3 @@
-from tz_helper import now_bz
 """Main message router — parses intent and executes actions."""
 
 from datetime import datetime
@@ -9,7 +8,7 @@ from intent_parser import (
     INTENT_TODAY, INTENT_STATS, INTENT_HELP, INTENT_DELETE_TASK,
     INTENT_CREATE_FOLDER, INTENT_ADD_TO_FOLDER, INTENT_VIEW_FOLDER,
     INTENT_SEARCH_FOLDER, INTENT_LIST_FOLDERS, INTENT_DELETE_FOLDER,
-    INTENT_UNKNOWN
+    INTENT_SEND_FILES, INTENT_ANALYZE_FOLDER, INTENT_UNKNOWN
 )
 from task_manager import (
     add_task, complete_task, delete_task, get_pending_tasks,
@@ -18,7 +17,7 @@ from task_manager import (
 from note_manager import add_note, search_notes, get_recent_notes
 from reminder_engine import add_reminder, get_user_reminders
 from briefing_generator import generate_morning_briefing
-from ai_handler import ask_ai
+from ai_handler import ask_ai, analyze_folder_contents
 from database import get_db
 
 
@@ -136,7 +135,7 @@ async def handle_message(telegram_id, user_name, text):
 
     elif intent == INTENT_ADD_REMINDER:
         r_text = entities.get("text", text)
-        r_date = entities.get("date") or now_bz().strftime("%Y-%m-%d")
+        r_date = entities.get("date") or datetime.now().strftime("%Y-%m-%d")
         r_time = entities.get("time") or "09:00"
         remind_at = f"{r_date} {r_time}"
         add_reminder(user_id, r_text, remind_at)
@@ -254,6 +253,40 @@ async def handle_message(telegram_id, user_name, text):
         fname = entities.get("folder_name", "")
         delete_folder(user_id, fname)
         response = f"Carpeta '{fname}' eliminada."
+
+    elif intent == INTENT_SEND_FILES:
+        from folder_manager import get_folder_file_paths, get_folder_items
+        fname = entities.get("folder_name", "")
+        files = get_folder_file_paths(user_id, fname)
+        if files:
+            save_conversation(user_id, "assistant", f"Enviando {len(files)} archivo(s) de '{fname}'")
+            return {
+                "type": "send_files",
+                "files": files,
+                "text": f"Enviando {len(files)} archivo(s) de la carpeta '{fname}'..."
+            }
+        else:
+            # Check if folder has text-only items
+            items = get_folder_items(user_id, fname)
+            if items:
+                response = f"La carpeta '{fname}' tiene {len(items)} items pero ninguno es un archivo descargable.\nUsa 'ver {fname}' para ver el contenido."
+            else:
+                response = f"La carpeta '{fname}' esta vacia o no existe."
+
+    elif intent == INTENT_ANALYZE_FOLDER:
+        from folder_manager import read_folder_file_contents
+        fname = entities.get("folder_name", "")
+        file_contents = read_folder_file_contents(user_id, fname)
+        if file_contents:
+            readable = [f for f in file_contents if f["type"] in ("text", "text_item")]
+            if readable:
+                response = await analyze_folder_contents(fname, file_contents)
+            else:
+                response = f"La carpeta '{fname}' tiene archivos pero ninguno es de texto legible."
+        else:
+            response = f"La carpeta '{fname}' esta vacia o no existe."
+
+
 
     elif intent == INTENT_UNKNOWN:
         # AI fallback
@@ -374,8 +407,12 @@ Carpetas:
   - "guardar en Clientes: Juan - 555-1234"
   - "ver Clientes" — ver contenido
   - "buscar en Clientes: Juan"
+  - "envíame los archivos de Clientes" — descargar
+  - "analiza la carpeta Clientes" — analisis con IA
+  - "resumen financiero de Invoice" — reporte
   - "carpetas" — ver todas
   - "eliminar carpeta Clientes"
+  - Tambien puedes enviar fotos/documentos con caption para guardarlos
 
 Calendario:
   - "agenda cita con doctor manana a las 3"

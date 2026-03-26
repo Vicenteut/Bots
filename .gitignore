@@ -1,12 +1,30 @@
-.env
-node_modules/
-images/custom/
-images/*.jpg
-images/*.png
-backups/
-logs/
+# Runtime data
+*.db
+context.json
+*.log
+
+# Media
+images/
+media/
+videos/
+photos/
+
+# Duplicates at root
+filter.py
+memory.py
+test_generator.py
+analytics.db
+
+# Old files
+old/
+
+# Python
 __pycache__/
 *.pyc
-cookies.json
-*.session
-*.session-journal
+*.pyo
+.env
+
+# Data folders
+data/
+files/
+backups/
