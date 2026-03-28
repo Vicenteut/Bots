@@ -191,15 +191,8 @@ def detect_topic(text):
 
 
 def add_topic_to_text(text):
-    """Add the auto-detected topic label to the end of the post text."""
-    # Don't add if text already has a hashtag/topic
-    if re.search(r'#\w+', text):
-        return text
-
-    topic = detect_topic(text)
-    print(f"  Auto-topic detected: {topic}")
-
-    return f"{text}\n\n{topic}"
+    """Labels disabled."""
+    return text
 
 
 
@@ -309,6 +302,8 @@ def create_container(text, media_type="TEXT", image_url=None, reply_to_id=None):
     }
     if media_type == "IMAGE" and image_url:
         params["image_url"] = image_url
+    if media_type == "VIDEO" and image_url:  # image_url reused for video_url
+        params["video_url"] = image_url
     if reply_to_id:
         params["reply_to_id"] = reply_to_id
 
@@ -423,6 +418,50 @@ def publish_image(text, image_url):
         return post_id
     return None
 
+
+
+
+def upload_media_for_threads(local_path):
+    """Upload a local image or video and return the public URL (catbox.moe)."""
+    import subprocess
+    if local_path.startswith('http'):
+        return local_path
+    if not os.path.exists(local_path):
+        print(f'[ERROR] File not found: {local_path}')
+        return None
+    print(f'  Uploading media to catbox.moe...')
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-F', 'reqtype=fileupload',
+             '-F', f'fileToUpload=@{local_path}',
+             'https://catbox.moe/user/api.php'],
+            capture_output=True, text=True, timeout=120
+        )
+        url = result.stdout.strip()
+        if url.startswith('http'):
+            print(f'  Media uploaded: {url}')
+            return url
+    except Exception as e:
+        print(f'  catbox.moe upload failed: {e}')
+    print('[ERROR] Could not upload media')
+    return None
+
+
+def publish_video(text, video_url):
+    """Publish a post with a video."""
+    text = add_topic_to_text(text)
+    print(f"[THREADS] Publishing video post...")
+    print(f"  Video: {video_url}")
+    container_id = create_container(text, media_type="VIDEO", image_url=video_url)
+    if not container_id:
+        return None
+    print("  Waiting for video processing (up to 2 min)...")
+    if not wait_for_container(container_id, max_wait=120):
+        return None
+    post_id = publish_container(container_id)
+    if post_id:
+        print(f"[SUCCESS] Video post published! ID: {post_id}")
+    return post_id
 
 def publish_thread(texts):
     """Publish a thread (chain of reply posts)."""
@@ -591,6 +630,19 @@ def main():
             publish_text(caption)
         else:
             publish_image(caption, image_url)
+
+    elif args[0] == "--video":
+        if len(args) < 3:
+            print("[ERROR] --video requires a video path/URL and caption text.")
+            sys.exit(1)
+        video_input = args[1]
+        caption = args[2]
+        video_url = upload_media_for_threads(video_input)
+        if not video_url:
+            print("[ERROR] Could not get video URL. Publishing as text only.")
+            publish_text(caption)
+        else:
+            publish_video(caption, video_url)
 
     elif args[0] == "--thread":
         raw_texts = args[1:]

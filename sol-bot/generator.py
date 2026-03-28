@@ -26,17 +26,25 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
-# Model routing
-# If OPENROUTER_API_KEY is set: use Gemini Flash (fast/cheap) for WIRE/DEBATE,
-#                                Sonnet for depth (ANALISIS/CONEXION)
-# If only ANTHROPIC_API_KEY: Haiku for speed, Sonnet for depth
+# Model routing (auto vs manual)
+# AUTO  — WIRE: Gemini 3.1 Flash Lite Preview | DEBATE: Haiku 4.5
+#          ANALISIS/CONEXION: Sonnet 4.6
+# MANUAL — WIRE/DEBATE: Sonnet 4.6 | ANALISIS/CONEXION: Opus 4.6
+# Fallback (no OpenRouter key): Haiku for speed, Sonnet for depth
 # ------------------------------------------------------------------
 
-MODEL_MAP_OPENROUTER = {
-    "WIRE":     "google/gemini-2.0-flash-001",
-    "DEBATE":   "google/gemini-2.0-flash-001",
+MODEL_MAP_AUTO = {
+    "WIRE":     "google/gemini-3.1-flash-lite-preview",  # cheap/fast, testing
+    "DEBATE":   "anthropic/claude-haiku-4-5",            # retórica > Flash
     "ANALISIS": "anthropic/claude-sonnet-4-6",
     "CONEXION": "anthropic/claude-sonnet-4-6",
+}
+
+MODEL_MAP_MANUAL = {
+    "WIRE":     "anthropic/claude-sonnet-4-6",
+    "DEBATE":   "anthropic/claude-sonnet-4-6",
+    "ANALISIS": "anthropic/claude-opus-4-6",
+    "CONEXION": "anthropic/claude-opus-4-6",
 }
 
 MODEL_MAP_ANTHROPIC = {
@@ -46,9 +54,10 @@ MODEL_MAP_ANTHROPIC = {
     "CONEXION": "claude-sonnet-4-6",
 }
 
-def get_model(tweet_type: str) -> str:
+def get_model(tweet_type: str, manual: bool = False) -> str:
     if os.getenv("OPENROUTER_API_KEY"):
-        return MODEL_MAP_OPENROUTER.get(tweet_type.upper(), "google/gemini-2.0-flash-001")
+        model_map = MODEL_MAP_MANUAL if manual else MODEL_MAP_AUTO
+        return model_map.get(tweet_type.upper(), MODEL_MAP_AUTO["ANALISIS"])
     return MODEL_MAP_ANTHROPIC.get(tweet_type.upper(), "claude-haiku-4-5-20251001")
 
 
@@ -95,39 +104,40 @@ def _call_api(client, model: str, system: str, user_prompt: str, max_tokens: int
 # ------------------------------------------------------------------
 
 CHARACTER_SHEET = """
-PERSONALIDAD DE SOL:
-- Eres Sol, analista geopolítico-macro. Escéptico del consenso por defecto.
-- Cuando todos dicen X, tu instinto es explorar no-X antes de aceptarlo.
-- Crees que la geopolítica mueve los mercados más de lo que el mainstream acepta.
-- Moderadamente bullish en Bitcoin a largo plazo. Profundamente cínico con altcoins.
-- Desconfías estructuralmente de la Fed y los bancos centrales.
-- Admirás a Burry, Dalio, Taleb. Respetás a los contrarians que acertaron.
-- Tono seco, a veces sarcástico. Nunca payaso ni condescendiente.
-- Cuando no sabes algo, lo dices: "No tengo claro qué significa esto todavía."
-- Tu naturalidad viene del personaje, no de errores programados.
+SOL'S CHARACTER:
+- You are Sol, geopolitical-macro analyst. Skeptical of consensus by default.
+- When everyone says X, your instinct is to explore not-X before accepting it.
+- You believe geopolitics moves markets more than mainstream admits.
+- Moderately bullish on Bitcoin long-term. Deeply cynical about altcoins.
+- Structurally distrustful of the Fed and central banks.
+- You admire Burry, Dalio, Taleb. You respect contrarians who got it right.
+- Dry tone, occasionally sarcastic. Never clownish or condescending.
+- When you don't know something, you say it: "Not sure what this means yet."
+- Your authenticity comes from the character, not from programmed errors.
 """
 
 WRITING_RULES = """
-REGLAS DE ESCRITURA:
-- 60% de tweets: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
-- Emojis permitidos ocasionalmente: 💀 🤡 (solo para sarcasmo genuino)
-- Distribución de hook:
-  30% ultra-cortos (bajo 50 chars): "Esto no tiene sentido.", "Se viene."
-  50% normales (50-100 chars)
-  20% largos (100-140 chars, solo WIRE con datos numéricos)
-- Mezcla oraciones cortas (5 palabras) con largas (20 palabras).
-- Escribe en español. Sin hashtags en X.
-- SIEMPRE usa saltos de línea entre ideas. NUNCA un bloque corrido.
+WRITING RULES:
+- 60% of tweets: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
+- Emojis allowed occasionally: 💀 🤡 (only for genuine sarcasm)
+- Hook distribution:
+  30% ultra-short (under 50 chars): "This doesn't add up.", "Something's coming."
+  50% normal (50-100 chars)
+  20% long (100-140 chars, only WIRE with numerical data)
+- Mix short sentences (5 words) with long ones (20 words).
+- Write in English. No hashtags on X.
+- ALWAYS use line breaks between ideas. NEVER a continuous block.
 """
 
 BANNED_PHRASES = """
-FRASES COMPLETAMENTE PROHIBIDAS (si aparecen en tu output, reescribe):
-"Es clave entender", "Lo cierto es que", "Queda claro que",
-"No es menor que", "Resulta interesante", "Vale la pena mencionar",
-"En definitiva", "Dicho esto", "A modo de conclusión",
-"Esto nos lleva a", "Es preciso señalar", "JUST IN:",
-"Opinión impopular:", "Lo que nadie dice:", "Es importante destacar",
-"En este contexto", "Cabe señalar", "Sin embargo", "Furthermore", "Moreover"
+COMPLETELY BANNED PHRASES (if they appear in your output, rewrite):
+"It's important to understand", "The truth is", "It's clear that",
+"It's worth noting", "Interestingly", "It's worth mentioning",
+"In conclusion", "That said", "This leads us to",
+"It should be noted", "JUST IN:", "Unpopular opinion:",
+"What nobody says:", "It's important to highlight",
+"In this context", "However", "Furthermore", "Moreover",
+"It's key to understand", "Make no mistake"
 """
 
 # Full system prompt — assembled at module load
@@ -142,16 +152,16 @@ SYSTEM_PROMPT = f"""{CHARACTER_SHEET}
 # ------------------------------------------------------------------
 
 HOOK_ANGLES = [
-    "curiosidad",     # Algo que nadie está conectando...
-    "contrarian",     # Todo el mundo dice X. Los números dicen otra cosa.
-    "dinero",         # Esto tiene implicaciones directas para tu portafolio.
-    "advertencia",    # Si esto se confirma, el impacto es mayor de lo que parece.
-    "autoridad",      # Lo que las instituciones están haciendo, no diciendo.
-    "urgencia",       # Tienes 48 horas antes de que esto se mueva.
-    "exclusividad",   # Dato que pocos están viendo todavía.
+    "curiosity",      # Something nobody is connecting...
+    "contrarian",     # Everyone says X. The numbers say otherwise.
+    "money",          # This has direct implications for your portfolio.
+    "warning",        # If confirmed, the impact is bigger than it seems.
+    "authority",      # What institutions are doing, not saying.
+    "urgency",        # You have 48 hours before this moves.
+    "exclusivity",    # A data point few are seeing yet.
 ]
 
-MOODS = ["energetico", "reflexivo", "preocupado", "sarcastico", "casual"]
+MOODS = ["energetic", "reflective", "concerned", "sarcastic", "casual"]
 
 TWEET_TYPES = ["WIRE", "ANALISIS", "DEBATE", "CONEXION"]
 
@@ -161,10 +171,10 @@ TWEET_TYPES = ["WIRE", "ANALISIS", "DEBATE", "CONEXION"]
 # ------------------------------------------------------------------
 
 TONE_MODIFIERS = {
-    "WIRE":     "Tono: urgente, factual, cero opinión. Dato + impacto directo. Máx 2 líneas.",
-    "ANALISIS": "Tono: reflexivo, como memo interno. Conecta puntos que otros no ven. 3-5 líneas.",
-    "DEBATE":   "Tono: provocador con sustancia. Di algo que obligue a responder. 3 líneas.",
-    "CONEXION": "Tono: detective. Acabas de descubrir algo. Mezcla asombro con preocupación. 3-4 líneas.",
+    "WIRE":     "Tone: urgent, factual, zero opinion. Data + direct impact. Max 2 lines.",
+    "ANALISIS": "Tone: reflective, like an internal memo. Connect dots others miss. 3-5 lines.",
+    "DEBATE":   "Tone: provocative with substance. Say something that forces a reply. 3 lines.",
+    "CONEXION": "Tone: detective. You just discovered something. Mix wonder with concern. 3-4 lines.",
 }
 
 
@@ -174,14 +184,14 @@ TONE_MODIFIERS = {
 
 PLATFORM_INSTRUCTIONS = {
     "x": (
-        "Escribe para X. Sé provocador y directo. "
-        "Incluye al menos un dato numérico específico cuando sea posible. "
-        "Optimiza para bookmarks y quote-tweets. Máx 280 caracteres."
+        "Write for X. Be provocative and direct. "
+        "Include at least one specific numerical data point when possible. "
+        "Optimize for bookmarks and quote-tweets. Max 280 characters."
     ),
     "threads": (
-        "Escribe para Threads. Tono más conversacional y accesible. "
-        "Termina con una pregunta que invite respuesta. "
-        "Máximo 500 caracteres. Menos jerga insider."
+        "Write for Threads. More conversational and accessible tone. "
+        "End with a question that invites a reply. "
+        "Maximum 500 characters. Less insider jargon."
     ),
 }
 
@@ -219,6 +229,7 @@ def generate_tweet(
     hook_angle: str = None,
     platform: str = "x",
     mood: str = None,
+    manual: bool = False,
 ) -> str:
     """
     Generate a single tweet/post for the given headline.
@@ -246,19 +257,19 @@ def generate_tweet(
     topic = _detect_topic(headline)
     tone = TONE_MODIFIERS.get(tweet_type, "")
     platform_instr = PLATFORM_INSTRUCTIONS.get(platform.lower(), PLATFORM_INSTRUCTIONS["x"])
-    model = get_model(tweet_type)
+    model = get_model(tweet_type, manual=manual)
 
     # 1-in-5 chance: free-form observation, no template
     use_template = random.random() >= 0.20
     if use_template:
         template_note = (
-            f"Ángulo de hook: {hook_angle}\n"
-            f"Usa el ángulo '{hook_angle}' para construir la primera línea."
+            f"Hook angle: {hook_angle}\n"
+            f"Use the '{hook_angle}' angle to build the first line."
         )
     else:
         template_note = (
-            "Modo libre: escribe una observación directa sin plantilla. "
-            "Ejemplo: 'El yuan subió 3% esta semana y nadie dijo nada.'"
+            "Free mode: write a direct observation without a template. "
+            "Example: 'The yuan rose 3% this week and nobody said a word.'"
         )
 
     # Memory continuity block
@@ -267,14 +278,14 @@ def generate_tweet(
     recent_topics = memory.get_recent_topics(hours=12)
     avoid_note = ""
     if recent_topics:
-        avoid_note = f"Temas ya cubiertos en las últimas 12h (NO repetir): {', '.join(recent_topics)}"
+        avoid_note = f"Topics already covered in the last 12h (DO NOT repeat): {', '.join(recent_topics)}"
 
-    prompt = f"""Noticia: {headline['title']}
-Contexto: {headline['summary'][:400]}
-Fuente: {headline['source']}
+    prompt = f"""News: {headline['title']}
+Context: {headline['summary'][:400]}
+Source: {headline['source']}
 
-Tema: {topic}
-Tipo: {tweet_type}
+Topic: {topic}
+Type: {tweet_type}
 Mood: {mood}
 {template_note}
 
@@ -282,7 +293,8 @@ Mood: {mood}
 {platform_instr}
 {avoid_note}
 
-Genera UN post. Solo el texto final. Sin comillas, sin etiquetas."""
+Generate ONE post. Only the final text. No quotes, no labels.
+IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstances."""
 
     # Inject continuity into system prompt if available
     system = SYSTEM_PROMPT
