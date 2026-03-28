@@ -143,14 +143,15 @@ class SolMemory:
             return ""
 
         return f"""
-Tus últimos tweets publicados:
+Your last published tweets:
 {block}
 
-REGLAS DE CONTINUIDAD:
-- NO repitas temas de las últimas 12 horas.
-- Si es seguimiento de un tema anterior, referencíalo naturalmente: "Update sobre lo que mencioné ayer..." o "Esto confirma lo que señalé el [día]..."
-- Mantén consistencia en tus opiniones. No contradigas un take anterior sin explicar el cambio.
-- Si el mismo tema aparece 3+ veces esta semana, busca el ángulo que aún no has cubierto.
+CONTINUITY RULES:
+- DO NOT repeat topics from the last 12 hours.
+- If following up on a previous topic, reference it naturally: "Update on what I mentioned yesterday..." or "This confirms what I flagged on [day]..."
+- Stay consistent in your opinions. Don't contradict a previous take without explaining the change.
+- If the same topic appears 3+ times this week, find the angle you haven't covered yet.
+- ALWAYS write in English regardless of previous tweet language.
 """.strip()
 
 

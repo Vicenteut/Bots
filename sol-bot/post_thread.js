@@ -5,15 +5,19 @@ const path = require('path');
 const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
-// Parse args: node post_thread.js [--image /path/to/img.jpg] [--video /path/to/vid.mp4] "tweet1" "tweet2" ...
-let imagePath = null;
+// Parse args: node post_thread.js [--image img1.jpg] [--image img2.jpg] [--video vid.mp4] "tweet1" "tweet2" ...
+const imagePaths = [];
 let videoPath = null;
 const tweets = [];
 const args = process.argv.slice(2);
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--image' && args[i + 1]) {
-    imagePath = args[i + 1];
+    imagePaths.push(args[i + 1]);
+    i++;
+  } else if (args[i] === '--images' && args[i + 1]) {
+    // Comma-separated: --images img1.jpg,img2.jpg
+    args[i + 1].split(',').forEach(p => p.trim() && imagePaths.push(p.trim()));
     i++;
   } else if (args[i] === '--video' && args[i + 1]) {
     videoPath = args[i + 1];
@@ -24,13 +28,13 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (tweets.length === 0) {
-  console.error('Usage: node post_thread.js [--image path] [--video path] "tweet1" "tweet2" ...');
+  console.error('Usage: node post_thread.js [--image path] [--images p1,p2] [--video path] "tweet1" "tweet2" ...');
   process.exit(1);
 }
 
-// Video takes priority if both provided
-const mediaPath = videoPath || imagePath;
-const mediaType = videoPath ? 'video' : (imagePath ? 'image' : null);
+// Video takes priority over images
+const mediaType = videoPath ? 'video' : (imagePaths.length > 0 ? 'image' : null);
+const mediaPath = videoPath || (imagePaths.length > 0 ? imagePaths[0] : null);
 
 async function waitForVideoProcessing(page, timeout = 120000) {
   const startTime = Date.now();
@@ -144,8 +148,14 @@ async function postThread() {
         // X uses the same file input for images AND videos
         const fileInput = await page.$('input[data-testid="fileInput"], input[type="file"]');
         if (fileInput) {
-          await fileInput.uploadFile(mediaPath);
-          console.log(`${mediaType === 'video' ? 'Video' : 'Imagen'} adjuntado: ${mediaPath}`);
+          if (mediaType === 'image' && imagePaths.length > 1) {
+            const existing = imagePaths.filter(p => fs.existsSync(p));
+            await fileInput.uploadFile(...existing);
+            console.log(`${existing.length} imagenes adjuntadas: ${existing.join(', ')}`);
+          } else {
+            await fileInput.uploadFile(mediaPath);
+            console.log(`${mediaType === 'video' ? 'Video' : 'Imagen'} adjuntado: ${mediaPath}`);
+          }
 
           if (mediaType === 'video') {
             const fileSize = fs.statSync(mediaPath).size;

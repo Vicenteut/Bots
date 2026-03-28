@@ -22,10 +22,13 @@ class _TTLCache:
 
     def __init__(self, ttl_seconds: int = 15):
         self.ttl = ttl_seconds
+
+    def _ensure(self):
         if "_dp_cache" not in st.session_state:
             st.session_state._dp_cache = {}
 
     def get(self, key: str) -> tuple[bool, Any]:
+        self._ensure()
         entry = st.session_state._dp_cache.get(key)
         if entry is None:
             return False, None
@@ -36,9 +39,11 @@ class _TTLCache:
         return True, value
 
     def set(self, key: str, value: Any) -> None:
+        self._ensure()
         st.session_state._dp_cache[key] = (value, time.monotonic())
 
     def invalidate(self, key: str) -> None:
+        self._ensure()
         st.session_state._dp_cache.pop(key, None)
 
 
