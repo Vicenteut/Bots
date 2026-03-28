@@ -1,5 +1,6 @@
 """Main message router — parses intent and executes actions."""
 
+import asyncio
 from datetime import datetime
 from intent_parser import (
     parse_intent, INTENT_ADD_TASK, INTENT_COMPLETE_TASK, INTENT_LIST_TASKS,
@@ -8,7 +9,9 @@ from intent_parser import (
     INTENT_TODAY, INTENT_STATS, INTENT_HELP, INTENT_DELETE_TASK,
     INTENT_CREATE_FOLDER, INTENT_ADD_TO_FOLDER, INTENT_VIEW_FOLDER,
     INTENT_SEARCH_FOLDER, INTENT_LIST_FOLDERS, INTENT_DELETE_FOLDER,
-    INTENT_SEND_FILES, INTENT_ANALYZE_FOLDER, INTENT_UNKNOWN
+    INTENT_SEND_FILES, INTENT_ANALYZE_FOLDER,
+    INTENT_SOL_GENERATE, INTENT_SOL_PUBLISH, INTENT_SOL_STATUS,
+    INTENT_UNKNOWN
 )
 from task_manager import (
     add_task, complete_task, delete_task, get_pending_tasks,
@@ -19,6 +22,12 @@ from reminder_engine import add_reminder, get_user_reminders
 from briefing_generator import generate_morning_briefing
 from ai_handler import ask_ai, analyze_folder_contents
 from database import get_db
+
+
+async def _run_sync(fn, *args):
+    """Run a blocking function in the default executor."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, fn, *args)
 
 
 def get_or_create_user(telegram_id, name=""):
@@ -288,6 +297,37 @@ async def handle_message(telegram_id, user_name, text):
 
 
 
+    elif intent == INTENT_SOL_STATUS:
+        from sol_bridge import sol_status
+        response = sol_status()
+
+    elif intent == INTENT_SOL_GENERATE:
+        from sol_bridge import sol_generate
+        headline_text = entities.get("text", "")
+        if len(headline_text) < 10:
+            response = "El titular es muy corto. Envia al menos 10 caracteres.\nEjemplo: sol: La Fed sube tasas 0.5% ante inflacion persistente"
+        else:
+            save_conversation(user_id, "assistant", f"Generando tweet para Sol: {headline_text[:80]}...")
+            try:
+                tweet = await _run_sync(sol_generate, headline_text)
+                response = (
+                    f"Tweet generado por Sol:\n\n{tweet}\n\n"
+                    f"Responde 'sol publica' para publicar en X + Threads.\n"
+                    f"'sol publica x'   — solo X\n"
+                    f"'sol publica threads'   — solo Threads"
+                )
+            except Exception as e:
+                response = f"Error generando tweet: {str(e)[:200]}"
+
+    elif intent == INTENT_SOL_PUBLISH:
+        from sol_bridge import sol_publish
+        target = entities.get("target", "")
+        save_conversation(user_id, "assistant", "Publicando tweet de Sol...")
+        try:
+            response = await _run_sync(sol_publish, target)
+        except Exception as e:
+            response = f"Error publicando: {str(e)[:200]}"
+
     elif intent == INTENT_UNKNOWN:
         # AI fallback
         history = get_conversation_history(user_id)
@@ -421,5 +461,12 @@ Calendario:
 Resumen:
   - "que tengo hoy" — briefing del dia
   - "stats" — estadisticas
+
+Sol Bot:
+  - "sol: La Fed sube tasas 0.5%" — generar tweet
+  - "sol publica" — publicar en X + Threads
+  - "sol publica x" — publicar solo en X
+  - "sol publica threads" — publicar solo en Threads
+  - "sol status" — ver estado y tweet pendiente
 
 Tambien puedes escribirme de forma natural y hare lo mejor para entenderte."""

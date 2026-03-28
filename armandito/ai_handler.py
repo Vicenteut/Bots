@@ -32,6 +32,11 @@ IMPORTANTE: SI tienes acceso directo a Google Calendar. Cuando el usuario pida c
 - search_folder: buscar en carpeta (folder_name, query)
 - list_folders: listar carpetas
 
+Tambien controlas Sol Bot (@napoleotics), el bot de noticias:
+- sol_generate: generar tweet a partir de un titular (text)
+- sol_publish: publicar tweet pendiente (target: "x", "threads" o "" para ambos)
+- sol_status: ver estado de Sol y tweet pendiente
+
 Cuando el usuario pida algo que corresponda a una funcion, responde SOLO con JSON:
 {"action": "nombre_funcion", "params": {...}, "reply": "mensaje para el usuario"}
 

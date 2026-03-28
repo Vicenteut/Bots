@@ -24,6 +24,9 @@ INTENT_LIST_FOLDERS = "list_folders"
 INTENT_DELETE_FOLDER = "delete_folder"
 INTENT_SEND_FILES = "send_files"
 INTENT_ANALYZE_FOLDER = "analyze_folder"
+INTENT_SOL_GENERATE = "sol_generate"
+INTENT_SOL_PUBLISH = "sol_publish"
+INTENT_SOL_STATUS = "sol_status"
 INTENT_UNKNOWN = "unknown"
 
 # Day mappings (Spanish)
@@ -278,6 +281,26 @@ def parse_intent(text):
         return result
 
 
+
+    # Sol Bot commands
+    # "sol status", "estado de sol", "como esta sol"
+    if re.match(r"(sol\s+status|estado\s+de\s+sol|c[oó]mo\s+est[aá]\s+sol|sol\s+estado)", t):
+        result["intent"] = INTENT_SOL_STATUS
+        return result
+
+    # "sol publica", "publica en sol", "sol publica x", "sol publica threads"
+    m = re.match(r"(?:sol\s+publica?|publica?\s+(?:en\s+)?sol|sol\s+post)\s*(x|threads)?", t)
+    if m:
+        result["intent"] = INTENT_SOL_PUBLISH
+        result["entities"]["target"] = (m.group(1) or "").strip()
+        return result
+
+    # "sol: <headline>", "genera tweet: <headline>", "tweet sobre <headline>"
+    m = re.match(r"(?:sol\s*:\s*|genera\s+tweet\s*:\s*|tweet\s+(?:sobre|de)\s+|sol\s+genera?\s+)(.+)", t)
+    if m:
+        result["intent"] = INTENT_SOL_GENERATE
+        result["entities"]["text"] = m.group(1).strip()
+        return result
 
     # Add task (catch-all for task-like messages)
     m = re.match(r"(?:agregar? tarea|nueva tarea|tarea|task|añadir|add)\s*:?\s+(.+)", t)
