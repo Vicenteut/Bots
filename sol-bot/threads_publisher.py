@@ -158,6 +158,41 @@ def upload_video_to_litterbox(local_path, duration="1h"):
     return upload_file_to_litterbox(local_path, duration, "video/mp4", "video")
 
 
+def prepare_image_for_threads(local_path):
+    """Normalize local images to baseline JPEG accepted by Threads ingestion."""
+    if local_path.startswith("http"):
+        return local_path
+    if not os.path.exists(local_path):
+        print(f"[ERROR] File not found: {local_path}", file=sys.stderr)
+        return None
+    ffmpeg = "ffmpeg"
+    base, _ = os.path.splitext(local_path)
+    out_path = f"{base}.threads.jpg"
+    cmd = [
+        ffmpeg, "-y", "-i", local_path,
+        "-vf", "scale='min(1440,iw)':-2,format=yuvj420p",
+        "-frames:v", "1",
+        "-q:v", "3",
+        out_path,
+    ]
+    print(f"[THREADS] Normalizing image for Threads: {os.path.basename(out_path)}")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        print("[ERROR] ffmpeg is not installed; cannot normalize image", file=sys.stderr)
+        return None
+    except subprocess.TimeoutExpired:
+        print("[ERROR] ffmpeg timed out while normalizing image", file=sys.stderr)
+        return None
+    if r.returncode != 0:
+        print(f"[ERROR] ffmpeg image normalization failed: {(r.stderr or r.stdout)[-1000:]}", file=sys.stderr)
+        return None
+    if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        print("[ERROR] ffmpeg produced no image output", file=sys.stderr)
+        return None
+    return out_path
+
+
 def get_image_url(local_path):
     """Return an HTTPS URL for Threads image uploads."""
     if local_path.startswith("https://"):
@@ -165,12 +200,13 @@ def get_image_url(local_path):
     if local_path.startswith("http://"):
         print("[ERROR] Threads image uploads require HTTPS; got HTTP URL", file=sys.stderr)
         return None
-    ext = os.path.splitext(local_path)[1].lower()
-    content_type = "image/png" if ext == ".png" else "image/jpeg"
+    prepared = prepare_image_for_threads(local_path)
+    if not prepared:
+        return None
     host_mode = os.environ.get("THREADS_IMAGE_HOST", "litterbox").strip().lower()
     if host_mode in ("litterbox", "catbox", "https"):
-        return upload_file_to_litterbox(local_path, os.environ.get("THREADS_IMAGE_TTL", "1h"), content_type, "image")
-    return get_public_url(local_path)
+        return upload_file_to_litterbox(prepared, os.environ.get("THREADS_IMAGE_TTL", "1h"), "image/jpeg", "image")
+    return get_public_url(prepared)
 
 
 def get_video_url(local_path):
