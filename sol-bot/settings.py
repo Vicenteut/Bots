@@ -45,9 +45,7 @@ CRON_TIMES_CST = [
 # ── Log files ─────────────────────────────────────────────────────────
 LOG_FILES = {
     "Scheduler":      LOG_DIR / "scheduler.log",
-    "Calendar":       LOG_DIR / "calendar.log",
     "Analytics":      LOG_DIR / "analytics.log",
-    "Trending":       LOG_DIR / "trending.log",
     "Cookie Monitor": LOG_DIR / "cookie.log",
 }
 

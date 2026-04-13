@@ -1,0 +1,445 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776009248565,
+  "projectRoot": "/root/x-bot",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "__pycache__": {
+      "path": "__pycache__",
+      "purpose": null,
+      "fileCount": 15,
+      "lastAccessed": 1776009248551,
+      "keyFiles": [
+        "config.cpython-310.pyc",
+        "content_calendar.cpython-310.pyc",
+        "content_utils.cpython-310.pyc",
+        "fetcher.cpython-310.pyc",
+        "filter.cpython-310.pyc"
+      ]
+    },
+    "armandito": {
+      "path": "armandito",
+      "purpose": null,
+      "fileCount": 17,
+      "lastAccessed": 1776009248555,
+      "keyFiles": [
+        "ai_handler.py",
+        "briefing_generator.py",
+        "calendar_manager.py",
+        "dashboard.py",
+        "database.py"
+      ]
+    },
+    "backups": {
+      "path": "backups",
+      "purpose": null,
+      "fileCount": 7,
+      "lastAccessed": 1776009248555,
+      "keyFiles": [
+        "backup.log",
+        "xbot-backup-20260321-120438.tar.gz",
+        "xbot-backup-20260321-191516.tar.gz",
+        "xbot-backup-20260321-210001.tar.gz",
+        "xbot-backup-20260329-030001.tar.gz"
+      ]
+    },
+    "images": {
+      "path": "images",
+      "purpose": null,
+      "fileCount": 10,
+      "lastAccessed": 1776009248555,
+      "keyFiles": [
+        "bitcoin_accumulation.jpg",
+        "custom_images.json",
+        "portavoz_iran.jpg",
+        "sched_1.jpg",
+        "sched_2.jpg"
+      ]
+    },
+    "logs": {
+      "path": "logs",
+      "purpose": null,
+      "fileCount": 13,
+      "lastAccessed": 1776009248558,
+      "keyFiles": [
+        "analytics.db",
+        "analytics.log",
+        "analytics_insights.log",
+        "calendar.log",
+        "cookie.log"
+      ]
+    },
+    "media": {
+      "path": "media",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776009248559,
+      "keyFiles": [
+        "hormuz.mp4"
+      ]
+    },
+    "old": {
+      "path": "old",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1776009248559,
+      "keyFiles": [
+        "poster.py",
+        "proceso_hilo_v2.js",
+        "publish-simple.js",
+        "publish-thread.js",
+        "publish.js"
+      ]
+    },
+    "sol-bot": {
+      "path": "sol-bot",
+      "purpose": null,
+      "fileCount": 64,
+      "lastAccessed": 1776009248559,
+      "keyFiles": [
+        "analytics.db",
+        "analytics_insights.py",
+        "analytics_tracker.py",
+        "audit_code_quality.md",
+        "audit_improvements.md"
+      ]
+    },
+    "videos": {
+      "path": "videos",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776009248562,
+      "keyFiles": [
+        "tweet_video.mp4"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "sol-bot/sol_commands.py",
+      "accessCount": 365,
+      "lastAccessed": 1776038236135,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/templates/dashboard.html",
+      "accessCount": 342,
+      "lastAccessed": 1776038954991,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/sol_dashboard_api.py",
+      "accessCount": 307,
+      "lastAccessed": 1776039859247,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/generator.py",
+      "accessCount": 78,
+      "lastAccessed": 1776036164195,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot",
+      "accessCount": 64,
+      "lastAccessed": 1776038226525,
+      "type": "directory"
+    },
+    {
+      "path": "sol-bot/monitor.py",
+      "accessCount": 55,
+      "lastAccessed": 1776035320241,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/threads_publisher.py",
+      "accessCount": 50,
+      "lastAccessed": 1776038222696,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/publish_dual.py",
+      "accessCount": 41,
+      "lastAccessed": 1776038550659,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/scheduler.py",
+      "accessCount": 19,
+      "lastAccessed": 1776035329764,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/x_publisher.py",
+      "accessCount": 18,
+      "lastAccessed": 1776012939993,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/analytics_insights.py",
+      "accessCount": 18,
+      "lastAccessed": 1776013017697,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/brain.py",
+      "accessCount": 13,
+      "lastAccessed": 1776035313931,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/requirements.txt",
+      "accessCount": 11,
+      "lastAccessed": 1775928465405,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/config.py",
+      "accessCount": 11,
+      "lastAccessed": 1776038233633,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/post_thread.js",
+      "accessCount": 10,
+      "lastAccessed": 1775767197995,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/analytics_tracker.py",
+      "accessCount": 10,
+      "lastAccessed": 1775877950624,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/.env",
+      "accessCount": 10,
+      "lastAccessed": 1776018192708,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/sol_dashboard_mockup.html",
+      "accessCount": 8,
+      "lastAccessed": 1775704884845,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/telegram_client.py",
+      "accessCount": 8,
+      "lastAccessed": 1775708498601,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/reply_generator_prompt.txt",
+      "accessCount": 8,
+      "lastAccessed": 1775944704721,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/monitor_pending.json",
+      "accessCount": 7,
+      "lastAccessed": 1775764809316,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/main.py",
+      "accessCount": 6,
+      "lastAccessed": 1775661113061,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/pending_sched_1.json",
+      "accessCount": 6,
+      "lastAccessed": 1775673493175,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/reply_gen_prompt.json",
+      "accessCount": 6,
+      "lastAccessed": 1775705973862,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/brain_history.json",
+      "accessCount": 6,
+      "lastAccessed": 1775764805505,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/promptfoo_reply_gen.yaml",
+      "accessCount": 6,
+      "lastAccessed": 1775876897245,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/memory.py",
+      "accessCount": 5,
+      "lastAccessed": 1775708473613,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/tests/brain_test.yaml",
+      "accessCount": 4,
+      "lastAccessed": 1775592864487,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/pending_tweet.json",
+      "accessCount": 4,
+      "lastAccessed": 1775696843167,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/image_manager.py",
+      "accessCount": 4,
+      "lastAccessed": 1775743636324,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/.env.example",
+      "accessCount": 4,
+      "lastAccessed": 1776012940675,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/sol_dashboard_proposal.md",
+      "accessCount": 3,
+      "lastAccessed": 1775675542985,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/context.json",
+      "accessCount": 3,
+      "lastAccessed": 1775764805789,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/options_scored.md",
+      "accessCount": 3,
+      "lastAccessed": 1775945570106,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/fetcher.py",
+      "accessCount": 2,
+      "lastAccessed": 1775181563383,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/data_providers.py",
+      "accessCount": 2,
+      "lastAccessed": 1775661137842,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/dashboard.py",
+      "accessCount": 2,
+      "lastAccessed": 1775673613407,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/friction_audit.md",
+      "accessCount": 2,
+      "lastAccessed": 1775675542233,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1775704839375,
+      "type": "directory"
+    },
+    {
+      "path": "sol-bot/reply_gen_user_msg.txt",
+      "accessCount": 2,
+      "lastAccessed": 1775704843778,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/settings.py",
+      "accessCount": 2,
+      "lastAccessed": 1775743320134,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/reply_scanner.py",
+      "accessCount": 2,
+      "lastAccessed": 1775766787305,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/filter.py",
+      "accessCount": 1,
+      "lastAccessed": 1775108286656,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/http_utils.py",
+      "accessCount": 1,
+      "lastAccessed": 1775108293590,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/image_fetcher.py",
+      "accessCount": 1,
+      "lastAccessed": 1775109998287,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/nohup.out",
+      "accessCount": 1,
+      "lastAccessed": 1775138162299,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/sol_commands.pid",
+      "accessCount": 1,
+      "lastAccessed": 1775673495008,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/monitor.pid",
+      "accessCount": 1,
+      "lastAccessed": 1775673495263,
+      "type": "file"
+    },
+    {
+      "path": "sol-bot/pending_combo.json",
+      "accessCount": 1,
+      "lastAccessed": 1775677504345,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1775704887874,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
