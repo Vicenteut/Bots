@@ -7,6 +7,12 @@ backups/
 logs/
 __pycache__/
 *.pyc
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
 cookies.json
 *.session
 *.session-journal

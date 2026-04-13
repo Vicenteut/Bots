@@ -34,6 +34,7 @@ from config import BASE_DIR, load_environment
 from brain import call_brain, log_brain_action
 from generator import generate_tweet, generate_combinada_tweet
 from telegram_client import send_message
+from topic_utils import classify_topic
 
 load_environment()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -966,6 +967,7 @@ def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str 
             "tweet_id": tweet_id,
             "text_preview": (tweet or "")[:80],
             "tweet_type": tweet_type,
+            "topic_tag": classify_topic(tweet),
             "model_used": model_used,
             "char_count": len(tweet) if tweet else 0,
             "has_media": has_media,

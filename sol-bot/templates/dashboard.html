@@ -607,7 +607,7 @@
       </div>
     </div>
     <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">THREADS</div>
-    <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;max-height:220px;overflow:hidden;">
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:12px;max-height:300px;overflow:hidden;">
       <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
       <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
     </div>
@@ -1136,6 +1136,10 @@ function renderStatus(d) {
   const brainHtml = d.brain_enabled
     ? `<span class="brain-ok">ENABLED</span>`
     : `<span class="brain-fail">DISABLED</span>`;
+  const serviceBad = (d.system_services || []).filter(s => !s.ok).length;
+  const svcHtml = serviceBad
+    ? `<span style="color:var(--danger);font-family:var(--mono);font-size:11px;">${serviceBad} issue</span>`
+    : `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">OK</span>`;
   let lastPubHtml = '—';
   if (d.last_publish) {
     const lp = d.last_publish;
@@ -1161,6 +1165,8 @@ function renderStatus(d) {
     </div>
     <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">BRAIN</span>${brainHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">SVC</span>${svcHtml}</div>
     <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">LAST PUB</span>${lastPubHtml}</div>
     <div class="sb-divider"></div>
@@ -1964,10 +1970,10 @@ function _fmtTime(isoStr) {
   }
 
   async function loadAnalytics() {
-    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading...</span>';
+    document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
     try {
-      const threads = await fetch('/api/threads/analytics?limit=10').then(r => r.json());
+      const threads = await fetch('/api/threads/analytics?days=7&limit=20').then(r => r.json());
       renderThreadsSummary(threads);
       renderThreadsRecent(threads);
     } catch(e) {
@@ -1976,57 +1982,103 @@ function _fmtTime(isoStr) {
     }
   }
 
+  async function syncThreadsAnalytics() {
+    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">syncing...</span>';
+    try {
+      const result = await fetch('/api/threads/analytics/sync?limit=50', {
+        method: 'POST',
+        headers: {'X-CSRF-Token': _csrfToken}
+      }).then(r => r.json());
+      if (!result.success) addLogLine('err', `[analytics] sync failed: ${result.error || 'unknown error'}`);
+      else addLogLine('ok', `[analytics] synced ${result.count || 0} Threads posts`);
+      await loadAnalytics();
+    } catch(e) {
+      addLogLine('err', `[analytics] sync error: ${e}`);
+      await loadAnalytics();
+    }
+  }
+
+  function pct(n) {
+    if (n == null) return '—';
+    return (Number(n) * 100).toFixed(1) + '%';
+  }
+
+  function renderRank(title, rows) {
+    if (!rows || !rows.length) return `<div style="color:var(--muted2);font-size:9px;">${title}: no data</div>`;
+    return `<div style="margin-top:8px;">
+      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:4px;">${title}</div>
+      ${rows.slice(0,5).map(r => `<div style="display:grid;grid-template-columns:1fr 44px 52px 52px;gap:6px;border-top:1px solid var(--border);padding:3px 0;">
+        <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(String(r.label || 'UNKNOWN'))}</span>
+        <span style="text-align:right;color:var(--muted2);">${fmtNum(r.posts)}</span>
+        <span style="text-align:right;color:var(--cyan);">${fmtNum(r.avg_views)}</span>
+        <span style="text-align:right;color:var(--amber);">${pct(r.avg_engagement_rate)}</span>
+      </div>`).join('')}
+      <div style="display:grid;grid-template-columns:1fr 44px 52px 52px;gap:6px;color:var(--muted2);font-size:8px;margin-top:2px;">
+        <span></span><span style="text-align:right;">posts</span><span style="text-align:right;">views</span><span style="text-align:right;">eng</span>
+      </div>
+    </div>`;
+  }
 
   function renderThreadsSummary(data) {
     const el = document.getElementById('analytics-threads-summary');
-    if (!data || data.error || !data.posts || !data.posts.length) {
-      el.innerHTML = `<span style="color:var(--muted2);font-size:9px;">${data && data.error ? 'token error' : 'no data'}</span>`;
+    if (!data || (data.error && !data.summary)) {
+      el.innerHTML = `<span style="color:var(--muted2);font-size:9px;">${data && data.error ? _esc(data.error) : 'no data'}</span>`;
       return;
     }
-    const posts  = data.posts;
-    const total  = data.count;
-    const views  = posts.reduce((s, p) => s + (p.views || 0), 0);
-    const likes  = posts.reduce((s, p) => s + (p.likes || 0), 0);
-    const best   = posts.reduce((a, b) => (b.views || 0) > (a.views || 0) ? b : a, posts[0]);
+    const s = data.summary || {};
+    const last = data.last_sync || null;
+    const syncLine = last ? `${(last.timestamp || '').slice(0,19)} · ${last.status || 'UNKNOWN'} · ${last.count || 0}` : 'never synced';
     el.innerHTML = `
-      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
-      <div style="margin-bottom:4px;">POSTS <span style="color:var(--cyan);float:right;">${total}</span></div>
-      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(views)}</span></div>
-      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(likes)}</span></div>
-      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(Math.round(views / total))}</span></div>
-      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
-        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST POST</div>
-        <div style="color:var(--text);line-height:1.4;word-break:break-word;font-size:9px;">${_esc((best.text||'').slice(0,55))}…</div>
-        <div style="color:var(--cyan);margin-top:3px;font-size:8px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
-      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+        <span style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;">7D SUMMARY</span>
+        <button onclick="syncThreadsAnalytics()" style="background:none;border:1px solid var(--border2);color:var(--cyan);font-size:8px;padding:1px 6px;border-radius:2px;cursor:pointer;font-family:monospace;">SYNC</button>
+      </div>
+      <div style="margin-bottom:4px;">POSTS <span style="color:var(--cyan);float:right;">${fmtNum(s.posts || 0)}</span></div>
+      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(s.views || 0)}</span></div>
+      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(s.likes || 0)}</span></div>
+      <div style="margin-bottom:4px;">REPLIES <span style="color:var(--cyan);float:right;">${fmtNum(s.replies || 0)}</span></div>
+      <div style="margin-bottom:4px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(s.avg_views || 0)}</span></div>
+      <div style="margin-bottom:6px;">AVG ENG <span style="color:var(--amber);float:right;">${pct(s.avg_engagement_rate || 0)}</span></div>
+      <div style="border-top:1px solid var(--border);padding-top:5px;color:var(--muted2);font-size:8px;line-height:1.4;">last sync: ${_esc(syncLine)}</div>
+      ${data.error ? `<div style="color:var(--danger);font-size:8px;margin-top:4px;line-height:1.4;">${_esc(data.error)}</div>` : ''}
+      ${renderRank('BY FORMAT', data.by_format || [])}
+      ${renderRank('BY TOPIC', data.by_topic || [])}
+      ${renderRank('MEDIA VS TEXT', data.by_media || [])}
     `;
   }
 
   function renderThreadsRecent(data) {
     const el = document.getElementById('analytics-threads-recent');
-    if (!data || !data.posts || !data.posts.length) {
-      el.innerHTML = '<span style="color:var(--muted2);font-size:9px;">no posts</span>';
+    const posts = data && (data.recent_posts || data.posts) || [];
+    if (!posts.length) {
+      el.innerHTML = '<span style="color:var(--muted2);font-size:9px;">no persisted analytics yet. click SYNC.</span>';
       return;
     }
     let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT POSTS</div>
     <table style="width:100%;border-collapse:collapse;">
       <thead><tr style="color:var(--muted2);font-size:9px;">
         <th style="text-align:left;padding-bottom:4px;">POST</th>
+        <th style="text-align:left;padding-bottom:4px;">FMT</th>
+        <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
         <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
         <th style="text-align:right;padding-bottom:4px;">LIKES</th>
         <th style="text-align:right;padding-bottom:4px;">RPL</th>
+        <th style="text-align:right;padding-bottom:4px;">ENG</th>
       </tr></thead><tbody>`;
-    for (const p of data.posts) {
+    for (const p of posts) {
       const ts   = p.timestamp ? p.timestamp.slice(0, 10) : '—';
       const link = p.permalink ? `<a href="${p.permalink}" target="_blank" style="color:var(--cyan);text-decoration:none;" title="${_esc(p.text||'')}">↗</a>` : '';
       html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 4px 3px 0;font-size:9px;max-width:260px;">
+        <td style="padding:4px 6px 4px 0;font-size:9px;max-width:340px;">
           <span style="color:var(--muted2);font-size:8px;">${ts}</span> ${link}<br>
-          <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,70))}${(p.text||'').length > 70 ? '…' : ''}</span>
+          <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,92))}${(p.text||'').length > 92 ? '...' : ''}</span>
         </td>
+        <td style="color:var(--amber);font-size:9px;white-space:nowrap;">${_esc(p.tweet_type || 'UNKNOWN')}</td>
+        <td style="color:var(--muted);font-size:9px;white-space:nowrap;">${_esc(p.topic_tag || 'general')}</td>
         <td style="text-align:right;color:var(--cyan);font-size:9px;white-space:nowrap;">${fmtNum(p.views)}</td>
         <td style="text-align:right;color:var(--text);font-size:9px;white-space:nowrap;">${fmtNum(p.likes)}</td>
         <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.replies)}</td>
+        <td style="text-align:right;color:var(--amber);font-size:9px;white-space:nowrap;">${pct(p.engagement_rate || 0)}</td>
       </tr>`;
     }
     html += '</tbody></table>';

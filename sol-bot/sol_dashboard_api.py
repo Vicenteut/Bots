@@ -31,6 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from topic_utils import classify_topic
 
 try:
     from gdeltdoc import GdeltDoc, Filters as GdeltFilters
@@ -261,6 +262,39 @@ def _read_pid(name: str) -> dict:
         return {"alive": False, "pid": None, "uptime_s": 0.0}
 
 
+def _monitored_services() -> list[dict]:
+    names = [
+        item.strip() for item in os.getenv(
+            "SOL_MONITORED_SERVICES",
+            "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer",
+        ).split(",")
+        if item.strip()
+    ]
+    services = []
+    for name in names:
+        try:
+            active = subprocess.run(
+                ["systemctl", "is-active", name],
+                capture_output=True, text=True, timeout=2, check=False,
+            ).stdout.strip()
+        except Exception:
+            active = "unknown"
+        try:
+            enabled = subprocess.run(
+                ["systemctl", "is-enabled", name],
+                capture_output=True, text=True, timeout=2, check=False,
+            ).stdout.strip()
+        except Exception:
+            enabled = "unknown"
+        services.append({
+            "name": name,
+            "active": active,
+            "enabled": enabled,
+            "ok": active in {"active", "inactive"} if name.endswith(".timer") else active == "active",
+        })
+    return services
+
+
 def _brain_enabled() -> bool:
     try:
         data = json.loads(BRAIN_HISTORY.read_text())
@@ -346,6 +380,7 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
             "tweet_id": tweet_id,
             "text_preview": (tweet or "")[:80],
             "tweet_type": tweet_type,
+            "topic_tag": classify_topic(tweet),
             "char_count": len(tweet) if tweet else 0,
             "has_media": has_media,
             "media_type": media_type,
@@ -545,6 +580,7 @@ async def api_status():
         "last_publish": last_publish,
         "posts_today": posts_today,
         "recent_posts": recent_posts,
+        "system_services": _monitored_services(),
         "generator_available": _GENERATOR_AVAILABLE,
     }
 
@@ -1198,7 +1234,8 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
 # ─── THREADS ANALYTICS ────────────────────────────────────────────────────────
 
 @app.get("/api/threads/analytics")
-async def api_threads_analytics(limit: int = 20):
+async def api_threads_analytics(days: int = 7, limit: int = 20):
+    days = max(1, min(days, 90))
     limit = max(1, min(limit, 50))
     try:
         import importlib.util
@@ -1207,9 +1244,25 @@ async def api_threads_analytics(limit: int = 20):
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return JSONResponse(mod.fetch_posts(limit=limit))
+        return JSONResponse(mod.get_analytics(days=days, limit=limit))
     except Exception as e:
-        return JSONResponse({"error": str(e), "posts": [], "count": 0})
+        return JSONResponse({"error": str(e), "summary": {}, "recent_posts": []})
+
+
+@app.post("/api/threads/analytics/sync")
+async def api_threads_analytics_sync(request: Request, limit: int = 50):
+    _require_csrf(request)
+    limit = max(1, min(limit, 50))
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "threads_analytics", BOT_DIR / "threads_analytics.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return JSONResponse(mod.sync_posts(limit=limit))
+    except Exception as e:
+        return JSONResponse({"success": False, "count": 0, "error": str(e)})
 
 
 # ─── REPLY GENERATOR ──────────────────────────────────────────────────────────
