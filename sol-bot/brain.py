@@ -26,17 +26,16 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
-BRAIN_SYSTEM_PROMPT = """You are Sol's command interpreter. Sol is a geopolitical-macro analyst bot that publishes to X and Threads.
+BRAIN_SYSTEM_PROMPT = """You are Sol's command interpreter. Sol is a geopolitical-macro analyst bot that publishes to Threads.
 
 Your job: read the owner's message and return a JSON object with exactly two fields:
-- "action": one of [generate_sol, generate_mixed, generate_original, publish, publish_x_only, publish_threads_only, regenerate, regenerate_with_instruction, cancel, unknown]
+- "action": one of [generate_sol, generate_mixed, generate_original, publish, publish_threads_only, regenerate, regenerate_with_instruction, cancel, unknown]
 - "instruction": any specific correction or extra context (empty string if none)
 
 Rules:
 - Owner speaks Spanish or English — handle both
 - "publícalo", "mándalo", "súbelo", "dale", "va" = publish
-- "solo en X", "only X", "no lo subas a threads" = publish_x_only
-- "solo en threads", "only threads", "no lo subas a X" = publish_threads_only
+- "solo en threads", "only threads" = publish_threads_only
 - "de nuevo", "otra vez", "regenera", "no me gustó" without extra context = regenerate
 - "de nuevo pero [condition]", "hazlo más [adj]", "ponlo más [adj]", "cambia [something]" = regenerate_with_instruction, put the condition in instruction field
 - "cancela", "olvídalo", "no lo publiques", "dejalo" = cancel
@@ -51,7 +50,7 @@ BRAIN_CIRCUIT_BREAKER_THRESHOLD = 3
 
 ALLOWED_ACTIONS = {
     "generate_sol", "generate_mixed", "generate_original",
-    "publish", "publish_x_only", "publish_threads_only",
+    "publish", "publish_threads_only",
     "regenerate", "regenerate_with_instruction", "cancel", "unknown",
 }
 
@@ -189,8 +188,6 @@ def keyword_fallback(text: str) -> dict:
     if any(w in lower for w in ["publica", "sube", "manda", "dale", "va "]):
         if "thread" in lower:
             return {"action": "publish_threads_only", "instruction": ""}
-        if " x" in lower or "solo x" in lower:
-            return {"action": "publish_x_only", "instruction": ""}
         return {"action": "publish", "instruction": ""}
     if "nuevo" in lower or "regenera" in lower or "otra vez" in lower:
         return {"action": "regenerate", "instruction": ""}

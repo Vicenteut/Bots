@@ -9,7 +9,6 @@ import json
 import os
 import re
 import secrets
-import sqlite3
 import subprocess
 import urllib.parse
 from filelock import FileLock
@@ -18,12 +17,6 @@ try:
     _OPENAI_AVAILABLE = True
 except ImportError:
     _OPENAI_AVAILABLE = False
-try:
-    import tweepy as _tweepy
-    _TWEEPY_AVAILABLE = True
-except ImportError:
-    _tweepy = None
-    _TWEEPY_AVAILABLE = False
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,7 +65,6 @@ MONITOR_PENDING = BOT_DIR / "monitor_pending.json"
 MONITOR_QUEUE      = BOT_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK = BOT_DIR / "monitor_queue.lock"
 MEDIA_DIR          = BOT_DIR / "media"
-ANALYTICS_DB    = Path("/root/x-bot/analytics.db")
 CONTEXT_JSON    = BOT_DIR / "context.json"
 REPLY_PROMPT    = BOT_DIR / "reply_generator_prompt.txt"
 REPLY_USER_TMPL = BOT_DIR / "reply_gen_user_msg.txt"
@@ -518,8 +510,8 @@ class MonitorActionPayload(BaseModel):
     tweet_type: Optional[str] = None
 
 class ReplyPayload(BaseModel):
-    input_type: str               # "text" | "url"
-    content: str                  # pasted text OR tweet URL
+    input_type: str               # "text"; URL fetch was removed with X support
+    content: str                  # pasted text
     model_override: Optional[str] = None  # "haiku"|"sonnet"|null
 
 class ReplyRegenPayload(BaseModel):
@@ -606,9 +598,7 @@ async def api_publish(request: Request, payload: PublishPayload):
     if result.returncode != 0:
         print(f"[publish/{source}] Threads publish failed rc={result.returncode}: {stdout[-1200:]}", flush=True)
 
-    # Parse Threads result. Keep x_* fields false/null for UI backward compatibility.
-    x_success = False
-    x_tweet_id = None
+    # Parse Threads result.
     threads_success = result.returncode == 0
     threads_post_id = None
 
@@ -625,9 +615,7 @@ async def api_publish(request: Request, payload: PublishPayload):
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
 
     return {
-        "x_success": x_success,
         "threads_success": threads_success,
-        "x_tweet_id": x_tweet_id,
         "threads_post_id": threads_post_id,
         "stdout": stdout[-2000:],  # last 2000 chars for debugging
         "wire_repost_warning": wire_repost_warning,
@@ -1076,157 +1064,6 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
         raise HTTPException(500, str(e))
 
 
-# ─── ANALYTICS ────────────────────────────────────────────────────────────────
-
-def _analytics_conn():
-    """Open read-only connection to analytics.db; raises if missing."""
-    if not ANALYTICS_DB.exists():
-        raise FileNotFoundError("analytics.db not found")
-    conn = sqlite3.connect(f"file:{ANALYTICS_DB}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-@app.get("/api/analytics/summary")
-async def api_analytics_summary():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COUNT(*)            AS total_tweets,
-                COALESCE(SUM(views), 0)     AS total_views,
-                COALESCE(SUM(likes), 0)     AS total_likes,
-                COALESCE(SUM(retweets), 0)  AS total_retweets,
-                COALESCE(SUM(replies), 0)   AS total_replies,
-                COALESCE(AVG(views), 0)     AS avg_views,
-                MAX(last_updated)           AS last_updated
-            FROM tweets
-        """)
-        row = cur.fetchone()
-        if not row or row["total_tweets"] == 0:
-            conn.close()
-            return JSONResponse(None)
-
-        cur.execute("""
-            SELECT tweet_id, text, views, likes
-            FROM tweets
-            ORDER BY views DESC
-            LIMIT 1
-        """)
-        best = cur.fetchone()
-        conn.close()
-
-        return JSONResponse({
-            "total_tweets":   row["total_tweets"],
-            "total_views":    row["total_views"],
-            "total_likes":    row["total_likes"],
-            "total_retweets": row["total_retweets"],
-            "total_replies":  row["total_replies"],
-            "avg_views":      round(row["avg_views"], 1),
-            "last_updated":   row["last_updated"],
-            "best_tweet": {
-                "tweet_id": best["tweet_id"],
-                "text":     best["text"][:80] if best["text"] else "",
-                "views":    best["views"],
-                "likes":    best["likes"],
-            } if best else None,
-        })
-    except Exception:
-        return JSONResponse(None)
-
-
-@app.get("/api/analytics/by_topic")
-async def api_analytics_by_topic():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COALESCE(topic, 'unknown')  AS topic,
-                COUNT(*)                    AS count,
-                COALESCE(SUM(views), 0)     AS total_views,
-                COALESCE(SUM(likes), 0)     AS total_likes,
-                COALESCE(SUM(retweets), 0)  AS total_retweets,
-                COALESCE(AVG(views), 0)     AS avg_views
-            FROM tweets
-            GROUP BY topic
-            ORDER BY total_views DESC
-        """)
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        for r in rows:
-            r["avg_views"] = round(r["avg_views"], 1)
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/by_media")
-async def api_analytics_by_media():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COALESCE(media_type, 'text') AS media_type,
-                COUNT(*)                     AS count,
-                COALESCE(SUM(views), 0)      AS total_views,
-                COALESCE(AVG(views), 0)      AS avg_views
-            FROM tweets
-            GROUP BY media_type
-            ORDER BY total_views DESC
-        """)
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        for r in rows:
-            r["avg_views"] = round(r["avg_views"], 1)
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/recent")
-async def api_analytics_recent(limit: int = 10):
-    limit = max(1, min(limit, 50))
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT tweet_id, text, created_at, views, likes, retweets, replies, topic, media_type
-            FROM tweets
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,))
-        rows = []
-        for r in cur.fetchall():
-            d = dict(r)
-            d["text_preview"] = (d["text"] or "")[:80]
-            rows.append(d)
-        conn.close()
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/growth")
-async def api_analytics_growth(tweet_id: str):
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT timestamp, views, likes, retweets, replies
-            FROM snapshots
-            WHERE tweet_id = ?
-            ORDER BY timestamp ASC
-        """, (tweet_id,))
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
 # ─── THREADS ANALYTICS ────────────────────────────────────────────────────────
 
 @app.get("/api/threads/analytics")
@@ -1312,63 +1149,11 @@ def _reply_parse(raw: str) -> dict:
     return json.loads(cleaned)
 
 
-def _fetch_tweet_text(tweet_url: str) -> tuple[str | None, str | None]:
-    """Fetch tweet text via tweepy v2 API. Returns (text, error_msg)."""
-    if not _TWEEPY_AVAILABLE:
-        return None, "tweepy not installed"
-    m = re.search(r"/status/(\d+)", tweet_url)
-    if not m:
-        return None, "Invalid tweet URL — no status ID found"
-    tweet_id = m.group(1)
-
-    # Try Bearer Token (OAuth2) first if available
-    bearer = os.getenv("TWITTER_BEARER_TOKEN") or os.getenv("X_BEARER_TOKEN")
-    clients_to_try = []
-    if bearer:
-        clients_to_try.append(("bearer", _tweepy.Client(bearer_token=bearer, wait_on_rate_limit=False)))
-    # Always add OAuth1 fallback
-    clients_to_try.append(("oauth1", _tweepy.Client(
-        consumer_key=os.getenv("X_API_KEY"),
-        consumer_secret=os.getenv("X_API_SECRET"),
-        access_token=os.getenv("X_ACCESS_TOKEN"),
-        access_token_secret=os.getenv("X_ACCESS_TOKEN_SECRET"),
-        wait_on_rate_limit=False,
-    )))
-
-    last_error = "Unknown error"
-    for auth_type, client in clients_to_try:
-        try:
-            resp = client.get_tweet(tweet_id, tweet_fields=["text", "author_id"])
-            if resp and resp.data:
-                print(f"[reply/fetch_tweet] OK via {auth_type}: tweet_id={tweet_id}", flush=True)
-                return resp.data.text, None
-            # No data, no errors — tweet exists but empty
-            last_error = "Tweet returned no data (possibly deleted)"
-        except Exception as e:
-            err_str = str(e).lower()
-            print(f"[reply/fetch_tweet] {auth_type} error: {e}", flush=True)
-            if "429" in err_str or "rate limit" in err_str:
-                last_error = "Rate limit reached — try again in a few minutes"
-                break  # No point trying other auth
-            elif "401" in err_str or "403" in err_str or "unauthorized" in err_str or "forbidden" in err_str:
-                last_error = "Auth error — tweet may be from a protected account"
-            elif "404" in err_str or "not found" in err_str:
-                last_error = "Tweet not found — may be deleted or private"
-                break
-            else:
-                last_error = f"Fetch failed: {str(e)[:120]}"
-
-    return None, last_error
-
-
 @app.post("/api/replies/generate")
 async def api_replies_generate(payload: ReplyPayload):
-    # Resolve original tweet text
+    # Resolve original text. URL fetching via X/Twitter API was removed with X support.
     if payload.input_type == "url":
-        loop = asyncio.get_event_loop()
-        tweet_text, fetch_error = await loop.run_in_executor(None, lambda: _fetch_tweet_text(payload.content))
-        if not tweet_text:
-            return JSONResponse({"error": fetch_error or "Could not fetch tweet — paste text instead"}, status_code=422)
+        return JSONResponse({"error": "URL fetch is disabled. Paste the text instead."}, status_code=422)
     else:
         tweet_text = payload.content.strip()
         if not tweet_text:
@@ -1616,14 +1401,6 @@ GDELT_BASELINE     = BOT_DIR / "gdelt_baseline.json"
 GDELT_BASELINE_LOCK = BOT_DIR / "gdelt_baseline.lock"
 
 
-class EngagementUpdate(BaseModel):
-    tweet_id: str
-    views: int = 0
-    likes: int = 0
-    retweets: int = 0
-    replies: int = 0
-
-
 @app.get("/api/n8n/gdelt-baseline")
 async def n8n_gdelt_baseline_get():
     try:
@@ -1658,66 +1435,5 @@ async def n8n_gdelt_baseline_post(request: Request):
             tmp.write_text(json.dumps(baseline, indent=2))
             tmp.rename(GDELT_BASELINE)
         return JSONResponse({"saved": True, "keyword": keyword, "count": count})
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.get("/api/n8n/publish-log")
-async def n8n_publish_log():
-    try:
-        if not PUBLISH_LOG.exists():
-            return JSONResponse([])
-        entries = json.loads(PUBLISH_LOG.read_text())
-        x_tweets = [
-            {
-                "tweet_id": e["tweet_id"],
-                "text_preview": (e.get("text_preview") or "")[:80],
-                "published_at": e.get("published_at"),
-            }
-            for e in entries
-            if e.get("platform") == "x"
-            and e.get("success") is True
-            and e.get("tweet_id")
-        ]
-        return JSONResponse(x_tweets[-50:])
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.post("/api/n8n/update-engagement")
-async def n8n_update_engagement(payload: EngagementUpdate):
-    try:
-        now = _now_iso()
-        conn = sqlite3.connect(str(ANALYTICS_DB))
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT OR IGNORE INTO tweets
-              (tweet_id, first_seen, last_updated, likes, retweets, replies, views)
-            VALUES (?, ?, ?, 0, 0, 0, 0)
-            """,
-            (payload.tweet_id, now, now),
-        )
-        cur.execute(
-            """
-            UPDATE tweets
-            SET likes=?, retweets=?, replies=?, views=?,
-                last_updated=?,
-                engagement_rate=ROUND(
-                  (? + ? + ?) * 1.0 / NULLIF(?, 0), 4
-                )
-            WHERE tweet_id=?
-            """,
-            (
-                payload.likes, payload.retweets, payload.replies, payload.views,
-                now,
-                payload.likes, payload.retweets, payload.replies, payload.views,
-                payload.tweet_id,
-            ),
-        )
-        conn.commit()
-        conn.close()
-        return JSONResponse({"updated": True, "tweet_id": payload.tweet_id})
     except Exception as e:
         raise HTTPException(500, str(e))

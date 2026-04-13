@@ -9,9 +9,8 @@ Usage via Telegram (owner only):
   <any text>              Treat as news title — generate tweet
   <title> | <context>    Title + extra context for richer generation
   /noticia <text>        Explicit news command (same as plain text)
-  /publica               Publish the last generated pending tweet
-  /publica x             Publish to X only
-  /publica threads       Publish to Threads only
+  /publica               Publish the last generated pending tweet to Threads
+  /publica threads       Publish to Threads
   /regenera              Regenerate last tweet with a different angle
   /wire                  Regenerate as breaking news (WIRE)
   /analisis              Regenerate as deep analysis (ANALISIS)
@@ -156,9 +155,7 @@ def send_publish_keyboard(tweet_preview: str = "", media_note: str = ""):
         "reply_markup": {
             "inline_keyboard": [
                 [
-                    {"text": "✅ Publicar ambos", "callback_data": "pub_both"},
-                    {"text": "𝕏 Solo X",          "callback_data": "pub_x"},
-                    {"text": "🧵 Solo Threads",    "callback_data": "pub_threads"},
+                    {"text": "🧵 Publicar en Threads", "callback_data": "pub_threads"},
                 ],
                 [
                     {"text": "🔄 Regenerar", "callback_data": "btn_regen"},
@@ -460,7 +457,7 @@ def cmd_mixed(text: str = "", reply_news: str = None, target: str = "both"):
         )
         return
 
-    target_label = {"both": "X + Threads", "x": "solo X", "threads": "solo Threads"}.get(target, "X + Threads")
+    target_label = "Threads"
     send_message(f"Generando mixed ({target_label})...")
 
     try:
@@ -604,8 +601,6 @@ def cmd_publish_original(reply_news: str = None, target: str = "both"):
     media_note = f" + {'video' if media_type == 'video' else 'imagen'}" if media_path else ""
     send_message(f"Publicando original{media_note}: {text[:80]}...")
 
-    if target == "x":
-        send_message("X esta desactivado; publicando en Threads.")
     _publish_threads(text, media_path, media_type)
 
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_publish_original()")
@@ -693,15 +688,12 @@ def cmd_ayuda():
         "  /conexion      Angulo macro\n"
         "  /regenera      Otro angulo aleatorio\n"
         "  /mixed         WIRE + ANALISIS en secuencia\n"
-        "  /mixed x       Solo X\n"
         "  /mixed threads Solo Threads\n\n"
         "PUBLICAR:\n"
-        "  /publica       X + Threads\n"
-        "  /publica x     Solo X\n"
-        "  /publica threads  Solo Threads\n\n"
+        "  /publica       Publica en Threads\n"
+        "  /publica threads  Publica en Threads\n\n"
         "PUBLICAR SIN GENERAR:\n"
-        "  /original      Publica original en X + Threads\n"
-        "  /xo             Solo X original\n"
+        "  /original      Publica original en Threads\n"
         "  /to             Solo Threads original\n"
         "  /traduce       Traduce al espanol y publica\n\n"
         "SCHEDULER:\n"
@@ -867,7 +859,7 @@ def cmd_publish(args: str = ""):
         except Exception:
             pass
 
-    target = args.strip().lower()  # "x", "threads", or "" (both)
+    target = args.strip().lower()  # Legacy args are ignored; publishing is Threads-only.
 
     if media_paths:
         n = len(media_paths)
@@ -877,8 +869,6 @@ def cmd_publish(args: str = ""):
         media_note = ""
     send_message(f"Publicando{media_note}: {tweet[:80]}...")
 
-    if target == "x":
-        send_message("X esta desactivado; publicando en Threads.")
     _publish_threads(tweet, media_path, media_type, tg_media_url=tg_media_url, media_paths=media_paths)
 
     for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
@@ -955,12 +945,6 @@ def _read_pending_meta() -> tuple:
     return None, None
 
 
-def _publish_x(tweet: str, media_path: str = None, media_type: str = "photo", media_paths: list = None):
-    """X publishing is retired; keep this shim so old commands cannot post to X."""
-    send_message("X esta desactivado; publicando en Threads.")
-    return _publish_threads(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
-
-
 def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None, media_paths: list = None):
     tweet_type, model_used = _read_pending_meta()
     if media_paths is None:
@@ -1029,9 +1013,6 @@ def _publish_combo(args: str = ""):
     media_paths, media_type = _load_media_from_pending(data)
     media_path = media_paths[0] if media_paths else None
 
-    if args.strip().lower() == "x":
-        send_message("X esta desactivado; publicando mixed en Threads.")
-
     _publish_threads(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
 
     COMBO_FILE.unlink(missing_ok=True)
@@ -1061,14 +1042,11 @@ def _dispatch_brain_action(action: str, instruction: str, text: str, reply_news:
     elif action == "generate_original":
         cmd_publish_original(reply_news=reply_news)
 
-    elif action in ("publish", "publish_x_only", "publish_threads_only"):
+    elif action in ("publish", "publish_threads_only"):
         if not pending_exists:
             send_message("No hay nada pendiente para publicar. ¿Querés generar algo primero?")
             return
-        if action == "publish_x_only":
-            send_message("X esta desactivado; publicando en Threads.")
-            target = "threads"
-        elif action == "publish_threads_only":
+        if action == "publish_threads_only":
             target = "threads"
         else:
             target = "threads"
@@ -1125,9 +1103,6 @@ def handle_message(text: str, reply_news: str = None):
     elif lower in ("/original", "/reenviar", "/asis"):
         cmd_publish_original(reply_news=reply_news)
         log_brain_action("generate_original", text)
-    elif lower in ("/original x", "/publica xo", "/xo"):
-        cmd_publish_original(reply_news=reply_news, target="x")
-        log_brain_action("publish_x_only", text)
     elif lower in ("/original threads", "/publica to", "/to"):
         cmd_publish_original(reply_news=reply_news, target="threads")
         log_brain_action("publish_threads_only", text)
@@ -1136,13 +1111,11 @@ def handle_message(text: str, reply_news: str = None):
         log_brain_action("generate_original", text)
     elif lower.startswith("/mixed"):
         parts = text.split()
-        target = "both"
-        if len(parts) > 1 and parts[1].lower() == "x":
-            target = "x"
-        elif len(parts) > 1 and parts[1].lower() in ("threads", "thread"):
+        target = "threads"
+        if len(parts) > 1 and parts[1].lower() in ("threads", "thread"):
             target = "threads"
         # Any remaining text after the command (and optional platform flag) is the inline headline
-        skip = 1 + (1 if target != "both" else 0)
+        skip = 1 + (1 if len(parts) > 1 and parts[1].lower() in ("threads", "thread") else 0)
         inline = " ".join(parts[skip:]).strip()
         cmd_mixed(inline, reply_news=reply_news, target=target)
         log_brain_action("generate_mixed", text)
@@ -1222,10 +1195,6 @@ def main():
                             send_message("No hay noticia guardada. Envía el titular de nuevo.")
                     elif callback_data == "gen_original":
                         cmd_publish_original()
-                    elif callback_data == "pub_both":
-                        cmd_publish("")
-                    elif callback_data == "pub_x":
-                        cmd_publish("x")
                     elif callback_data == "pub_threads":
                         cmd_publish("threads")
                     elif callback_data == "btn_regen":

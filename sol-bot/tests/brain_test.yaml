@@ -14,7 +14,7 @@ prompts:
       [
         {
           "role": "system",
-          "content": "You are Sol's command interpreter. Sol is a geopolitical-macro analyst bot that publishes to X and Threads.\n\nYour job: read the owner's message and return a JSON object with exactly two fields:\n- \"action\": one of [generate_sol, generate_mixed, generate_original, publish, publish_x_only, publish_threads_only, regenerate, regenerate_with_instruction, cancel, unknown]\n- \"instruction\": any specific correction or extra context (empty string if none)\n\nRules:\n- Owner speaks Spanish or English — handle both\n- \"publícalo\", \"mándalo\", \"súbelo\", \"dale\", \"va\" = publish\n- \"solo en X\", \"only X\", \"no lo subas a threads\" = publish_x_only\n- \"solo en threads\", \"only threads\", \"no lo subas a X\" = publish_threads_only\n- \"de nuevo\", \"otra vez\", \"regenera\", \"no me gustó\" without extra context = regenerate\n- \"de nuevo pero [condition]\", \"hazlo más [adj]\", \"ponlo más [adj]\", \"cambia [something]\" = regenerate_with_instruction, put the condition in instruction field\n- \"cancela\", \"olvídalo\", \"no lo publiques\", \"dejalo\" = cancel\n- If message contains actual news text (headline, data, event), action = generate_sol unless user specifies mixed or original\n- \"genera el mixed\", \"hazlo mixed\", \"combinada\" = generate_mixed\n- \"wire en inglés\", \"solo el wire\", \"original\" = generate_original\n- Return ONLY valid JSON. No markdown fences, no explanation."
+          "content": "You are Sol's command interpreter. Sol is a geopolitical-macro analyst bot that publishes to Threads.\n\nYour job: read the owner's message and return a JSON object with exactly two fields:\n- \"action\": one of [generate_sol, generate_mixed, generate_original, publish, publish_threads_only, regenerate, regenerate_with_instruction, cancel, unknown]\n- \"instruction\": any specific correction or extra context (empty string if none)\n\nRules:\n- Owner speaks Spanish or English — handle both\n- \"publícalo\", \"mándalo\", \"súbelo\", \"dale\", \"va\" = publish\n- \"solo en threads\", \"only threads\" = publish_threads_only\n- \"de nuevo\", \"otra vez\", \"regenera\", \"no me gustó\" without extra context = regenerate\n- \"de nuevo pero [condition]\", \"hazlo más [adj]\", \"ponlo más [adj]\", \"cambia [something]\" = regenerate_with_instruction, put the condition in instruction field\n- \"cancela\", \"olvídalo\", \"no lo publiques\", \"dejalo\" = cancel\n- If message contains actual news text (headline, data, event), action = generate_sol unless user specifies mixed or original\n- \"genera el mixed\", \"hazlo mixed\", \"combinada\" = generate_mixed\n- \"wire en inglés\", \"solo el wire\", \"original\" = generate_original\n- Return ONLY valid JSON. No markdown fences, no explanation."
         },
         {
           "role": "user",
@@ -46,15 +46,15 @@ tests:
           const j = JSON.parse(output.replace(/^```(?:json)?\s*\n?/,'').replace(/\n?```\s*$/,'').trim());
           return j.action === 'publish';
 
-  # ── 3. publish_x_only ───────────────────────────────────────────────
-  - description: "3. súbelo solo a X → publish_x_only"
+  # ── 3. legacy platform wording ──────────────────────────────────────
+  - description: "3. súbelo solo a X → publish"
     vars:
       message: "súbelo solo a X"
     assert:
       - type: javascript
         value: |
           const j = JSON.parse(output.replace(/^```(?:json)?\s*\n?/,'').replace(/\n?```\s*$/,'').trim());
-          return j.action === 'publish_x_only';
+          return j.action === 'publish';
 
   # ── 4. publish_threads_only ─────────────────────────────────────────
   - description: "4. publícalo solo en threads → publish_threads_only"

@@ -132,7 +132,6 @@
   .char-bar-fill.over { background: var(--danger); }
   .platform-badges { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
   .badge { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 3px; border: 1px solid; }
-  .badge-x       { background: rgba(229,229,229,0.07); border-color: var(--border2); color: var(--text); }
   .badge-threads { background: rgba(34,211,238,0.07); border-color: var(--cyan-dim); color: var(--cyan); }
   .badge-type    { background: rgba(245,158,11,0.08); border-color: var(--amber-dim); color: var(--amber); }
   .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
@@ -607,19 +606,10 @@
         <button onclick="toggleAnalyticsPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
       </div>
     </div>
-    <div style="color:var(--muted2);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">𝕏 TWITTER</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;max-height:220px;overflow:hidden;margin-bottom:12px;">
-      <div id="analytics-summary" style="overflow-y:auto;"></div>
-      <div id="analytics-topic" style="overflow-y:auto;"></div>
-      <div id="analytics-media" style="overflow-y:auto;"></div>
-      <div id="analytics-recent" style="overflow-y:auto;"></div>
-    </div>
-    <div style="border-top:1px solid var(--border);padding-top:10px;">
-      <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">⊙ THREADS</div>
-      <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;max-height:200px;overflow:hidden;">
-        <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
-        <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
-      </div>
+    <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">THREADS</div>
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;max-height:220px;overflow:hidden;">
+      <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
+      <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -791,11 +781,11 @@
     </div>
     <div class="reply-mode-bar">
       <button class="reply-mode-btn active" id="mode-text" onclick="setReplyMode('text')">📋 PASTE TEXT</button>
-      <button class="reply-mode-btn" id="mode-url" onclick="setReplyMode('url')">🔗 USE LINK</button>
+      <button class="reply-mode-btn" id="mode-url" onclick="setReplyMode('url')" style="display:none;">🔗 USE LINK</button>
     </div>
     <div id="reply-input-area">
-      <textarea id="reply-textarea" placeholder="Paste tweet or full thread..."></textarea>
-      <input type="text" id="reply-url-input" placeholder="https://x.com/user/status/..." style="display:none;">
+      <textarea id="reply-textarea" placeholder="Paste the post or full thread text..."></textarea>
+      <input type="text" id="reply-url-input" placeholder="URL fetch disabled. Paste text instead." style="display:none;">
     </div>
     <div class="reply-model-bar">
       <button class="reply-model-tab active" onclick="setReplyModel(this,'auto')">AUTO</button>
@@ -1147,7 +1137,7 @@ function renderStatus(d) {
   if (d.last_publish) {
     const lp = d.last_publish;
     const ago = _timeAgo(lp.published_at);
-    const plat = lp.platform === 'x' ? 'X' : lp.platform === 'threads' ? 'T' : lp.platform;
+    const plat = lp.platform === 'threads' ? 'T' : lp.platform;
     const type = lp.tweet_type ? ` · ${lp.tweet_type}` : '';
     lastPubHtml = `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}</span>`;
   }
@@ -1186,9 +1176,7 @@ function renderRecentPosts(posts) {
   }
   el.innerHTML = posts.map(p => {
     const ts = _fmtTime(p.published_at);
-    const platBadge = p.platform === 'x'
-      ? `<span class="badge badge-x" style="padding:1px 5px;font-size:9px;">𝕏</span>`
-      : `<span class="badge badge-threads" style="padding:1px 5px;font-size:9px;">T</span>`;
+    const platBadge = `<span class="badge badge-threads" style="padding:1px 5px;font-size:9px;">T</span>`;
     const typeBadge = p.tweet_type
       ? `<span class="badge badge-type" style="padding:1px 5px;font-size:9px;">${_esc(p.tweet_type)}</span>`
       : '';
@@ -1224,7 +1212,6 @@ function renderPending(d) {
         <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
       </div>
       <div class="platform-badges">
-        <span class="badge badge-x">𝕏 X</span>
         <span class="badge badge-threads">⊙ THREADS</span>
         ${ttype ? `<span class="badge badge-type">${_esc(ttype)}</span>` : ''}
         ${gen_at ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-left:4px;">${gen_at}</span>` : ''}
@@ -1494,34 +1481,25 @@ async function doMixed(btn) {
 
 // ─── PUBLISH ─────────────────────────────────────────────────
 function _insertPublishProgress(grid, platform) {
-  const showX = platform !== 'threads';
-  const showT = platform !== 'x';
-  const rows = [];
-  if (showX) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">𝕏 X</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-x"></div></div><span class="pub-bar-pct" id="pub-pct-x">0%</span></div>`);
-  if (showT) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">THREADS</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-th"></div></div><span class="pub-bar-pct" id="pub-pct-th">0%</span></div>`);
   const prog = document.createElement('div');
   prog.className = 'pub-progress-container';
-  prog.innerHTML = rows.join('');
+  prog.innerHTML = `<div class="pub-bar-row"><span class="pub-bar-label">THREADS</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-th"></div></div><span class="pub-bar-pct" id="pub-pct-th">0%</span></div>`;
   if (grid) { grid.style.display = 'none'; grid.parentNode.insertBefore(prog, grid.nextSibling); }
   return prog;
 }
 
 function _animatePublishBars(container, platform) {
-  let xPct = 0, tPct = 0;
+  let tPct = 0;
   return setInterval(() => {
-    const xFill = container.querySelector('#pub-fill-x');
     const tFill = container.querySelector('#pub-fill-th');
-    const xPctEl = container.querySelector('#pub-pct-x');
     const tPctEl = container.querySelector('#pub-pct-th');
-    if (xFill && xPct < 88) { xPct = Math.min(xPct + 3, 88); xFill.style.width = xPct + '%'; if (xPctEl) xPctEl.textContent = xPct + '%'; }
     if (tFill && tPct < 88) { tPct = Math.min(tPct + 2, 88); tFill.style.width = tPct + '%'; if (tPctEl) tPctEl.textContent = tPct + '%'; }
   }, 200);
 }
 
 function _finishPublishBars(container, platform, xOk, tOk) {
   const pairs = [
-    ['#pub-fill-x', '#pub-pct-x', platform !== 'threads', xOk],
-    ['#pub-fill-th', '#pub-pct-th', platform !== 'x', tOk],
+    ['#pub-fill-th', '#pub-pct-th', true, tOk],
   ];
   for (const [fillId, pctId, active, ok] of pairs) {
     if (!active) continue;
@@ -1542,16 +1520,15 @@ async function publishPost(platform, source, btn) {
   const progContainer = _insertPublishProgress(grid, platform);
   const intervalId = _animatePublishBars(progContainer, platform);
 
-  let xOk = false, tOk = false, d = null;
+  let tOk = false, d = null;
   try {
     const r = await fetch('/api/publish', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({platform, source}),
     });
-    const d = await r.json();
+    d = await r.json();
     if (r.ok) {
-      xOk = false;
       tOk = !!d.threads_success;
       const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
@@ -1574,7 +1551,7 @@ async function publishPost(platform, source, btn) {
   }
 
   clearInterval(intervalId);
-  _finishPublishBars(progContainer, platform, xOk, tOk);
+  _finishPublishBars(progContainer, platform, false, tOk);
 
   if (d && d.wire_repost_warning && resultEl) {
     resultEl.innerHTML = `<div style="margin-top:8px;padding:7px 10px;background:rgba(245,158,11,0.08);border:1px solid var(--amber-dim);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--amber);">
@@ -1957,108 +1934,16 @@ function _fmtTime(isoStr) {
   }
 
   async function loadAnalytics() {
-    document.getElementById('analytics-summary').innerHTML         = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-topic').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-media').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-recent').innerHTML          = '<span style="color:var(--muted2)">loading…</span>';
     document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading…</span>';
     document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading…</span>';
     try {
-      const [summary, topic, media, recent, threads] = await Promise.all([
-        fetch('/api/analytics/summary').then(r => r.json()),
-        fetch('/api/analytics/by_topic').then(r => r.json()),
-        fetch('/api/analytics/by_media').then(r => r.json()),
-        fetch('/api/analytics/recent?limit=5').then(r => r.json()),
-        fetch('/api/threads/analytics?limit=10').then(r => r.json()),
-      ]);
-      renderAnalyticsSummary(summary);
-      renderAnalyticsTopic(topic);
-      renderAnalyticsMedia(media);
-      renderAnalyticsRecent(recent);
+      const threads = await fetch('/api/threads/analytics?limit=10').then(r => r.json());
       renderThreadsSummary(threads);
       renderThreadsRecent(threads);
     } catch(e) {
-      document.getElementById('analytics-summary').innerHTML = '<span style="color:var(--danger)">error</span>';
+      document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--danger)">error</span>';
+      document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--danger)">error</span>';
     }
-  }
-
-  function renderAnalyticsSummary(d) {
-    const el = document.getElementById('analytics-summary');
-    if (!d) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    const best = d.best_tweet;
-    el.innerHTML = `
-      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
-      <div style="margin-bottom:4px;">TWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_tweets)}</span></div>
-      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_views)}</span></div>
-      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(d.total_likes)}</span></div>
-      <div style="margin-bottom:4px;">RETWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_retweets)}</span></div>
-      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.avg_views)}</span></div>
-      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
-        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST TWEET</div>
-        <div style="color:var(--text);line-height:1.4;word-break:break-word;">${_esc(best.text.slice(0,60))}…</div>
-        <div style="color:var(--cyan);margin-top:3px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
-      </div>` : ''}
-    `;
-  }
-
-  function renderAnalyticsTopic(rows) {
-    const el = document.getElementById('analytics-topic');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    const top6 = rows.slice(0, 6);
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY TOPIC</div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="color:var(--muted2);font-size:9px;">
-        <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
-        <th style="text-align:right;padding-bottom:4px;">TWS</th>
-        <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
-        <th style="text-align:right;padding-bottom:4px;">AVG</th>
-      </tr></thead><tbody>`;
-    for (const r of top6) {
-      html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 0;color:var(--cyan);font-size:9px;word-break:break-all;">${_esc(r.topic)}</td>
-        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
-        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.total_views)}</td>
-        <td style="text-align:right;color:var(--muted);font-size:9px;">${fmtNum(r.avg_views)}</td>
-      </tr>`;
-    }
-    html += '</tbody></table>';
-    el.innerHTML = html;
-  }
-
-  function renderAnalyticsMedia(rows) {
-    const el = document.getElementById('analytics-media');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY MEDIA</div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="color:var(--muted2);font-size:9px;">
-        <th style="text-align:left;padding-bottom:4px;">TYPE</th>
-        <th style="text-align:right;padding-bottom:4px;">TWS</th>
-        <th style="text-align:right;padding-bottom:4px;">AVG VIEWS</th>
-      </tr></thead><tbody>`;
-    for (const r of rows) {
-      html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 0;color:var(--text);font-size:9px;">${_esc(r.media_type)}</td>
-        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
-        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.avg_views)}</td>
-      </tr>`;
-    }
-    html += '</tbody></table>';
-    el.innerHTML = html;
-  }
-
-  function renderAnalyticsRecent(rows) {
-    const el = document.getElementById('analytics-recent');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT TWEETS</div>`;
-    for (const r of rows) {
-      const ts = r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : '—';
-      html += `<div style="border-top:1px solid var(--border);padding:4px 0;cursor:default;" title="${_esc(r.text_preview || '')}">
-        <div style="color:var(--muted2);font-size:8px;">${ts}</div>
-        <div style="color:var(--text);font-size:9px;line-height:1.3;word-break:break-word;">${_esc((r.text_preview||'').slice(0,60))}${(r.text_preview||'').length > 60 ? '…' : ''}</div>
-        <div style="color:var(--cyan);font-size:8px;margin-top:2px;">${fmtNum(r.views)} views · ${fmtNum(r.likes)} likes</div>
-      </div>`;
-    }
-    el.innerHTML = html;
   }
 
 

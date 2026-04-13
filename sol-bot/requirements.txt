@@ -6,7 +6,6 @@ google-api-python-client==2.193.0  # was >=2.193.0
 google-auth==2.49.1            # was >=2.49.0
 google-auth-httplib2==0.3.0    # was >=0.3.0
 google-auth-oauthlib==1.3.0    # was >=1.3.0
-tweepy==4.16.0                 # was >=4.14.0
 fastapi==0.135.3               # was >=0.110.0
 uvicorn[standard]==0.44.0      # was >=0.29.0
 # WARNING: Jinja2 3.0.3 is installed but requirement was >=3.1.3 — installed version is older than spec

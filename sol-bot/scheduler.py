@@ -132,7 +132,7 @@ def main():
             f"{tweet_text}{nl}{nl}"
             f"Fuente: {h['source']}{nl}"
             f"Noticia: {h['title'][:100]}{nl}{nl}"
-            f"→ /publica {i}  (X + Threads{', con imagen' if img_path else ''})"
+            f"→ /publica {i}  (Threads{', con imagen' if img_path else ''})"
         )
 
         if img_path:
