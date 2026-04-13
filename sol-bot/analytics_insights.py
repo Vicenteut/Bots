@@ -32,7 +32,7 @@ DB_PATH = BASE_DIR / "analytics.db"
 ENV_PATH = BASE_DIR / ".env"
 LOG_DIR = BASE_DIR / "logs"
 
-BEARER = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+BEARER = f"Bearer {os.environ.get('X_BEARER_TOKEN', '')}"
 SCREEN_NAME = "napoleotics"
 
 TOPIC_KEYWORDS = {
@@ -239,7 +239,60 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(timestamp);
     """)
     conn.close()
+    migrate_db()
     log("Database initialized")
+
+
+def migrate_db():
+    """Add new analytics columns to existing tweets table (idempotent)."""
+    conn = sqlite3.connect(str(DB_PATH))
+    new_columns = [
+        ("tweet_type",      "TEXT"),
+        ("source_channel",  "TEXT"),
+        ("hour_of_day",     "INTEGER"),
+        ("engagement_rate", "REAL"),
+    ]
+    for col, col_type in new_columns:
+        try:
+            conn.execute(f"ALTER TABLE tweets ADD COLUMN {col} {col_type} DEFAULT NULL")
+            log(f"[migrate_db] Added column: {col}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+    # Backfill derived columns for existing rows
+    conn.execute("""
+        UPDATE tweets SET hour_of_day = CAST(strftime('%H', created_at) AS INTEGER)
+        WHERE hour_of_day IS NULL AND created_at IS NOT NULL
+    """)
+    conn.execute("""
+        UPDATE tweets SET
+            engagement_rate = ROUND(CAST(likes + retweets + replies AS REAL) / NULLIF(views, 0) * 100, 2)
+        WHERE engagement_rate IS NULL AND views > 0
+    """)
+
+    # Sync tweet_type from publish_log.json by tweet_id
+    publish_log = Path("/root/x-bot/logs/publish_log.json")
+    if publish_log.exists():
+        try:
+            entries = json.loads(publish_log.read_text())
+            if isinstance(entries, list):
+                synced = 0
+                for entry in entries:
+                    tid = entry.get("tweet_id")
+                    ttype = entry.get("tweet_type")
+                    if tid and ttype:
+                        conn.execute(
+                            "UPDATE tweets SET tweet_type = ? WHERE tweet_id = ? AND tweet_type IS NULL",
+                            (ttype, tid)
+                        )
+                        synced += conn.execute("SELECT changes()").fetchone()[0]
+                if synced:
+                    log(f"[migrate_db] Synced tweet_type for {synced} rows from publish_log")
+        except Exception as e:
+            log(f"[migrate_db] publish_log sync error: {e}")
+
+    conn.commit()
+    conn.close()
 
 
 def get_db():
@@ -539,20 +592,31 @@ def scan_tweets():
         length = len(text)
         thread = 1 if is_self_reply(t) else 0
 
+        hour = None
+        try:
+            hour = int(datetime.fromisoformat(created_iso).strftime("%H"))
+        except Exception:
+            pass
+        eng_rate = round((likes + rts + replies) * 100.0 / views, 2) if views > 0 else None
+
         existing = conn.execute("SELECT tweet_id FROM tweets WHERE tweet_id = ?", (tid,)).fetchone()
         if existing:
             conn.execute("""
                 UPDATE tweets SET likes=?, retweets=?, replies=?, views=?,
-                    media_type=?, topic=?, last_updated=?
+                    media_type=?, topic=?, last_updated=?,
+                    hour_of_day=COALESCE(hour_of_day, ?),
+                    engagement_rate=?
                 WHERE tweet_id=?
-            """, (likes, rts, replies, views, media, topic, now, tid))
+            """, (likes, rts, replies, views, media, topic, now, hour, eng_rate, tid))
             updated_count += 1
         else:
             conn.execute("""
                 INSERT INTO tweets (tweet_id, text, created_at, likes, retweets, replies, views,
-                    media_type, topic, tweet_length, is_thread, first_seen, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (tid, text, created_iso, likes, rts, replies, views, media, topic, length, thread, now, now))
+                    media_type, topic, tweet_length, is_thread, first_seen, last_updated,
+                    hour_of_day, engagement_rate)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (tid, text, created_iso, likes, rts, replies, views, media, topic, length, thread, now, now,
+                  hour, eng_rate))
             new_count += 1
 
         # Add snapshot

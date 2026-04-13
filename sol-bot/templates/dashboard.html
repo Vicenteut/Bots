@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOL // COMMAND CENTER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #080808;
+    --surface1:  #111111;
+    --surface2:  #1a1a1a;
+    --surface3:  #222222;
+    --border:    #2a2a2a;
+    --border2:   #333333;
+    --amber:     #f59e0b;
+    --amber-dim: #92600a;
+    --cyan:      #22d3ee;
+    --cyan-dim:  #0e7490;
+    --text:      #e5e5e5;
+    --muted:     #6b7280;
+    --muted2:    #4b5563;
+    --danger:    #ef4444;
+    --success:   #22c55e;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'Barlow Condensed', sans-serif;
+  }
+
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; height: 100%; overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; gap: 0; }
+
+  /* STATUS BAR */
+  #statusbar { flex: 0 0 48px; background: var(--surface1); border-bottom: 1px solid rgba(245,158,11,0.3); display: flex; align-items: center; padding: 0 16px; gap: 24px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.02em; user-select: none; position: relative; overflow: hidden; }
+  .sb-brand { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: var(--text); white-space: nowrap; margin-right: 8px; }
+  .sb-brand span { color: var(--amber); }
+  .sb-divider { width: 1px; height: 20px; background: var(--border2); flex-shrink: 0; }
+  .sb-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); }
+  .sb-item .label { color: var(--muted2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sb-item .value { color: var(--text); }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex-shrink: 0; animation: livepulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(245,158,11,0); } }
+  .status-live { color: var(--amber); font-weight: 700; letter-spacing: 0.08em; }
+  .proc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--success); margin-right: 3px; }
+  .proc-dot.dead { background: var(--danger); }
+  .sb-spacer { flex: 1; }
+  .brain-ok { color: var(--success); font-weight: 600; }
+  .brain-fail { color: var(--amber); font-weight: 600; }
+
+  /* COLUMNS */
+  #columns { flex: 1; display: grid; grid-template-columns: 35% 35% 30%; min-height: 0; overflow: hidden; }
+  .col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; min-height: 0; min-width: 0; }
+  .col:last-child { border-right: none; }
+  /* col widths set by grid-template-columns above */
+
+  /* PANEL HEADER */
+  .panel-header { flex: 0 0 auto; padding: 10px 14px 9px; border-bottom: 1px solid var(--border); background: var(--surface1); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .panel-title span { color: var(--cyan); }
+  .panel-badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 3px; background: rgba(245,158,11,0.15); border: 1px solid var(--amber-dim); color: var(--amber); animation: pulse 2s ease-in-out infinite; }
+
+  /* SOL CHAT */
+  #chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 0; background: var(--bg); }
+  #chat-messages::-webkit-scrollbar { width: 4px; }
+  #chat-messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .msg { display: flex; flex-direction: column; gap: 2px; max-width: 92%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.sol  { align-self: flex-start; align-items: flex-start; }
+  .msg-sender { font-family: var(--mono); font-size: 10px; color: var(--muted2); letter-spacing: 0.05em; text-transform: uppercase; padding: 0 4px; }
+  .msg.sol .msg-sender { color: var(--cyan-dim); }
+  .msg-bubble { font-family: var(--mono); font-size: 12px; line-height: 1.55; padding: 8px 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .msg-bubble { background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); }
+  .msg.sol  .msg-bubble { background: var(--surface1); border: 1px solid var(--border); color: var(--text); border-left: 2px solid var(--cyan-dim); }
+  .msg-meta { font-family: var(--mono); font-size: 9px; color: var(--muted2); padding: 0 4px; }
+
+  .chat-format-bar { flex: 0 0 auto; display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface1); }
+  .fmt-tab { flex: 1; padding: 7px 4px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-align: center; color: var(--muted2); cursor: pointer; border: none; background: transparent; border-right: 1px solid var(--border); transition: color 0.15s, background 0.15s; }
+  .fmt-tab:last-child { border-right: none; }
+  .fmt-tab:hover { background: var(--surface2); color: var(--muted); }
+  .fmt-tab.active { color: var(--cyan); background: rgba(34,211,238,0.06); border-bottom: 2px solid var(--cyan); }
+
+  .chat-model-bar { flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--border); background: var(--surface0); }
+  .model-tab { flex: 1; padding: 4px 4px; font-family: var(--sans); font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-align: center; color: var(--muted2); cursor: pointer; border: none; background: transparent; border-right: 1px solid var(--border); transition: color 0.15s, background 0.15s; }
+  .model-tab:last-child { border-right: none; }
+  .model-tab:hover { background: var(--surface2); color: var(--muted); }
+  .model-tab.active { color: var(--cyan); background: rgba(34,211,238,0.04); }
+
+  .chat-input-area { flex: 0 0 auto; padding: 10px 14px; background: var(--surface1); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+
+  textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 8px 10px; resize: none; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: var(--cyan-dim); }
+  textarea::placeholder { color: var(--muted2); }
+  .btn-row { display: flex; gap: 6px; }
+
+  /* BUTTONS */
+  .btn { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 7px 14px; border-radius: 3px; border: 1px solid transparent; cursor: pointer; outline: none; transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease, background-color 0.15s ease; white-space: nowrap; position: relative; overflow: hidden; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: scale(0.97) translateY(0); }
+  .btn-primary   { background: var(--amber); color: #000; border-color: var(--amber); }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary { background: transparent; color: var(--muted); border-color: var(--border2); }
+  .btn-secondary:hover { background: var(--surface2); color: var(--text); border-color: var(--muted2); }
+  .btn-cyan      { background: rgba(34,211,238,0.1); color: var(--cyan); border-color: var(--cyan-dim); }
+  .btn-cyan:hover { background: rgba(34,211,238,0.18); }
+  .btn-danger    { background: transparent; color: var(--danger); border-color: rgba(239,68,68,0.4); }
+  .btn-danger:hover { background: rgba(239,68,68,0.08); }
+  .btn-success   { background: rgba(34,197,94,0.12); color: var(--success); border-color: rgba(34,197,94,0.4); }
+  .btn-success:hover { background: rgba(34,197,94,0.2); }
+  .btn:disabled  { opacity: 0.35; cursor: not-allowed; transform: none !important; filter: none !important; }
+  .btn-sm   { padding: 5px 10px; font-size: 11px; }
+  .btn-full { flex: 1; }
+
+  /* POST MANAGER */
+  .col-manager-inner { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+  .col-manager-inner::-webkit-scrollbar { width: 4px; }
+  .col-manager-inner::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .pending-section { flex: 0 0 auto; padding: 14px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--amber); background: rgba(245,158,11,0.04); box-shadow: inset 3px 0 12px rgba(245,158,11,0.05); }
+  .section-label { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted2); margin-bottom: 10px; }
+  .section-label .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin-right: 5px; animation: pulse 2s ease-in-out infinite; }
+  .pending-tweet-text { font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; padding: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; }
+  .char-counter { font-family: var(--mono); font-size: 11px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .char-count-num { font-weight: 500; }
+  .char-count-num.ok   { color: var(--muted); }
+  .char-count-num.warn { color: var(--amber); }
+  .char-count-num.over { color: var(--danger); }
+  .char-bar { flex: 1; height: 3px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .char-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s cubic-bezier(0.4,0,0.2,1), background-color 0.3s ease; }
+  .char-bar-fill.ok   { background: var(--muted2); }
+  .char-bar-fill.warn { background: var(--amber); }
+  .char-bar-fill.over { background: var(--danger); }
+  .platform-badges { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
+  .badge { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 3px; border: 1px solid; }
+  .badge-x       { background: rgba(229,229,229,0.07); border-color: var(--border2); color: var(--text); }
+  .badge-threads { background: rgba(34,211,238,0.07); border-color: var(--cyan-dim); color: var(--cyan); }
+  .badge-type    { background: rgba(245,158,11,0.08); border-color: var(--amber-dim); color: var(--amber); }
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
+  .recent-posts-section { flex: 1; padding: 14px; }
+  .post-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 6px; border-bottom: 1px solid var(--border); cursor: default; transition: background 0.12s; border-radius: 3px; margin: 0 -6px; }
+  .post-row:last-child { border-bottom: none; }
+  .post-row:hover { background: var(--surface2); }
+  .post-row-meta { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted2); }
+  .post-row-meta .ts { color: var(--cyan); }
+  .post-row-text { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+
+  /* MIXED BUILDER */
+  .mixed-inner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg); }
+  .mixed-inner::-webkit-scrollbar { width: 4px; }
+  .mixed-inner::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .field-label { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 5px; }
+  .mixed-preview { background: var(--surface1); border: 1px solid var(--border2); border-radius: 3px; overflow: hidden; }
+  .mixed-preview-section { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .mixed-preview-section:last-child { border-bottom: none; }
+  .mixed-preview-tag { font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 5px; }
+  .mixed-preview-text { font-family: var(--mono); font-size: 11px; line-height: 1.55; color: var(--text); white-space: pre-wrap; }
+
+  /* LOG STRIP */
+
+  /* PUBLISH RESULT */
+  #publish-result, #publish-result-combo { margin-top: 6px; font-family: var(--mono); font-size: 11px; min-height: 16px; }
+  .pub-ok   { color: var(--success); }
+  .pub-fail { color: var(--danger); }
+
+  /* PUBLISH PROGRESS BARS */
+  .pub-progress-container { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+  .pub-bar-row { display: flex; align-items: center; gap: 8px; }
+  .pub-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 56px; flex-shrink: 0; }
+  .pub-bar-track { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+  .pub-bar-fill { height: 100%; width: 0%; background: var(--amber); border-radius: 3px; transition: width 0.25s ease, background-color 0.3s; }
+  .pub-bar-fill.success { background: var(--success); }
+  .pub-bar-fill.failed  { background: var(--danger); }
+  .pub-bar-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 28px; text-align: right; flex-shrink: 0; }
+
+  /* REPLACE PENDING MODAL */
+  #replace-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+  #replace-modal.visible { display: flex; }
+  .replace-modal-box { background: var(--surface2); border: 1px solid var(--amber-dim); border-radius: 4px; padding: 20px 24px; max-width: 420px; width: 90%; display: flex; flex-direction: column; gap: 12px; }
+  .replace-modal-icon { font-size: 22px; color: var(--amber); }
+  .replace-modal-title { font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: 0.05em; color: var(--amber); text-transform: uppercase; }
+  .replace-modal-body { font-family: var(--sans); font-size: 12px; color: var(--muted); }
+  .replace-modal-preview { font-family: var(--mono); font-size: 11px; color: var(--text); background: var(--surface1); border: 1px solid var(--border); padding: 8px 10px; border-radius: 2px; white-space: pre-wrap; word-break: break-word; }
+  .replace-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+
+  /* REGEN ROW */
+  .regen-row { display: flex; gap: 5px; margin-top: 5px; }
+  .regen-row input { background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 11px; padding: 5px 8px; outline: none; flex: 1; }
+  .regen-row input:focus { border-color: var(--cyan-dim); }
+  .regen-row input::placeholder { color: var(--muted2); }
+
+  /* SPINNER */
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+
+  /* ── MONITOR DRAWER ────────────────────────────────────────── */
+  #monitor-toggle {
+    position: fixed; right: 0; top: 50%;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl; text-orientation: mixed;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-right: none; border-radius: 4px 0 0 4px;
+    padding: 14px 8px; cursor: pointer; z-index: 200;
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    color: var(--muted); letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 6px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  #monitor-toggle:hover { color: var(--text); }
+  #monitor-toggle.has-alert { color: var(--amber); border-color: var(--amber-dim); }
+  .monitor-badge {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--amber); flex-shrink: 0;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .monitor-drawer {
+    position: fixed; top: 0; right: 0; width: 360px; height: 100vh;
+    background: var(--surface1); border-left: 3px solid var(--border2);
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    display: flex; flex-direction: column;
+    z-index: 199; overflow-y: auto;
+  }
+  .monitor-drawer.open { transform: translateX(0); }
+  .monitor-drawer.has-alert { border-left-color: var(--amber); }
+  #monitor-content { padding: 12px; flex: 1; overflow-y: auto; }
+  .monitor-empty { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: center; padding: 32px 0; }
+  .monitor-card { background: rgba(245,158,11,0.04); border-left: 3px solid var(--amber); border-radius: 0 4px 4px 0; padding: 10px 12px; }
+  .monitor-img { width: 100%; border-radius: 4px; margin: 8px 0; display: block; }
+  .monitor-title { font-family: var(--mono); font-size: 14px; font-weight: 500; margin: 10px 0 6px; line-height: 1.4; }
+  .monitor-summary { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; }
+  .monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+
+  /* ── REPLY DRAWER ───────────────────────────────────────────── */
+  #reply-drawer {
+    position: fixed; top: 0; right: 0; width: 400px; height: 100vh;
+    background: var(--surface1); border-left: 3px solid #22c55e33;
+    transform: translateX(110%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    display: flex; flex-direction: column;
+    z-index: 198; overflow-y: auto;
+  }
+  #reply-drawer.open { transform: translateX(0); }
+  #reply-drawer .panel-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; border-bottom-color: #22c55e22; }
+  .reply-mode-bar { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .reply-mode-btn { background: none; border: 1px solid var(--border2); color: var(--muted); font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 2px; cursor: pointer; }
+  .reply-mode-btn.active { border-color: #22c55e66; color: #22c55e; }
+  #reply-input-area { padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #reply-input-area textarea, #reply-input-area input[type=text] {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--text); font-family: var(--mono); font-size: 11px;
+    padding: 8px; border-radius: 2px; resize: vertical; box-sizing: border-box;
+  }
+  #reply-input-area textarea { min-height: 80px; }
+  .reply-model-bar { display: flex; gap: 4px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .reply-model-tab { background: none; border: 1px solid var(--border2); color: var(--muted); font-family: var(--mono); font-size: 9px; padding: 3px 8px; cursor: pointer; border-radius: 2px; }
+  .reply-model-tab.active { border-color: var(--amber); color: var(--amber); }
+  #reply-generate-btn { margin: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; padding: 10px 16px; width: calc(100% - 24px); flex-shrink: 0; }
+  #reply-results { padding: 8px 12px; flex: 1; overflow-y: auto; }
+  .reply-meta { font-family: var(--mono); font-size: 9px; color: var(--muted2); margin-bottom: 8px; }
+  .reply-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 10px; margin-bottom: 10px; }
+  .reply-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .reply-move-pill { background: #22d3ee18; border: 1px solid #22d3ee44; color: var(--cyan); font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.05em; }
+  .reply-char-count { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .reply-char-count.warn { color: var(--amber); }
+  .reply-char-count.over { color: var(--danger); }
+  .reply-text { font-family: var(--mono); font-size: 11px; color: var(--text); white-space: pre-wrap; line-height: 1.5; margin-bottom: 8px; word-break: break-word; }
+  .reply-actions { display: flex; gap: 6px; }
+  .reply-actions button { font-size: 10px; padding: 3px 10px; }
+  /* ─── SIGNALS ─────────────────────────────────────────────────────────── */
+  .sig-row { display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer; }
+  .sig-row:hover { background:var(--surface2); }
+  .sig-bar-track { flex:1;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden; }
+  .sig-bar-fill { height:100%;border-radius:2px;background:var(--muted2);transition:width .3s; }
+  .sig-bar-fill.escalating { background:var(--amber); }
+  .sig-kw { min-width:90px;color:var(--text);font-size:10px;text-transform:uppercase; }
+  .sig-count { color:var(--muted);font-size:10px;min-width:55px;text-align:right; }
+  .sig-sol-btn { font-size:9px;padding:1px 5px;background:var(--surface3);border:1px solid var(--border2);color:var(--amber);border-radius:2px;cursor:pointer;white-space:nowrap; }
+  .sig-sol-btn:hover { background:var(--amber);color:#000; }
+  .poly-row { display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer; }
+  .poly-row:hover { background:var(--surface2); }
+  .poly-q { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px; }
+  .poly-prob { min-width:52px;text-align:right;font-size:10px;font-weight:700; }
+  .poly-bar-track { width:50px;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden; }
+  .poly-bar-fill { height:100%;border-radius:2px;transition:width .3s; }
+  .poly-vol { color:var(--muted);font-size:10px;min-width:52px;text-align:right; }
+  .prob-green { color:var(--success); } .prob-amber { color:var(--amber); } .prob-red { color:var(--danger); }
+  .bar-green { background:var(--success); } .bar-amber { background:var(--amber); } .bar-red { background:var(--danger); }
+
+  /* ═══════════════════════════════════════════════════════════════
+     MOBILE PWA — ≤768px
+     Desktop layout is 100% unchanged above this block.
+  ═══════════════════════════════════════════════════════════════ */
+  #mobile-tabs { display: none; }
+
+  @media (max-width: 768px) {
+    /* ── Globals ── */
+    html, body { font-size: 14px; }
+
+    /* ── Status bar: compact 2-row ── */
+    #statusbar {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 40px;
+      padding: 6px 10px;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .sb-brand { font-size: 12px; margin-right: 4px; }
+    .sb-divider { display: none; }
+    .sb-spacer { display: none; }
+    #statusbar > button {
+      font-size: 8px !important;
+      padding: 2px 5px !important;
+      margin-right: 2px !important;
+    }
+    #sb-clock { font-size: 9px !important; }
+
+    /* ── Columns: single-pane ── */
+    #columns {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .col {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      border-right: none;
+      display: none;
+    }
+    .col.mob-active { display: flex; }
+
+    /* ── Format tabs: 2×2 grid ── */
+    .chat-format-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .fmt-tab:nth-child(2) { border-right: none; }
+    .fmt-tab:nth-child(3) { border-right: 1px solid var(--border); border-top: 1px solid var(--border); }
+    .fmt-tab:nth-child(4) { border-top: 1px solid var(--border); border-right: none; }
+
+    /* ── Model bar: horizontal scroll ── */
+    .chat-model-bar { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+    .model-tab { flex: 0 0 auto; padding: 6px 12px; font-size: 10px; }
+
+    /* ── Textareas ── */
+    #chat-input { min-height: 100px; font-size: 13px; }
+    #mixed-input { min-height: 80px; font-size: 13px; }
+
+    /* ── Touch-friendly buttons (min 44px) ── */
+    .btn { min-height: 44px; font-size: 13px; }
+    .btn-sm { min-height: 44px; }
+
+    /* ── Monitor toggle: hidden on mobile (use tab bar) ── */
+    #monitor-toggle { display: none !important; }
+
+    /* ── Monitor drawer: full-screen on mobile (right:0 + transform from base handles show/hide) ── */
+    .monitor-drawer {
+      width: 100vw;
+      top: 0;
+      height: 100dvh;
+      z-index: 400;
+    }
+    /* Close btn in monitor drawer: larger touch target */
+    .monitor-drawer .panel-header .btn { min-height: 36px; padding: 4px 14px; }
+
+    /* ── Reply drawer: full-screen on mobile ── */
+    #reply-drawer {
+      width: 100vw;
+      height: 100dvh;
+      z-index: 400;
+    }
+
+    /* ── Brain / Analytics / Signals: full-screen overlay ── */
+    #brain-panel {
+      position: fixed !important;
+      inset: 0;
+      z-index: 390;
+      max-height: 100dvh;
+      overflow-y: auto;
+    }
+    #analytics-panel {
+      position: fixed !important;
+      inset: 0;
+      z-index: 390;
+      max-height: 100dvh;
+      overflow-y: auto;
+    }
+    /* Analytics grid: single column stack */
+    #analytics-panel > div > div[style] {
+      grid-template-columns: 1fr !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    #signals-panel {
+      position: fixed !important;
+      inset: 0;
+      z-index: 390;
+      max-height: 100dvh;
+      overflow-y: auto;
+    }
+    /* Signals: stack sections vertically */
+    #signals-panel > div { flex-direction: column !important; height: auto !important; }
+    #signals-panel > div > div { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--border); padding-top: 12px; flex: none !important; }
+    #signals-panel > div > div:first-child { border-top: none; padding-top: 0; }
+
+
+    /* ── Monitor images: full width, capped height ── */
+    .monitor-img { max-height: 220px; object-fit: cover; }
+
+    /* ── Mobile tab bar ── */
+    #mobile-tabs {
+      display: flex !important;
+      flex: 0 0 60px;
+      min-height: 60px;
+      background: var(--surface1);
+      border-top: 1px solid var(--border);
+    }
+    .mob-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      font-family: var(--sans);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted2);
+      cursor: pointer;
+      border: none;
+      border-top: 2px solid transparent;
+      background: transparent;
+      padding: 4px 2px 6px;
+      transition: color 0.15s, border-color 0.15s;
+      min-height: 44px;
+      touch-action: manipulation;
+      position: relative;
+    }
+    .mob-tab.active { color: var(--amber); border-top-color: var(--amber); }
+    .mob-tab-icon { font-size: 18px; line-height: 1.2; }
+    .mob-tab-badge {
+      position: absolute;
+      top: 4px;
+      right: 18%;
+      background: var(--amber);
+      color: #000;
+      border-radius: 8px;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      display: none;
+      line-height: 1.3;
+    }
+    .mob-tab-badge.visible { display: inline; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     WAR ROOM UI UPGRADE — skeleton screens, transitions, micro-UX
+  ══════════════════════════════════════════════════════════════════ */
+
+  /* ── Skeleton screens (shimmer loading states) ─────────────────── */
+  .skeleton {
+    background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 3px;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .skeleton-line        { height: 10px; margin-bottom: 6px; }
+  .skeleton-line.wide   { width: 80%; }
+  .skeleton-line.medium { width: 60%; }
+  .skeleton-line.narrow { width: 40%; }
+  .skeleton-block       { height: 60px; width: 100%; margin-bottom: 8px; border-radius: 3px; }
+
+  /* ── Content swap fade (applied via JS) ───────────────────────── */
+  .content-fading   { opacity: 0 !important; transition: opacity 0.05s ease !important; }
+  .content-settling { opacity: 1;   transition: opacity 0.15s cubic-bezier(0.4,0,0.2,1) !important; }
+
+  /* ── Drawer backdrop ──────────────────────────────────────────── */
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none; z-index: 197;
+    transition: opacity 0.25s ease;
+  }
+  .drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
+
+  /* ── Global subtle transitions (elements without own transition) ── */
+  * { transition: background-color 0.15s ease, border-color 0.15s ease; }
+
+  /* ── Button glow + ripple ─────────────────────────────────────── */
+  .btn-primary:hover { box-shadow: 0 0 16px rgba(245,158,11,0.4); }
+  .btn-success:hover { box-shadow: 0 0 16px rgba(34,197,94,0.3); }
+  .btn-cyan:hover    { box-shadow: 0 0 16px rgba(34,211,238,0.3); }
+  .btn-danger:hover  { box-shadow: 0 0 12px rgba(239,68,68,0.3); }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255,255,255,0.08);
+    opacity: 0; transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .btn:active::after { opacity: 1; }
+
+  /* ── Panel header top accent line ─────────────────────────────── */
+  .panel-header { position: relative; }
+  .panel-header::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent);
+  }
+
+  /* ── Column inner depth ───────────────────────────────────────── */
+  .col { box-shadow: inset -1px 0 0 rgba(255,255,255,0.03); }
+
+  /* ── Status bar scanline overlay ─────────────────────────────── */
+  #statusbar::after {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+  }
+  .sb-item:hover { background: rgba(255,255,255,0.02); border-radius: 4px; padding: 2px 6px; }
+
+  /* ── Enhanced live-dot pulse ──────────────────────────────────── */
+  @keyframes livepulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,158,11,0.6); transform: scale(1); }
+    50%       { opacity: 0.8; box-shadow: 0 0 0 6px rgba(245,158,11,0); transform: scale(1.1); }
+  }
+
+  /* post-row success/fail color overrides */
+  .log-ok  { color: var(--success); }
+  .log-err { color: var(--danger); }
+
+  /* ── Char counter tabular nums + shake ───────────────────────── */
+  .char-count-num { font-variant-numeric: tabular-nums; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25%       { transform: translateX(-2px); }
+    75%       { transform: translateX(2px); }
+  }
+  .char-count-num.over { animation: shake 0.3s ease; }
+
+  /* ── Responsive grid 1200px breakpoint ───────────────────────── */
+  @media (max-width: 1200px) {
+    #columns { grid-template-columns: 50% 50% !important; }
+    .col-mixed { grid-column: 1 / -1; }
+  }
+</style>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="SOL">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="theme-color" content="#f59e0b">
+</head>
+<body>
+<div id="app">
+
+  <!-- STATUS BAR -->
+  <div id="statusbar">
+    <div class="sb-brand">SOL <span>//</span></div>
+    <div class="sb-divider"></div>
+    <div id="statusbar-inner" style="display:contents;">
+      <div class="sb-item"><div class="live-dot"></div><span class="status-live">LIVE</span></div>
+      <div class="sb-divider"></div>
+      <div class="sb-item"><span class="label">PROCS</span><span class="value">loading…</span></div>
+    </div>
+    <div class="sb-spacer"></div>
+    <button id="brain-toggle-btn" onclick="toggleBrainPanel()" style="background:none;border:1px solid #22d3ee33;color:#22d3ee;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">🧠 BRAIN</button>
+    <button id="analytics-toggle-btn" onclick="toggleAnalyticsPanel()" style="background:none;border:1px solid #f59e0b33;color:#f59e0b;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📊 ANALYTICS</button>
+    <button id="reply-toggle-btn" onclick="toggleReplyDrawer()" style="background:none;border:1px solid #22c55e33;color:#22c55e;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">💬 REPLY</button>
+    <button id="signals-toggle-btn" onclick="toggleSignalsPanel()" style="background:none;border:1px solid #818cf833;color:#818cf8;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📡 SIGNALS</button>
+    <div class="sb-item" style="font-family:var(--mono);font-size:10px;color:var(--muted2);" id="sb-clock"></div>
+  </div>
+
+  <!-- BRAIN HISTORY PANEL -->
+  <div id="brain-panel" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;max-height:220px;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="color:var(--cyan);font-weight:700;letter-spacing:0.08em;">🧠 BRAIN HISTORY</span>
+      <button onclick="toggleBrainPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
+    </div>
+    <table id="brain-table" style="width:100%;border-collapse:collapse;">
+      <thead><tr style="color:var(--muted2);text-align:left;font-size:9px;letter-spacing:0.06em;">
+        <th style="width:36px;padding-bottom:4px;">#</th>
+        <th style="width:70px;">ROLE</th>
+        <th style="width:140px;">ACTION</th>
+        <th style="width:55px;">CONF</th>
+        <th>INSTRUCTION</th>
+      </tr></thead>
+      <tbody id="brain-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- ANALYTICS PANEL -->
+  <div id="analytics-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="color:var(--amber);font-weight:700;letter-spacing:0.08em;">📊 ANALYTICS</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="loadAnalytics()" style="background:none;border:1px solid var(--border2);color:var(--muted);font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;">↺ REFRESH</button>
+        <button onclick="toggleAnalyticsPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
+      </div>
+    </div>
+    <div style="color:var(--muted2);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">𝕏 TWITTER</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;max-height:220px;overflow:hidden;margin-bottom:12px;">
+      <div id="analytics-summary" style="overflow-y:auto;"></div>
+      <div id="analytics-topic" style="overflow-y:auto;"></div>
+      <div id="analytics-media" style="overflow-y:auto;"></div>
+      <div id="analytics-recent" style="overflow-y:auto;"></div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:10px;">
+      <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">⊙ THREADS</div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;max-height:200px;overflow:hidden;">
+        <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
+        <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIGNALS PANEL -->
+  <div id="signals-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:12px 16px;gap:16px;min-height:220px;max-height:260px;">
+    <div style="display:flex;gap:16px;height:100%;">
+      <!-- LEFT: GDELT (35%) -->
+      <div style="flex:35;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <span style="color:#818cf8;font-weight:700;">GDELT</span>
+          <span>· ESCALATION RADAR · last 2h</span>
+          <button onclick="loadSignals()" style="background:none;border:1px solid var(--border2);color:var(--muted);font-size:9px;padding:1px 6px;border-radius:2px;cursor:pointer;font-family:var(--mono);">↺ REFRESH</button>
+          <span id="gdelt-updated" style="color:var(--muted2);font-size:9px;"></span>
+          <button onclick="toggleSignalsPanel()" style="margin-left:auto;background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕</button>
+        </div>
+        <div id="gdelt-rows" style="font-family:var(--mono);font-size:11px;overflow-y:auto;max-height:190px;"></div>
+      </div>
+      <!-- MIDDLE: Polymarket (35%) -->
+      <div style="flex:35;min-width:0;border-left:1px solid var(--border);padding-left:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <span style="color:#818cf8;font-weight:700;">POLYMARKET</span>
+          <span>· GEOPOLITICAL MARKETS</span>
+          <span id="poly-updated" style="color:var(--muted2);font-size:9px;margin-left:auto;"></span>
+        </div>
+        <div id="poly-rows" style="font-family:var(--mono);font-size:11px;overflow-y:auto;max-height:190px;"></div>
+      </div>
+      <!-- RIGHT: Market Prices (30%) -->
+      <div style="flex:30;min-width:0;border-left:1px solid var(--border);padding-left:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">
+          <span style="color:#818cf8;font-weight:700;">MARKETS</span>
+          <span>· LIVE</span>
+          <button onclick="loadSignals()" style="background:none;border:1px solid var(--border2);color:var(--muted);font-size:9px;padding:1px 6px;border-radius:2px;cursor:pointer;font-family:var(--mono);">↺ REFRESH</button>
+          <span id="mkts-updated" style="color:var(--muted2);font-size:9px;margin-left:auto;"></span>
+        </div>
+        <div id="mkts-rows" style="font-family:var(--mono);font-size:11px;overflow-y:auto;max-height:190px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN COLUMNS -->
+  <div id="columns">
+
+    <!-- COL 1: SOL CHAT -->
+    <div class="col col-chat">
+      <div class="panel-header">
+        <div class="panel-title"><span>SOL</span> // GEOPOLITICAL ANALYST</div>
+        <div class="panel-badge" id="chat-pending-badge" style="display:none;">PENDING</div>
+      </div>
+
+      <div id="chat-messages">
+        <div class="msg sol">
+          <div class="msg-sender">SOL · READY</div>
+          <div class="msg-bubble">Paste a headline below, select a format, and hit GENERATE.</div>
+          <div class="msg-meta">TIER 2 · FastAPI + htmx</div>
+        </div>
+      </div>
+
+      <div class="chat-format-bar">
+        <button class="fmt-tab" onclick="setFmt(this,'WIRE')">WIRE</button>
+        <button class="fmt-tab active" onclick="setFmt(this,'ANALISIS')">ANALISIS</button>
+        <button class="fmt-tab" onclick="setFmt(this,'DEBATE')">DEBATE</button>
+        <button class="fmt-tab" onclick="setFmt(this,'CONEXION')">CONEXION</button>
+      </div>
+
+      <div class="chat-model-bar">
+        <button class="model-tab active" onclick="setModel(this,'AUTO')">AUTO</button>
+        <button class="model-tab" onclick="setModel(this,'HAIKU')">HAIKU</button>
+        <button class="model-tab" onclick="setModel(this,'SONNET')">SONNET</button>
+        <button class="model-tab" onclick="setModel(this,'OPUS')">OPUS</button>
+      </div>
+
+      <div class="chat-input-area">
+        <textarea id="chat-input" rows="3" placeholder="Paste headline or give instruction…"></textarea>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-full btn-sm" id="btn-gen" onclick="doGenerate(this)">GENERATE</button>
+          <button class="btn btn-primary btn-full btn-sm" id="btn-genpub" onclick="doGenerateAndPublish(this)">GEN + PUBLISH</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2: POST MANAGER -->
+    <div class="col col-manager">
+      <div class="panel-header">
+        <div class="panel-title">POST MANAGER</div>
+      </div>
+
+      <div class="col-manager-inner">
+        <!-- PENDING POST -->
+        <div id="pending-container">
+          <div class="pending-section">
+            <div class="skeleton skeleton-line wide" style="margin-bottom:10px;"></div>
+            <div class="skeleton skeleton-line medium"></div>
+            <div class="skeleton skeleton-line narrow"></div>
+            <div class="skeleton skeleton-line wide" style="margin-top:10px;height:6px;"></div>
+          </div>
+        </div>
+
+        <!-- RECENT POSTS -->
+        <div class="recent-posts-section">
+          <div class="section-label">RECENT POSTS</div>
+          <div id="recent-posts-list">
+            <div class="skeleton skeleton-block"></div>
+            <div class="skeleton skeleton-block"></div>
+            <div class="skeleton skeleton-block"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3: MIXED BUILDER -->
+    <div class="col col-mixed">
+      <div class="panel-header">
+        <div class="panel-title">/ MIXED BUILDER</div>
+      </div>
+
+      <div class="mixed-inner">
+        <div>
+          <div class="field-label">Raw Headlines</div>
+          <textarea id="mixed-input" rows="4" placeholder="Paste raw headlines, data points, or wire copy…"></textarea>
+        </div>
+
+        <button class="btn btn-primary" id="btn-mixed" onclick="doMixed(this)" style="width:100%;">GENERATE MIXED</button>
+
+        <div id="mixed-preview-container" style="display:none;">
+          <div class="field-label">Preview</div>
+          <div class="mixed-preview">
+            <div class="mixed-preview-text" id="mixed-tweet-text" style="white-space:pre-wrap;">—</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px;" id="mixed-char-info"></div>
+
+          <div class="btn-row" style="gap:6px;margin-top:8px;">
+            <button class="btn btn-success btn-full btn-sm" onclick="publishPost('threads','combo',this)">⊙ PUBLISH</button>
+          </div>
+          <div id="publish-result-combo"></div>
+        </div>
+
+        <!-- Scheduled posts -->
+        <div style="border-top:1px solid var(--border);padding-top:12px;">
+          <div class="field-label">Scheduled Posts</div>
+          <div id="scheduled-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+            <div style="font-family:var(--mono);font-size:11px;color:var(--muted2);">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /columns -->
+
+  <!-- MONITOR FEED DRAWER -->
+  <button id="monitor-toggle" onclick="toggleMonitorDrawer()">
+    📡 MONITOR <span id="monitor-count-badge" style="display:none;background:var(--amber);color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:2px"></span>
+  </button>
+  <div id="monitor-drawer" class="monitor-drawer">
+    <div class="panel-header" style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+      <span class="panel-title">📡 MONITOR FEED <span id="monitor-header-count" style="color:var(--muted);font-size:11px;font-weight:400"></span></span>
+      <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="toggleMonitorDrawer()">✕</button>
+    </div>
+    <div id="monitor-content">
+      <div class="skeleton skeleton-block"></div>
+      <div class="skeleton skeleton-block"></div>
+    </div>
+  </div>
+
+  <!-- REPLY GENERATOR DRAWER -->
+  <div id="reply-drawer">
+    <div class="panel-header" style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+      <span class="panel-title" style="color:#22c55e;">💬 REPLY GENERATOR</span>
+      <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="toggleReplyDrawer()">✕</button>
+    </div>
+    <div class="reply-mode-bar">
+      <button class="reply-mode-btn active" id="mode-text" onclick="setReplyMode('text')">📋 PASTE TEXT</button>
+      <button class="reply-mode-btn" id="mode-url" onclick="setReplyMode('url')">🔗 USE LINK</button>
+    </div>
+    <div id="reply-input-area">
+      <textarea id="reply-textarea" placeholder="Paste tweet or full thread..."></textarea>
+      <input type="text" id="reply-url-input" placeholder="https://x.com/user/status/..." style="display:none;">
+    </div>
+    <div class="reply-model-bar">
+      <button class="reply-model-tab active" onclick="setReplyModel(this,'auto')">AUTO</button>
+      <button class="reply-model-tab" onclick="setReplyModel(this,'haiku')">HAIKU</button>
+      <button class="reply-model-tab" onclick="setReplyModel(this,'sonnet')">SONNET</button>
+      <button class="reply-model-tab" onclick="setReplyModel(this,'opus')">OPUS</button>
+    </div>
+    <button id="reply-generate-btn" class="btn btn-primary" onclick="generateReplies(this)">⚡ GENERATE REPLIES</button>
+    <div id="reply-results"></div>
+  </div>
+
+
+  <!-- MOBILE TAB BAR — hidden on desktop via CSS, shown at ≤768px -->
+  <div id="mobile-tabs">
+    <button class="mob-tab active" data-tab="status" onclick="activateMobileTab('status')">
+      <span class="mob-tab-icon">📊</span>
+      <span>STATUS</span>
+    </button>
+    <button class="mob-tab" data-tab="post" onclick="activateMobileTab('post')">
+      <span class="mob-tab-icon">📝</span>
+      <span>POST</span>
+    </button>
+    <button class="mob-tab" data-tab="mixed" onclick="activateMobileTab('mixed')">
+      <span class="mob-tab-icon">🧩</span>
+      <span>MIXED</span>
+    </button>
+    <button class="mob-tab" data-tab="monitor" onclick="activateMobileTab('monitor')">
+      <span class="mob-tab-icon">📡</span>
+      <span>MONITOR</span>
+      <span class="mob-tab-badge" id="mob-monitor-badge"></span>
+    </button>
+  </div>
+
+</div><!-- /app -->
+
+<!-- REPLACE PENDING MODAL -->
+<div id="replace-modal">
+  <div class="replace-modal-box">
+    <div class="replace-modal-icon">⚠</div>
+    <div class="replace-modal-title">Pending post will be replaced</div>
+    <div class="replace-modal-body">Current pending post:</div>
+    <div class="replace-modal-preview" id="replace-modal-preview"></div>
+    <div class="replace-modal-actions">
+      <button class="btn btn-secondary" id="replace-modal-cancel">CANCEL</button>
+      <button class="btn btn-danger" id="replace-modal-ok">REPLACE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CSRF TOKEN ───────────────────────────────────────────────
+let _csrfToken = '';
+(async function initCsrf() {
+  try {
+    const r = await fetch('/api/csrf-token');
+    if (r.ok) { const d = await r.json(); _csrfToken = d.csrf_token || ''; }
+  } catch(e) {}
+})();
+function _csrfHeaders(extra) {
+  return Object.assign({'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken}, extra || {});
+}
+
+// ─── CLOCK ───────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('sb-clock').textContent =
+    now.toISOString().slice(0,10) + ' · ' + now.toTimeString().slice(0,5);
+}
+setInterval(updateClock, 10000);
+updateClock();
+
+// ─── FORMAT TABS ─────────────────────────────────────────────
+let _activeFmt = 'ANALISIS';
+function setFmt(el, fmt) {
+  document.querySelectorAll('.fmt-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  _activeFmt = fmt;
+}
+
+// ─── MODEL TABS ──────────────────────────────────────────────
+let _activeModel = 'AUTO';
+function setModel(el, m) {
+  document.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  _activeModel = m;
+}
+
+
+// ─── UI HELPERS ──────────────────────────────────────────────
+function _syncBackdrop() {
+  const monOpen = document.getElementById('monitor-drawer').classList.contains('open');
+  const repOpen = document.getElementById('reply-drawer').classList.contains('open');
+  const bd = document.getElementById('drawer-backdrop');
+  if (bd) bd.classList.toggle('visible', monOpen || repOpen);
+}
+
+function closeAllDrawers() {
+  document.getElementById('monitor-drawer').classList.remove('open');
+  document.getElementById('reply-drawer').classList.remove('open');
+  _syncBackdrop();
+}
+
+function fadeSwap(el, renderFn) {
+  if (!el) { renderFn(); return; }
+  el.classList.add('content-fading');
+  setTimeout(function() {
+    renderFn();
+    el.classList.remove('content-fading');
+    el.classList.add('content-settling');
+    setTimeout(function() { el.classList.remove('content-settling'); }, 200);
+  }, 60);
+}
+
+// ─── POLLING ─────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status');
+    if (r.ok) {
+      const d = await r.json();
+      renderStatus(d);
+      const recentEl  = document.getElementById('recent-posts-list');
+      const recentKey = JSON.stringify(d.recent_posts || []);
+      if (recentKey !== _lastRecentKey) {
+        _lastRecentKey = recentKey;
+        fadeSwap(recentEl, () => renderRecentPosts(d.recent_posts || []));
+      }
+    }
+  } catch(e) {}
+}
+async function pollPending() {
+  try {
+    const r = await fetch('/api/pending');
+    if (r.ok) {
+      const d = await r.json();
+      const el         = document.getElementById('pending-container');
+      const pendingKey = JSON.stringify(d);
+      if (pendingKey !== _lastPendingKey) {
+        _lastPendingKey = pendingKey;
+        fadeSwap(el, () => renderPending(d));
+      }
+    }
+  } catch(e) {}
+}
+
+pollStatus(); pollPending();
+setInterval(pollStatus,  5000);
+setInterval(pollPending, 5000);
+
+// ─── MONITOR FEED ────────────────────────────────────────────
+let _monitorCount    = 0;
+let _lastPendingKey  = '';
+let _lastMonitorKey  = '';
+let _lastRecentKey   = '';
+
+function _buildAlertCard(entry) {
+  const h       = entry.headline || {};
+  const id      = _esc(entry.id || '');
+  const source  = _esc(h.source || 'Unknown');
+  const title   = _esc(h.title  || '');
+  const summary = _esc(h.summary || '');
+  const ago     = entry.received_at ? _timeAgo(entry.received_at) : '';
+
+  const mediaPath = (entry.media_paths && entry.media_paths.length > 0)
+    ? entry.media_paths[0] : entry.media_path;
+  const mediaType = entry.media_type || '';
+  let mediaHtml = '';
+  if (mediaPath) {
+    const fname = _esc(mediaPath.split('/').pop());
+    mediaHtml = mediaType === 'video'
+      ? `<video src="/media/${fname}" class="monitor-img" controls muted playsinline></video>`
+      : `<img src="/media/${fname}" class="monitor-img" alt="media" loading="lazy">`;
+  }
+
+  return `
+    <div class="monitor-card" id="mc-${id}" data-alert-id="${id}">
+      <div class="section-label" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="dot"></span>
+        <span class="badge" style="background:var(--amber-dim);color:var(--amber)">📡 ${source}</span>
+        <span style="font-size:11px;color:var(--muted)">${ago}</span>
+      </div>
+      ${mediaHtml}
+      <div class="monitor-title">${title}</div>
+      ${summary ? `<div class="monitor-summary">${summary}</div>` : ''}
+      <div class="monitor-actions">
+        <button class="btn btn-primary"   onclick="doMonitorAction('${id}','generate',this)">⚡ GENERATE</button>
+        <button class="btn btn-secondary" onclick="doMonitorAction('${id}','mixed',this)">🧩 MIXED</button>
+        <button class="btn btn-cyan"      onclick="doMonitorAction('${id}','original',this)">📰 ORIGINAL</button>
+        <button class="btn btn-danger"    onclick="doMonitorAction('${id}','ignore',this)">🚫 IGNORE</button>
+      </div>
+      <div class="monitor-card-result" style="margin-top:6px;font-size:11px;font-family:var(--mono);color:var(--muted)"></div>
+    </div>`;
+}
+
+async function pollMonitor() {
+  try {
+    const r = await fetch('/api/monitor/queue');
+    if (r.ok) {
+      const d = await r.json();
+      const el         = document.getElementById('monitor-content');
+      const monitorKey = JSON.stringify(d);
+      if (monitorKey !== _lastMonitorKey) {
+        _lastMonitorKey = monitorKey;
+        fadeSwap(el, () => renderMonitor(d));
+      }
+    }
+  } catch(e) {}
+}
+pollMonitor();
+setInterval(pollMonitor, 8000);
+
+function renderMonitor(queue) {
+  const toggle      = document.getElementById('monitor-toggle');
+  const drawer      = document.getElementById('monitor-drawer');
+  const countBadge  = document.getElementById('monitor-count-badge');
+  const headerCount = document.getElementById('monitor-header-count');
+  const content     = document.getElementById('monitor-content');
+  const wasEmpty    = _monitorCount === 0;
+
+  if (!queue || queue.length === 0) {
+    _monitorCount = 0;
+    countBadge.style.display = 'none';
+    headerCount.textContent = '';
+    toggle.classList.remove('has-alert');
+    drawer.classList.remove('has-alert');
+    content.innerHTML = '<div class="monitor-empty">No active monitor alerts</div>';
+    return;
+  }
+
+  const prevCount = _monitorCount;
+  _monitorCount = queue.length;
+  countBadge.style.display = 'inline';
+  countBadge.textContent = queue.length;
+  headerCount.textContent = `(${queue.length} pending)`;
+  toggle.classList.add('has-alert');
+  drawer.classList.add('has-alert');
+
+  // Full re-render (simple; queue is small)
+  content.innerHTML = queue.map(_buildAlertCard).join(
+    '<hr style="border:none;border-top:1px solid var(--border2);margin:8px 0">'
+  );
+
+  // Auto-open if new alert arrived while drawer was closed
+  if (prevCount === 0 && _monitorCount > 0) {
+    drawer.classList.add('open');
+    _syncBackdrop();
+  }
+}
+
+function toggleMonitorDrawer() {
+  document.getElementById('monitor-drawer').classList.toggle('open');
+  _syncBackdrop();
+}
+
+// ─── BRAIN HISTORY ────────────────────────────────────────────
+function toggleBrainPanel() {
+  const p = document.getElementById('brain-panel');
+  if (p.style.display === 'none') {
+    p.style.display = 'block';
+    pollBrainHistory();
+  } else {
+    p.style.display = 'none';
+  }
+}
+
+async function pollBrainHistory() {
+  const p = document.getElementById('brain-panel');
+  if (!p || p.style.display === 'none') return;
+  try {
+    const r = await fetch('/api/brain/history');
+    if (r.ok) renderBrainHistory(await r.json());
+  } catch(e) {}
+}
+
+function renderBrainHistory(d) {
+  const tbody = document.getElementById('brain-tbody');
+  if (!tbody) return;
+  const actionColor = {
+    'publish': 'var(--success)',
+    'generate_sol': 'var(--cyan)',
+    'generate_mixed': 'var(--cyan)',
+    'regenerate': 'var(--amber)',
+    'cancel': 'var(--danger)',
+  };
+  tbody.innerHTML = d.turns.slice(0, 10).map(t => {
+    const ac = t.action ? (actionColor[t.action] || 'var(--muted2)') : 'var(--muted2)';
+    const isBrainDisabled = (t.raw_content || '').includes('_brain_disabled');
+    const rowStyle = isBrainDisabled ? 'background:#ef444411;' : '';
+    return `<tr style="${rowStyle}border-top:1px solid #ffffff0a;">
+      <td style="color:var(--muted2);padding:3px 0;">${t.index}</td>
+      <td style="color:${t.role === 'assistant' ? 'var(--cyan)' : 'var(--muted2)'};">${_esc(t.role)}</td>
+      <td style="color:${ac};">${t.action ? _esc(t.action) : '—'}</td>
+      <td style="color:var(--muted2);">${t.confidence != null ? t.confidence : '—'}</td>
+      <td style="color:var(--text);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(t.instruction) || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+setInterval(pollBrainHistory, 30000);
+
+async function doMonitorAction(alertId, action, btn) {
+  const card = document.getElementById(`mc-${alertId}`);
+  const btns = card ? card.querySelectorAll('.monitor-actions .btn') : [];
+  btns.forEach(b => b.disabled = true);
+  if (btn) { btn.textContent = '…'; }
+  const resultEl = card ? card.querySelector('.monitor-card-result') : null;
+
+  try {
+    const r = await fetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({action})
+    });
+    const d = await r.json();
+
+    if (d.success) {
+      // Animate card out
+      if (card) {
+        card.style.transition = 'opacity 0.3s';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 300);
+      }
+      await pollMonitor();
+      if (action === 'generate' || action === 'mixed') await pollPending();
+      // Close drawer only if queue now empty
+      if ((d.remaining || 0) === 0) {
+        document.getElementById('monitor-drawer').classList.remove('open');
+        _syncBackdrop();
+      }
+    } else {
+      if (resultEl) resultEl.textContent = '✗ failed';
+      btns.forEach(b => b.disabled = false);
+    }
+  } catch(e) {
+    if (resultEl) resultEl.textContent = '✗ network error';
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+// ─── STATUS RENDERER ─────────────────────────────────────────
+function renderStatus(d) {
+  const sol = d.sol_commands || {};
+  const mon = d.monitor      || {};
+  const solDot = `<span class="proc-dot${sol.alive ? '' : ' dead'}"></span>`;
+  const monDot = `<span class="proc-dot${mon.alive ? '' : ' dead'}"></span>`;
+  const brainHtml = d.brain_enabled
+    ? `<span class="brain-ok">ENABLED</span>`
+    : `<span class="brain-fail">DISABLED</span>`;
+  let lastPubHtml = '—';
+  if (d.last_publish) {
+    const lp = d.last_publish;
+    const ago = _timeAgo(lp.published_at);
+    const plat = lp.platform === 'x' ? 'X' : lp.platform === 'threads' ? 'T' : lp.platform;
+    const type = lp.tweet_type ? ` · ${lp.tweet_type}` : '';
+    lastPubHtml = `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}</span>`;
+  }
+  const genBadge = d.generator_available
+    ? ''
+    : `<span style="font-family:var(--mono);font-size:10px;color:var(--danger);">GEN UNAVAIL</span>`;
+
+  document.getElementById('statusbar-inner').innerHTML = `
+    <div class="sb-item"><div class="live-dot"></div><span class="status-live">LIVE</span></div>
+    <div class="sb-divider"></div>
+    <div class="sb-item">
+      <span class="label">PROCS</span>
+      <span class="value">${solDot}sol_cmd</span>
+      <span class="value">${monDot}monitor</span>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">BRAIN</span>${brainHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">LAST PUB</span>${lastPubHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item">
+      <span class="label">TODAY</span>
+      <span class="value" style="font-family:var(--mono);font-size:11px;">${d.posts_today} posts</span>
+    </div>
+    ${genBadge ? '<div class="sb-divider"></div><div class="sb-item">' + genBadge + '</div>' : ''}
+  `;
+}
+
+// ─── RECENT POSTS RENDERER ───────────────────────────────────
+function renderRecentPosts(posts) {
+  const el = document.getElementById('recent-posts-list');
+  if (!el) return;
+  if (!posts.length) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--muted2);padding:8px 0;">No recent posts.</div>`;
+    return;
+  }
+  el.innerHTML = posts.map(p => {
+    const ts = _fmtTime(p.published_at);
+    const platBadge = p.platform === 'x'
+      ? `<span class="badge badge-x" style="padding:1px 5px;font-size:9px;">𝕏</span>`
+      : `<span class="badge badge-threads" style="padding:1px 5px;font-size:9px;">T</span>`;
+    const typeBadge = p.tweet_type
+      ? `<span class="badge badge-type" style="padding:1px 5px;font-size:9px;">${_esc(p.tweet_type)}</span>`
+      : '';
+    const ok = p.success ? 'log-ok' : 'log-err';
+    const mediaEmoji = p.media_type === 'video' ? '🎥\u00a0' : (p.has_media ? '📷\u00a0' : '');
+    return `<div class="post-row">
+      <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}</div>
+      <div class="post-row-text ${ok}">${mediaEmoji}${_esc(p.text_preview || '')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── PENDING RENDERER ────────────────────────────────────────
+function renderPending(d) {
+  const container = document.getElementById('pending-container');
+  if (!container) return;
+  let html = '';
+
+  if (d.tweet) {
+    const t = d.tweet;
+    const text = t.tweet || t.text || '';
+    const len = text.length;
+    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
+    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    const ttype = t.tweet_type || '';
+    const gen_at = t.generated_at ? _fmtTime(t.generated_at) : '';
+    html += `
+    <div class="pending-section">
+      <div class="section-label"><span class="dot"></span>PENDING TWEET</div>
+      <div class="pending-tweet-text">${_esc(text)}</div>
+      <div class="char-counter">
+        <span class="char-count-num ${cls}">${len}/280</span>
+        <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>
+      <div class="platform-badges">
+        <span class="badge badge-x">𝕏 X</span>
+        <span class="badge badge-threads">⊙ THREADS</span>
+        ${ttype ? `<span class="badge badge-type">${_esc(ttype)}</span>` : ''}
+        ${gen_at ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-left:4px;">${gen_at}</span>` : ''}
+      </div>
+      <div class="action-grid">
+        <button class="btn btn-success btn-sm" onclick="publishPost('threads','pending',this)">⊙ PUBLISH</button>
+        <button class="btn btn-danger btn-sm" onclick="discardPending(this)">✕ DISCARD</button>
+      </div>
+      <div class="regen-row">
+        <input type="text" id="regen-instruction" placeholder="Optional instruction for regeneration…">
+        <button class="btn btn-secondary btn-sm" onclick="doRegenerate(this)">↻ REGEN</button>
+        <button class="btn btn-cyan btn-sm" id="validate-btn" onclick="doValidate(this)" style="margin-left:4px;">✓ VALIDATE</button>
+      </div>
+      <div id="validate-result" style="margin-top:5px;"></div>
+      <div id="publish-result"></div>
+    </div>`;
+  }
+
+  if (d.combo) {
+    const c = d.combo;
+    const tweet = c.tweet || c.wire || '';
+    const len = tweet.length;
+    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
+    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    html += `
+    <div class="pending-section" style="border-left-color:var(--cyan-dim);">
+      <div class="section-label"><span class="dot" style="background:var(--cyan);"></span>PENDING COMBO</div>
+      ${tweet ? `<div style="margin-bottom:6px;">
+        <div class="pending-tweet-text" style="white-space:pre-wrap;">${_esc(tweet)}</div>
+        <div class="char-counter">
+          <span class="char-count-num ${cls}">${len}/280</span>
+          <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        </div>
+      </div>` : ''}
+      <div class="action-grid">
+        <button class="btn btn-success btn-sm" onclick="publishPost('threads','combo',this)">⊙ PUBLISH</button>
+        <button class="btn btn-danger btn-sm" onclick="discardPending(this)">✕ DISCARD</button>
+      </div>
+      <div class="regen-row">
+        <button class="btn btn-cyan btn-sm" id="validate-btn-combo" onclick="doValidate(this)" style="margin-left:0;">✓ VALIDATE</button>
+      </div>
+      <div id="validate-result" style="margin-top:5px;"></div>
+      <div id="publish-result-combo"></div>
+    </div>`;
+  }
+
+  if (!d.tweet && !d.combo) {
+    html += `
+    <div class="pending-section" style="opacity:0.5;">
+      <div class="section-label">PENDING POST</div>
+      <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">No pending post.</div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+  renderScheduled(d.scheduled || []);
+}
+
+function renderScheduled(list) {
+  const el = document.getElementById('scheduled-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--muted2);">No scheduled posts.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(item => {
+    const c = item.content || {};
+    const text = c.tweet || c.text || '';
+    const ttype = c.tweet_type || 'SCHED';
+    const gen = c.generated_at ? _fmtTime(c.generated_at) : '';
+    return `
+    <div style="background:var(--surface1);border:1px solid var(--border);border-radius:3px;padding:8px 10px;display:flex;align-items:flex-start;gap:8px;">
+      <div style="flex:1;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--cyan);margin-bottom:3px;">SCHED #${item.n} · ${_esc(ttype)} · ${gen}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(text)}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:10px;flex-shrink:0;" onclick="cancelSched(${item.n},this)">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── PENDING REPLACE GUARD ───────────────────────────────────
+async function confirmReplaceIfPending() {
+  try {
+    const r = await fetch('/api/pending');
+    if (!r.ok) return true;
+    const d = await r.json();
+    const pendingText = (d.tweet && d.tweet.tweet) || (d.combo && (d.combo.tweet || d.combo.wire)) || null;
+    if (!pendingText) return true;
+    return await _showReplaceModal(pendingText);
+  } catch(e) {
+    return true;
+  }
+}
+
+function _showReplaceModal(pendingText) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('replace-modal');
+    document.getElementById('replace-modal-preview').textContent =
+      pendingText.slice(0, 60) + (pendingText.length > 60 ? '…' : '');
+    modal.classList.add('visible');
+    const cleanup = (result) => {
+      modal.classList.remove('visible');
+      document.getElementById('replace-modal-ok').onclick = null;
+      document.getElementById('replace-modal-cancel').onclick = null;
+      resolve(result);
+    };
+    document.getElementById('replace-modal-ok').onclick = () => cleanup(true);
+    document.getElementById('replace-modal-cancel').onclick = () => cleanup(false);
+  });
+}
+
+// ─── GENERATE ────────────────────────────────────────────────
+async function doGenerate(btn) {
+  const headline = document.getElementById('chat-input').value.trim();
+  if (!headline) return;
+  if (!await confirmReplaceIfPending()) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> GENERATING…';
+  addChatMsg('user', headline);
+
+  try {
+    const r = await fetch('/api/generate', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      addChatMsg('sol', `Error: ${d.detail || r.status}`, 'ERR');
+    } else {
+      addChatMsg('sol', d.tweet, `${d.tweet_type} · ${d.model_used || 'auto'} · ${d.char_count} chars · pending ●`);
+      addLogLine('ok', `[generate] ${d.tweet_type} → ${d.char_count} chars → pending_tweet.json`);
+      setTimeout(() => pollPending(), 400);
+      setTimeout(() => { const vb = document.getElementById('validate-btn'); if (vb) doValidate(vb); }, 700);
+      document.getElementById('chat-input').value = '';
+    }
+  } catch(e) {
+    addChatMsg('sol', 'Network error', 'ERR');
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
+async function doGenerateAndPublish(btn) {
+  const headline = document.getElementById('chat-input').value.trim();
+  if (!headline) return;
+  if (!await confirmReplaceIfPending()) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> GENERATING…';
+  addChatMsg('user', headline);
+
+  try {
+    const r = await fetch('/api/generate', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
+    });
+    const d = await r.json();
+    if (!r.ok) { addChatMsg('sol', `Generate error: ${d.detail}`, 'ERR'); return; }
+    addChatMsg('sol', d.tweet, `${d.tweet_type} · ${d.model_used || 'auto'} · ${d.char_count} chars`);
+    btn.innerHTML = '<span class="spin">⟳</span> PUBLISHING…';
+    await _publishNow('threads', 'pending', btn);
+    document.getElementById('chat-input').value = '';
+    setTimeout(() => pollPending(), 800);
+  } catch(e) {
+    addChatMsg('sol', 'Network error', 'ERR');
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
+async function doRegenerate(btn) {
+  const instr = (document.getElementById('regen-instruction') || {}).value || '';
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span>';
+
+  try {
+    const r = await fetch('/api/generate/regenerate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({instruction: instr || null, tweet_type: _activeFmt !== 'ANALISIS' ? _activeFmt : null}),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      addLogLine('ok', `[regen] ${d.tweet_type} → ${d.char_count} chars`);
+      addChatMsg('sol', d.tweet, `${d.tweet_type} · ${d.char_count} chars · regenerated`);
+      setTimeout(() => pollPending(), 400);
+      setTimeout(() => { const vb = document.getElementById('validate-btn'); if (vb) doValidate(vb); }, 700);
+    } else {
+      addLogLine('err', `[regen] ${d.detail}`);
+    }
+  } catch(e) {}
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
+// ─── TONE VALIDATOR ──────────────────────────────────────────
+async function doValidate(btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '⟳ CHECKING…';
+  try {
+    const r = await fetch('/api/validate');
+    const d = await r.json();
+    renderValidate(d);
+  } catch(e) {
+    const el = document.getElementById('validate-result');
+    if (el) el.innerHTML = '<span style="color:var(--danger);font-size:10px;">VALIDATE ERROR</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function renderValidate(d) {
+  const el = document.getElementById('validate-result');
+  if (!el) return;
+  if (d.empty) { el.innerHTML = ''; return; }
+  const pill = (color, text) =>
+    `<span style="background:${color}22;color:${color};padding:1px 6px;border-radius:3px;font-size:10px;font-family:monospace;white-space:nowrap;">${_esc(text)}</span>`;
+  const charColor = d.char_status === 'ok' ? 'var(--success)' : d.char_status === 'warning' ? 'var(--amber)' : 'var(--danger)';
+  const moveColor = (d.rhetorical_move === 'none' || d.rhetorical_move === 'none') ? 'var(--amber)' : 'var(--cyan)';
+  const overallColor = d.overall === 'pass' ? 'var(--success)' : d.overall === 'warning' ? 'var(--amber)' : 'var(--danger)';
+  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 0;">
+    ${pill(charColor, `CHARS: ${d.char_count}/280`)}
+    ${d.ai_isms.length ? pill('var(--danger)', 'AI-ISMS: ' + d.ai_isms.join(', ')) : pill('var(--success)', 'AI-ISMS: CLEAN')}
+    ${pill(moveColor, 'MOVE: ' + d.rhetorical_move.toUpperCase())}
+    ${d.moralizing.length ? pill('var(--danger)', 'MORAL: ' + d.moralizing.join(', ')) : pill('var(--success)', 'MORAL: CLEAN')}
+    <strong style="color:${overallColor};font-size:11px;font-family:monospace;margin-left:2px;">${d.overall.toUpperCase()}</strong>
+  </div>`;
+}
+
+// ─── MIXED ───────────────────────────────────────────────────
+async function doMixed(btn) {
+  const headline = document.getElementById('mixed-input').value.trim();
+  if (!headline) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> GENERATING…';
+
+  try {
+    const r = await fetch('/api/mixed', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({headline}),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      addLogLine('err', `[mixed] ${d.detail}`);
+    } else {
+      document.getElementById('mixed-tweet-text').textContent = d.tweet;
+      document.getElementById('mixed-char-info').textContent  = `${d.char_count} chars`;
+      document.getElementById('mixed-preview-container').style.display = '';
+      addLogLine('ok', `[mixed] ${d.char_count} chars → pending_combo.json`);
+      pollPending();
+    }
+  } catch(e) {
+    addLogLine('err', '[mixed] network error');
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
+// ─── PUBLISH ─────────────────────────────────────────────────
+function _insertPublishProgress(grid, platform) {
+  const showX = platform !== 'threads';
+  const showT = platform !== 'x';
+  const rows = [];
+  if (showX) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">𝕏 X</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-x"></div></div><span class="pub-bar-pct" id="pub-pct-x">0%</span></div>`);
+  if (showT) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">THREADS</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-th"></div></div><span class="pub-bar-pct" id="pub-pct-th">0%</span></div>`);
+  const prog = document.createElement('div');
+  prog.className = 'pub-progress-container';
+  prog.innerHTML = rows.join('');
+  if (grid) { grid.style.display = 'none'; grid.parentNode.insertBefore(prog, grid.nextSibling); }
+  return prog;
+}
+
+function _animatePublishBars(container, platform) {
+  let xPct = 0, tPct = 0;
+  return setInterval(() => {
+    const xFill = container.querySelector('#pub-fill-x');
+    const tFill = container.querySelector('#pub-fill-th');
+    const xPctEl = container.querySelector('#pub-pct-x');
+    const tPctEl = container.querySelector('#pub-pct-th');
+    if (xFill && xPct < 88) { xPct = Math.min(xPct + 3, 88); xFill.style.width = xPct + '%'; if (xPctEl) xPctEl.textContent = xPct + '%'; }
+    if (tFill && tPct < 88) { tPct = Math.min(tPct + 2, 88); tFill.style.width = tPct + '%'; if (tPctEl) tPctEl.textContent = tPct + '%'; }
+  }, 200);
+}
+
+function _finishPublishBars(container, platform, xOk, tOk) {
+  const pairs = [
+    ['#pub-fill-x', '#pub-pct-x', platform !== 'threads', xOk],
+    ['#pub-fill-th', '#pub-pct-th', platform !== 'x', tOk],
+  ];
+  for (const [fillId, pctId, active, ok] of pairs) {
+    if (!active) continue;
+    const fill = container.querySelector(fillId);
+    const pct  = container.querySelector(pctId);
+    if (fill) { fill.style.width = '100%'; fill.classList.add(ok ? 'success' : 'failed'); }
+    if (pct)  { pct.textContent = ok ? '✓' : '✗'; pct.style.color = ok ? 'var(--success)' : 'var(--danger)'; }
+  }
+}
+
+async function publishPost(platform, source, btn) {
+  const resultId = source === 'combo' ? 'publish-result-combo' : 'publish-result';
+  const resultEl = document.getElementById(resultId);
+  if (resultEl) resultEl.innerHTML = '';
+
+  const grid = btn.closest('.action-grid');
+  const progContainer = _insertPublishProgress(grid, platform);
+  const intervalId = _animatePublishBars(progContainer, platform);
+
+  let xOk = false, tOk = false;
+  try {
+    const r = await fetch('/api/publish', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({platform, source}),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      xOk = !!d.x_success;
+      tOk = !!d.threads_success;
+      const xs = d.x_success      ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
+      const ts = d.threads_success ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
+      const summary = [xs, ts].filter(Boolean).join(' · ');
+      addLogLine('ok', `[publish] ${summary}`);
+      if (tOk && resultEl) {
+        const pid = d.threads_post_id || '';
+        const ts_now = new Date().toLocaleTimeString();
+        const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
+        resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
+          ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
+        </div>`;
+      }
+    } else {
+      if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;
+    }
+  } catch(e) {
+    if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Network error</span>`;
+  }
+
+  clearInterval(intervalId);
+  _finishPublishBars(progContainer, platform, xOk, tOk);
+
+  if (d && d.wire_repost_warning && resultEl) {
+    resultEl.innerHTML = `<div style="margin-top:8px;padding:7px 10px;background:rgba(245,158,11,0.08);border:1px solid var(--amber-dim);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--amber);">
+      ⚠ Wire repost published. Consider adding Sol analysis next time.
+      <span style="float:right;cursor:pointer;color:var(--muted);" onclick="this.parentNode.parentNode.innerHTML=''">✕</span>
+      <button class="btn btn-secondary btn-sm" style="margin-top:6px;width:100%;font-size:10px;" onclick="this.closest('div').parentNode.innerHTML=''; const rb=document.getElementById('regen-instruction'); if(rb){rb.closest('.regen-row').querySelector('button').click();}">↻ REGENERATE</button>
+    </div>`;
+  }
+
+  setTimeout(() => { pollPending(); pollStatus(); }, 2000);
+}
+
+async function _publishNow(platform, source, btn, resultEl) {
+  try {
+    const r = await fetch('/api/publish', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({platform, source}),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;
+    } else {
+      const xs = d.x_success       ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
+      const ts = d.threads_success  ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
+      const summary = [xs, ts].filter(Boolean).join(' · ');
+      addLogLine('ok', `[publish] ${summary}`);
+      if (d.threads_success && resultEl) {
+        const pid = d.threads_post_id || '';
+        const ts_now = new Date().toLocaleTimeString();
+        const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
+        resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
+          ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
+        </div>`;
+      } else if (resultEl) {
+        const cls = (d.x_success || d.threads_success) ? 'pub-ok' : 'pub-fail';
+        resultEl.innerHTML = `<span class="${cls}">${summary}</span>`;
+      }
+      pollPending();
+      pollStatus();
+      setTimeout(() => { pollPending(); pollStatus(); }, 2000);
+    }
+  } catch(e) {
+    if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Network error</span>`;
+  }
+}
+
+// ─── DISCARD ─────────────────────────────────────────────────
+async function discardPending(btn) {
+  if (!confirm('Clear all pending_*.json files?')) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/reset', {method: 'POST', headers: {'X-CSRF-Token': _csrfToken}});
+    const d = await r.json();
+    addLogLine('warn', `[reset] Cleared: ${(d.cleared || []).join(', ') || 'none'}`);
+    setTimeout(() => pollPending(), 500);
+    const _vr = document.getElementById('validate-result'); if (_vr) _vr.innerHTML = '';
+  } catch(e) {}
+  btn.disabled = false;
+}
+
+// ─── CANCEL SCHEDULED ────────────────────────────────────────
+async function cancelSched(n, btn) {
+  if (!confirm(`Cancel scheduled post #${n}?`)) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/scheduler/${n}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken}});
+    const d = await r.json();
+    addLogLine('warn', `[scheduler] Deleted pending_sched_${n}.json: ${d.deleted}`);
+    setTimeout(() => pollPending(), 500);
+  } catch(e) {}
+  btn.disabled = false;
+}
+
+// ─── CHAT MSG ────────────────────────────────────────────────
+function addChatMsg(role, text, meta) {
+  const container = document.getElementById('chat-messages');
+  const ts = new Date().toTimeString().slice(0,5);
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-sender">${role === 'sol' ? 'SOL' : 'YOU'} · ${ts}</div>
+    <div class="msg-bubble">${_esc(text)}</div>
+    ${meta ? `<div class="msg-meta">${_esc(meta)}</div>` : ''}`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+
+// ─── ADD LOG LINE (no-op — log strip removed) ────────────────
+function addLogLine(type, text) {
+  console.log(`[${type}] ${text}`);
+}
+
+// ─── UTILS ───────────────────────────────────────────────────
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _timeAgo(isoStr) {
+  try {
+    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+    if (diff < 60)   return `${Math.round(diff)}s ago`;
+    if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+    return `${Math.round(diff/3600)}h ago`;
+  } catch(e) { return isoStr; }
+}
+function _fmtTime(isoStr) {
+  try { return new Date(isoStr).toTimeString().slice(0,5); } catch(e) { return isoStr; }
+}
+
+
+  // ─── REPLY GENERATOR ───────────────────────────────────────────────────────
+
+  let _replyMode  = 'text';
+  let _replyModel = null;
+  let _replyLastTweet = '';
+
+  function toggleReplyDrawer() {
+    document.getElementById('reply-drawer').classList.toggle('open');
+    _syncBackdrop();
+  }
+
+  function setReplyMode(mode) {
+    _replyMode = mode;
+    document.getElementById('reply-textarea').style.display  = mode === 'text' ? 'block' : 'none';
+    document.getElementById('reply-url-input').style.display = mode === 'url'  ? 'block' : 'none';
+    document.getElementById('mode-text').classList.toggle('active', mode === 'text');
+    document.getElementById('mode-url').classList.toggle('active', mode === 'url');
+  }
+
+  function setReplyModel(btn, model) {
+    document.querySelectorAll('.reply-model-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _replyModel = model === 'auto' ? null : model;
+  }
+
+  async function generateReplies(btn) {
+    const content = _replyMode === 'text'
+      ? document.getElementById('reply-textarea').value.trim()
+      : document.getElementById('reply-url-input').value.trim();
+    if (!content) { addLogLine('warn', '[reply] no input provided'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '⟳ GENERATING…';
+    document.getElementById('reply-results').innerHTML = '<div class="reply-meta">Calling Sol...</div>';
+
+    try {
+      const r = await fetch('/api/replies/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({input_type: _replyMode, content, model_override: _replyModel}),
+      });
+      const d = await r.json();
+      if (d.error) {
+        document.getElementById('reply-results').innerHTML = `<div class="reply-meta" style="color:var(--danger)">${_esc(d.error)}</div>`;
+        return;
+      }
+      _replyLastTweet = d.original_tweet || content;
+      renderReplyCards(d);
+    } catch(e) {
+      document.getElementById('reply-results').innerHTML = `<div class="reply-meta" style="color:var(--danger)">Error: ${_esc(String(e))}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ GENERATE REPLIES';
+    }
+  }
+
+  function renderReplyCards(d) {
+    const model = (d.model_used || '').split('/').pop();
+    const meta = `${model} · ${d.sol_count || 0} posts today · ${d.hl_count || 0} headlines`;
+    let html = `<div class="reply-meta">${_esc(meta)}</div>`;
+    for (const r of (d.replies || [])) {
+      const cc = r.char_count || r.text.length;
+      const ccCls = cc > 270 ? 'over' : cc > 250 ? 'warn' : '';
+      html += `<div class="reply-card" data-move="${_esc(r.move)}">
+        <div class="reply-card-header">
+          <span class="reply-move-pill">${_esc(r.move)}</span>
+          <span class="reply-char-count ${ccCls}">${cc}/280</span>
+        </div>
+        <div class="reply-text" style="white-space:pre-wrap;">${_esc(r.text)}</div>
+        <div class="reply-actions">
+          <button class="btn btn-secondary reply-actions" onclick="replyCardCopy(this, ${JSON.stringify(r.text).replace(/"/g, '&quot;')})">📋 COPY</button>
+          <button class="btn btn-secondary" onclick="replyCardRegen(this, '${_esc(r.move)}')">↻ REGEN</button>
+        </div>
+      </div>`;
+    }
+    document.getElementById('reply-results').innerHTML = html;
+  }
+
+  function copyToClipboard(text, btn) {
+    const reset = () => { btn.textContent = '📋 COPY'; btn.style.color = ''; };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'COPIED ✓'; btn.style.color = 'var(--success)';
+        setTimeout(reset, 1500);
+      }).catch(() => _copyFallback(text, btn, reset));
+    } else {
+      _copyFallback(text, btn, reset);
+    }
+  }
+  function _copyFallback(text, btn, reset) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try {
+      document.execCommand('copy');
+      btn.textContent = 'COPIED ✓'; btn.style.color = 'var(--success)';
+    } catch(e) {
+      btn.textContent = 'COPY FAILED'; btn.style.color = 'var(--danger)';
+    }
+    document.body.removeChild(ta);
+    setTimeout(reset, 1500);
+  }
+  function replyCardCopy(btn, text) { copyToClipboard(text, btn); }
+
+  async function replyCardRegen(btn, move) {
+    const card = btn.closest('.reply-card');
+    btn.disabled = true;
+    btn.textContent = '⟳';
+    try {
+      const r = await fetch('/api/replies/regenerate-one', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({move, original_tweet: _replyLastTweet, model_override: _replyModel}),
+      });
+      const d = await r.json();
+      if (d.text) {
+        const cc = d.char_count || d.text.length;
+        const ccCls = cc > 270 ? 'over' : cc > 250 ? 'warn' : '';
+        card.querySelector('.reply-text').textContent = d.text;
+        card.querySelector('.reply-char-count').textContent = `${cc}/280`;
+        card.querySelector('.reply-char-count').className = `reply-char-count ${ccCls}`;
+        // Update copy button binding
+        card.querySelector('.reply-actions button').onclick = () => replyCardCopy(card.querySelector('.reply-actions button'), d.text);
+      }
+    } catch(e) { addLogLine('warn', `[reply] regen error: ${e}`); }
+    finally { btn.disabled = false; btn.textContent = '↻ REGEN'; }
+  }
+
+  // ─── SIGNALS ───────────────────────────────────────────────────────────────
+
+  function toggleSignalsPanel() {
+    const p = document.getElementById('signals-panel');
+    const opening = p.style.display === 'none';
+    p.style.display = opening ? 'flex' : 'none';
+    if (opening) loadSignals();
+  }
+
+  async function loadSignals() {
+    const gEl = document.getElementById('gdelt-rows');
+    const pEl = document.getElementById('poly-rows');
+    const mEl = document.getElementById('mkts-rows');
+    gEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
+    pEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
+    mEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
+    try {
+      const r = await fetch('/api/signals');
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      renderGdelt(d.gdelt);
+      renderPolymarket(d.polymarket);
+      renderMarkets(d.markets);
+    } catch(e) {
+      gEl.innerHTML = `<span style="color:var(--danger)">Error: ${e}</span>`;
+      pEl.innerHTML = '';
+      mEl.innerHTML = '';
+    }
+  }
+
+  function _minsAgo(isoStr) {
+    if (!isoStr) return '?';
+    return Math.round((Date.now() - new Date(isoStr).getTime()) / 60000);
+  }
+
+  function _fmtVol(v) {
+    if (!v) return '$0';
+    if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
+    return '$' + Math.round(v);
+  }
+
+  function injectSignal(title) {
+    const ta = document.getElementById('chat-input');
+    ta.value = title;
+    ta.focus();
+  }
+
+  function renderGdelt(data) {
+    const el = document.getElementById('gdelt-rows');
+    const upEl = document.getElementById('gdelt-updated');
+    if (!data || data.error) {
+      el.innerHTML = `<span style="color:var(--danger)">${data?.error || 'unknown error'}</span>`;
+      return;
+    }
+    upEl.textContent = _minsAgo(data.updated_at) + 'm ago';
+    const topics = data.topics || [];
+    const maxCount = Math.max(1, ...topics.map(t => t.article_count));
+    el.innerHTML = topics.map(t => {
+      const pct = Math.round((t.article_count / maxCount) * 100);
+      const esc = t.article_count > 30 ? 'escalating' : '';
+      const firstUrl = (t.articles[0] && t.articles[0].url) ? t.articles[0].url : '#';
+      const firstTitle = (t.articles[0] && t.articles[0].title) ? t.articles[0].title : t.keyword;
+      const safeTitle = firstTitle.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `<div class="sig-row" onclick="window.open(${JSON.stringify(firstUrl)},'_blank')">
+        <span class="sig-kw">${_esc(t.keyword)}</span>
+        <div class="sig-bar-track"><div class="sig-bar-fill ${esc}" style="width:${pct}%"></div></div>
+        <span class="sig-count">${t.article_count} art.</span>
+        <button class="sig-sol-btn" onclick="event.stopPropagation();injectSignal('${safeTitle}')">→ SOL</button>
+      </div>`;
+    }).join('');
+  }
+
+  function renderMarkets(data) {
+    const el = document.getElementById('mkts-rows');
+    const upEl = document.getElementById('mkts-updated');
+    if (!data || data.error) {
+      el.innerHTML = `<span style="color:var(--danger)">${data?.error || 'unavailable'}</span>`;
+      return;
+    }
+    upEl.textContent = _minsAgo(data.updated_at) + 'm ago';
+    const assets = data.assets || [];
+    el.innerHTML = assets.map(a => {
+      if (a.price == null) {
+        return `<div class="sig-row"><span class="sig-kw">${_esc(a.name)}</span><span style="color:var(--muted);font-size:10px">—</span></div>`;
+      }
+      const arrow = a.direction === 'up' ? '▲' : a.direction === 'down' ? '▼' : '→';
+      const color = a.direction === 'up' ? 'var(--success)' : a.direction === 'down' ? 'var(--danger)' : 'var(--amber)';
+      const sign = a.change_pct > 0 ? '+' : '';
+      // format price: large numbers no decimals, small numbers 2-4 decimals
+      let priceStr;
+      if (a.price >= 100) priceStr = '$' + a.price.toLocaleString('en-US', {maximumFractionDigits: 2});
+      else priceStr = a.price.toFixed(2);
+      return `<div class="sig-row">
+        <span class="sig-kw" style="min-width:72px">${_esc(a.name)}</span>
+        <span style="flex:1;text-align:right;font-size:10px;color:var(--text)">${priceStr}</span>
+        <span style="min-width:58px;text-align:right;font-size:10px;color:${color}">${arrow} ${sign}${a.change_pct.toFixed(1)}%</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPolymarket(data) {
+    const el = document.getElementById('poly-rows');
+    const upEl = document.getElementById('poly-updated');
+    if (!data || data.error) {
+      el.innerHTML = `<span style="color:var(--danger)">${data?.error || 'unknown error'}</span>`;
+      return;
+    }
+    upEl.textContent = _minsAgo(data.updated_at) + 'm ago';
+    const markets = data.markets || [];
+    el.innerHTML = markets.map(m => {
+      const prob = Math.round((m.probability_yes || 0) * 100);
+      const cls = prob >= 70 ? 'green' : prob >= 40 ? 'amber' : 'red';
+      const vol = _fmtVol(m.volume);
+      const url = m.url || '#';
+      return `<div class="poly-row" onclick="window.open(${JSON.stringify(url)},'_blank')">
+        <span class="poly-q">${_esc(m.question)}</span>
+        <span class="poly-prob prob-${cls}">YES ${prob}%</span>
+        <div class="poly-bar-track"><div class="poly-bar-fill bar-${cls}" style="width:${prob}%"></div></div>
+        <span class="poly-vol">${vol}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ─── ANALYTICS ─────────────────────────────────────────────────────────────
+
+  function toggleAnalyticsPanel() {
+    const p = document.getElementById('analytics-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    if (p.style.display === 'block') loadAnalytics();
+  }
+
+  function fmtNum(n) {
+    if (n == null) return '—';
+    n = Math.round(n);
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
+    return n.toString();
+  }
+
+  async function loadAnalytics() {
+    document.getElementById('analytics-summary').innerHTML         = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-topic').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-media').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-recent').innerHTML          = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading…</span>';
+    document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading…</span>';
+    try {
+      const [summary, topic, media, recent, threads] = await Promise.all([
+        fetch('/api/analytics/summary').then(r => r.json()),
+        fetch('/api/analytics/by_topic').then(r => r.json()),
+        fetch('/api/analytics/by_media').then(r => r.json()),
+        fetch('/api/analytics/recent?limit=5').then(r => r.json()),
+        fetch('/api/threads/analytics?limit=10').then(r => r.json()),
+      ]);
+      renderAnalyticsSummary(summary);
+      renderAnalyticsTopic(topic);
+      renderAnalyticsMedia(media);
+      renderAnalyticsRecent(recent);
+      renderThreadsSummary(threads);
+      renderThreadsRecent(threads);
+    } catch(e) {
+      document.getElementById('analytics-summary').innerHTML = '<span style="color:var(--danger)">error</span>';
+    }
+  }
+
+  function renderAnalyticsSummary(d) {
+    const el = document.getElementById('analytics-summary');
+    if (!d) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
+    const best = d.best_tweet;
+    el.innerHTML = `
+      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
+      <div style="margin-bottom:4px;">TWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_tweets)}</span></div>
+      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_views)}</span></div>
+      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(d.total_likes)}</span></div>
+      <div style="margin-bottom:4px;">RETWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_retweets)}</span></div>
+      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.avg_views)}</span></div>
+      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
+        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST TWEET</div>
+        <div style="color:var(--text);line-height:1.4;word-break:break-word;">${_esc(best.text.slice(0,60))}…</div>
+        <div style="color:var(--cyan);margin-top:3px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
+      </div>` : ''}
+    `;
+  }
+
+  function renderAnalyticsTopic(rows) {
+    const el = document.getElementById('analytics-topic');
+    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
+    const top6 = rows.slice(0, 6);
+    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY TOPIC</div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="color:var(--muted2);font-size:9px;">
+        <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
+        <th style="text-align:right;padding-bottom:4px;">TWS</th>
+        <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
+        <th style="text-align:right;padding-bottom:4px;">AVG</th>
+      </tr></thead><tbody>`;
+    for (const r of top6) {
+      html += `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:3px 0;color:var(--cyan);font-size:9px;word-break:break-all;">${_esc(r.topic)}</td>
+        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
+        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.total_views)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;">${fmtNum(r.avg_views)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function renderAnalyticsMedia(rows) {
+    const el = document.getElementById('analytics-media');
+    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
+    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY MEDIA</div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="color:var(--muted2);font-size:9px;">
+        <th style="text-align:left;padding-bottom:4px;">TYPE</th>
+        <th style="text-align:right;padding-bottom:4px;">TWS</th>
+        <th style="text-align:right;padding-bottom:4px;">AVG VIEWS</th>
+      </tr></thead><tbody>`;
+    for (const r of rows) {
+      html += `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:3px 0;color:var(--text);font-size:9px;">${_esc(r.media_type)}</td>
+        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
+        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.avg_views)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function renderAnalyticsRecent(rows) {
+    const el = document.getElementById('analytics-recent');
+    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
+    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT TWEETS</div>`;
+    for (const r of rows) {
+      const ts = r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : '—';
+      html += `<div style="border-top:1px solid var(--border);padding:4px 0;cursor:default;" title="${_esc(r.text_preview || '')}">
+        <div style="color:var(--muted2);font-size:8px;">${ts}</div>
+        <div style="color:var(--text);font-size:9px;line-height:1.3;word-break:break-word;">${_esc((r.text_preview||'').slice(0,60))}${(r.text_preview||'').length > 60 ? '…' : ''}</div>
+        <div style="color:var(--cyan);font-size:8px;margin-top:2px;">${fmtNum(r.views)} views · ${fmtNum(r.likes)} likes</div>
+      </div>`;
+    }
+    el.innerHTML = html;
+  }
+
+
+  function renderThreadsSummary(data) {
+    const el = document.getElementById('analytics-threads-summary');
+    if (!data || data.error || !data.posts || !data.posts.length) {
+      el.innerHTML = `<span style="color:var(--muted2);font-size:9px;">${data && data.error ? 'token error' : 'no data'}</span>`;
+      return;
+    }
+    const posts  = data.posts;
+    const total  = data.count;
+    const views  = posts.reduce((s, p) => s + (p.views || 0), 0);
+    const likes  = posts.reduce((s, p) => s + (p.likes || 0), 0);
+    const best   = posts.reduce((a, b) => (b.views || 0) > (a.views || 0) ? b : a, posts[0]);
+    el.innerHTML = `
+      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
+      <div style="margin-bottom:4px;">POSTS <span style="color:var(--cyan);float:right;">${total}</span></div>
+      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(views)}</span></div>
+      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(likes)}</span></div>
+      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(Math.round(views / total))}</span></div>
+      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
+        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST POST</div>
+        <div style="color:var(--text);line-height:1.4;word-break:break-word;font-size:9px;">${_esc((best.text||'').slice(0,55))}…</div>
+        <div style="color:var(--cyan);margin-top:3px;font-size:8px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
+      </div>` : ''}
+    `;
+  }
+
+  function renderThreadsRecent(data) {
+    const el = document.getElementById('analytics-threads-recent');
+    if (!data || !data.posts || !data.posts.length) {
+      el.innerHTML = '<span style="color:var(--muted2);font-size:9px;">no posts</span>';
+      return;
+    }
+    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT POSTS</div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="color:var(--muted2);font-size:9px;">
+        <th style="text-align:left;padding-bottom:4px;">POST</th>
+        <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
+        <th style="text-align:right;padding-bottom:4px;">LIKES</th>
+        <th style="text-align:right;padding-bottom:4px;">RPL</th>
+      </tr></thead><tbody>`;
+    for (const p of data.posts) {
+      const ts   = p.timestamp ? p.timestamp.slice(0, 10) : '—';
+      const link = p.permalink ? `<a href="${p.permalink}" target="_blank" style="color:var(--cyan);text-decoration:none;" title="${_esc(p.text||'')}">↗</a>` : '';
+      html += `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:3px 4px 3px 0;font-size:9px;max-width:260px;">
+          <span style="color:var(--muted2);font-size:8px;">${ts}</span> ${link}<br>
+          <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,70))}${(p.text||'').length > 70 ? '…' : ''}</span>
+        </td>
+        <td style="text-align:right;color:var(--cyan);font-size:9px;white-space:nowrap;">${fmtNum(p.views)}</td>
+        <td style="text-align:right;color:var(--text);font-size:9px;white-space:nowrap;">${fmtNum(p.likes)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.replies)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+// ─── MOBILE TAB NAVIGATION ───────────────────────────────────────
+(function() {
+  const TAB_COL = {
+    status:  '.col-manager',
+    post:    '.col-chat',
+    mixed:   '.col-mixed',
+    monitor: null,
+  };
+
+  window.activateMobileTab = function(tabName) {
+    if (window.innerWidth > 768) return;
+
+    document.querySelectorAll('.mob-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.col').forEach(function(c) {
+      c.classList.remove('mob-active');
+    });
+
+    if (tabName === 'monitor') {
+      document.getElementById('monitor-drawer').classList.add('open');
+    } else {
+      document.getElementById('monitor-drawer').classList.remove('open');
+      var sel = TAB_COL[tabName];
+      if (sel) document.querySelector(sel).classList.add('mob-active');
+    }
+  };
+
+  // When monitor drawer closes on mobile, return tab bar to status
+  var _origToggle = window.toggleMonitorDrawer;
+  window.toggleMonitorDrawer = function() {
+    var wasOpen = document.getElementById('monitor-drawer').classList.contains('open');
+    _origToggle();
+    if (wasOpen && window.innerWidth <= 768) {
+      document.querySelectorAll('.mob-tab').forEach(function(t) {
+        t.classList.toggle('active', t.dataset.tab === 'status');
+      });
+      var mgr = document.querySelector('.col-manager');
+      if (mgr) mgr.classList.add('mob-active');
+    }
+  };
+
+  // Keep mobile monitor badge in sync with _monitorCount
+  setInterval(function() {
+    var badge = document.getElementById('mob-monitor-badge');
+    if (!badge) return;
+    if (typeof _monitorCount !== 'undefined' && _monitorCount > 0) {
+      badge.textContent = _monitorCount;
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }, 1000);
+
+  // Init on mobile
+  if (window.innerWidth <= 768) {
+    window.activateMobileTab('status');
+  }
+})();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js');
+  }
+</script>
+<!-- DRAWER BACKDROP -->
+<div id="drawer-backdrop" class="drawer-backdrop" onclick="closeAllDrawers()"></div>
+</body>
+</html>

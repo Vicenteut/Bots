@@ -14,6 +14,7 @@ import re
 import os
 import sys
 import time
+QUIET_MODE = False
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -22,7 +23,7 @@ import urllib.error
 # Config
 # ---------------------------------------------------------------------------
 
-ENV_PATH = "/root/x-bot/.env"
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 BASE_URL = "https://graph.threads.net/v1.0"
 
 # TG tokens loaded after load_env() below
@@ -216,7 +217,7 @@ def api_post(url, params):
     req = urllib.request.Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=45) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body)
     except urllib.error.HTTPError as e:
@@ -232,7 +233,7 @@ def api_get(url):
     """Send a GET request and return parsed JSON."""
     req = urllib.request.Request(url, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=45) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body)
     except urllib.error.HTTPError as e:
@@ -251,6 +252,8 @@ def api_get(url):
 def send_tg_notification(message):
     """Send a notification message to Telegram."""
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
+    if QUIET_MODE:
+        return
     params = {
         "chat_id": TG_CHAT_ID,
         "text": message,
@@ -359,36 +362,21 @@ def publish_text(text):
 
 
 def upload_image_for_threads(local_path):
-    """Upload a local image and return the public URL for Threads API."""
-    import subprocess
-    
+    """Return public URL for local image via self-hosted nginx."""
+    from pathlib import Path as _Path
+    from urllib.parse import quote as _quote
+
     if local_path.startswith('http'):
         return local_path  # Already a URL
-    
+
     if not os.path.exists(local_path):
-        print(f'[ERROR] Image file not found: {local_path}')
+        print(f'[ERROR] Image file not found: {local_path}', file=sys.stderr)
         return None
-    
-    print(f'  Uploading image to get public URL...')
-    
-    # Primary: catbox.moe (reliable, no API key needed)
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-F', 'reqtype=fileupload',
-             '-F', f'fileToUpload=@{local_path}',
-             'https://catbox.moe/user/api.php'],
-            capture_output=True, text=True, timeout=60
-        )
-        url = result.stdout.strip()
-        if url.startswith('http'):
-            print(f'  Image uploaded: {url}')
-            return url
-    except Exception as e:
-        print(f'  catbox.moe upload failed: {e}')
-    
-    # Fallback: use Unsplash-hosted URL directly if available
-    print('[ERROR] Could not upload image')
-    return None
+
+    filename = _Path(local_path).name
+    public_url = f"http://89.167.109.62:8080/media/{_quote(filename)}"
+    print(f'  Using self-hosted URL: {public_url}')
+    return public_url
 
 
 def publish_image(text, image_url):
@@ -422,29 +410,8 @@ def publish_image(text, image_url):
 
 
 def upload_media_for_threads(local_path):
-    """Upload a local image or video and return the public URL (catbox.moe)."""
-    import subprocess
-    if local_path.startswith('http'):
-        return local_path
-    if not os.path.exists(local_path):
-        print(f'[ERROR] File not found: {local_path}')
-        return None
-    print(f'  Uploading media to catbox.moe...')
-    try:
-        result = subprocess.run(
-            ['curl', '-s', '-F', 'reqtype=fileupload',
-             '-F', f'fileToUpload=@{local_path}',
-             'https://catbox.moe/user/api.php'],
-            capture_output=True, text=True, timeout=120
-        )
-        url = result.stdout.strip()
-        if url.startswith('http'):
-            print(f'  Media uploaded: {url}')
-            return url
-    except Exception as e:
-        print(f'  catbox.moe upload failed: {e}')
-    print('[ERROR] Could not upload media')
-    return None
+    """Return public URL for local video via self-hosted nginx."""
+    return upload_image_for_threads(local_path)
 
 
 def publish_video(text, video_url):
@@ -507,6 +474,53 @@ def publish_thread(texts):
     preview = " | ".join(t[:50] for t in texts)
     send_tg_notification(
         f"<b>Threads thread published ({len(post_ids)} posts)</b>\n\n"
+        f"{preview[:300]}{'...' if len(preview) > 300 else ''}\n\n"
+        f"First post ID: <code>{post_ids[0]}</code>"
+    )
+    return post_ids
+
+
+def publish_image_thread(texts, image_url):
+    """Publish a thread where the first post has an image, rest are text replies."""
+    if not texts:
+        return None
+    if len(texts) == 1:
+        return publish_image(texts[0], image_url)
+
+    print(f"[THREADS] Publishing image thread ({len(texts)} posts)...")
+    texts[0] = add_topic_to_text(texts[0])
+    post_ids = []
+    reply_to = None
+
+    for i, text in enumerate(texts):
+        print(f"\n  --- Post {i + 1}/{len(texts)} ---")
+        if i == 0:
+            container_id = create_container(text, media_type="IMAGE", image_url=image_url)
+        else:
+            container_id = create_container(text, media_type="TEXT", reply_to_id=reply_to)
+        if not container_id:
+            print(f"[ERROR] Failed to create container for post {i + 1}.")
+            return post_ids
+        if not wait_for_container(container_id, max_wait=30, interval=2):
+            print(f"[ERROR] Container for post {i + 1} failed to process.")
+            return post_ids
+        post_id = publish_container(container_id)
+        if not post_id:
+            print(f"[ERROR] Failed to publish post {i + 1}.")
+            return post_ids
+        print(f"  Published post {i + 1}: {post_id}")
+        post_ids.append(post_id)
+        reply_to = post_id
+        if i < len(texts) - 1:
+            time.sleep(3)
+
+    print(f"\n[SUCCESS] Image thread published! {len(post_ids)} posts.")
+    for idx, pid in enumerate(post_ids):
+        print(f"  Post {idx + 1}: {pid}")
+
+    preview = " | ".join(t[:50] for t in texts)
+    send_tg_notification(
+        f"<b>Threads image thread published ({len(post_ids)} posts)</b>\n\n"
         f"{preview[:300]}{'...' if len(preview) > 300 else ''}\n\n"
         f"First post ID: <code>{post_ids[0]}</code>"
     )
@@ -608,6 +622,11 @@ def print_usage():
 def main():
     args = sys.argv[1:]
 
+    global QUIET_MODE
+    if "--quiet" in args:
+        QUIET_MODE = True
+        args = [a for a in args if a != "--quiet"]
+
     if not args:
         print_usage()
         sys.exit(1)
@@ -622,21 +641,39 @@ def main():
             print('  python3 threads_publisher.py --image "https://url/img.jpg" "caption"')
             sys.exit(1)
         image_input = args[1]
-        caption = args[2]
-        # Support local files by uploading them first
-        image_url = upload_image_for_threads(image_input)
-        if not image_url:
-            print("[ERROR] Could not get image URL. Publishing as text only.")
-            publish_text(caption)
+        # Support combined --image path --thread tweet1 tweet2 ... syntax.
+        # Without this check, "--thread" would be used as the caption text.
+        if args[2] == "--thread":
+            thread_texts = args[3:]
+            if not thread_texts:
+                print("[ERROR] --image --thread requires at least one post text.")
+                sys.exit(1)
+            image_url = upload_image_for_threads(image_input)
+            if not image_url:
+                print("[ERROR] Could not get image URL. Publishing as text only.")
+                publish_text(thread_texts[0])
+            elif len(thread_texts) == 1:
+                publish_image(thread_texts[0], image_url)
+            else:
+                publish_image_thread(thread_texts, image_url)
         else:
-            publish_image(caption, image_url)
+            caption = args[2]
+            # Support local files by uploading them first
+            image_url = upload_image_for_threads(image_input)
+            if not image_url:
+                print("[ERROR] Could not get image URL. Publishing as text only.")
+                publish_text(caption)
+            else:
+                publish_image(caption, image_url)
 
     elif args[0] == "--video":
         if len(args) < 3:
             print("[ERROR] --video requires a video path/URL and caption text.")
             sys.exit(1)
         video_input = args[1]
-        caption = args[2]
+        # Guard against --thread appearing as caption (same pattern as --image).
+        # Video thread chaining is not supported; use first tweet as caption.
+        caption = args[3] if args[2] == "--thread" and len(args) > 3 else args[2]
         video_url = upload_media_for_threads(video_input)
         if not video_url:
             print("[ERROR] Could not get video URL. Publishing as text only.")

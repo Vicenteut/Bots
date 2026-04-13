@@ -1,0 +1,155 @@
+description: "Sol Reply Generator — system prompt validation"
+
+prompts:
+  - file://reply_gen_prompt.json
+
+providers:
+  - id: anthropic:messages:claude-haiku-4-5-20251001
+    config:
+      temperature: 0.7
+      max_tokens: 800
+    transform: "output.replace(/```json\\n?|```\\n?/g, '').trim()"
+
+defaultTest:
+  vars:
+    sol_posts_today: |
+      "Turkey and the Bosphorus. Both sides need the passage. That's the deal."
+      "Chinese exports to Russia up 64% YoY. Most of it re-exports from third countries."
+      "The dollar index is flat. Meanwhile real rates are rising. That math doesn't land softly."
+    headlines_in_queue: |
+      - ECB signals possible rate hold through Q3
+      - China PMI services drops to 49.2
+      - OPEC+ emergency meeting called for next week
+
+tests:
+  - description: "TC1 — Single geopolitical tweet (Fed + inflation)"
+    vars:
+      original_tweet: "Fed holds rates. Inflation at 3.2%. Markets rally."
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          const VALID_MOVES = new Set(['Cold Fact Drop','Buried Lede','Nobody Noticed','History Rhyme','Math Check']);
+          const BANNED = ['it\'s worth noting','importantly','crucially','it\'s important to','delve','nuanced',
+            'in conclusion','furthermore','moreover','at the end of the day','game changer','unprecedented',
+            'signals a shift','raises questions','make no mistake','deep dive','landscape','ecosystem'];
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            const moves = d.replies.map(r => r.move);
+            if (new Set(moves).size !== 3) return false;
+            for (const r of d.replies) {
+              if (!VALID_MOVES.has(r.move)) return false;
+              if (!r.text || r.text.length > 280) return false;
+              const low = r.text.toLowerCase();
+              if (BANNED.some(b => low.includes(b))) return false;
+            }
+            return true;
+          } catch(e) { return false; }
+
+  - description: "TC2 — Full thread (US-China tariffs, 3 tweets)"
+    vars:
+      original_tweet: |
+        1/ US raises tariffs on Chinese EVs to 100%. This will protect American auto workers and reduce dependency on Chinese manufacturing.
+
+        2/ The tariffs target a $18B category of goods. China exported 1.2M EVs last year, gaining 8% global market share in 12 months.
+
+        3/ Treasury says this is about national security, not trade policy. The WTO framework gives them the cover to call it that.
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            if (new Set(d.replies.map(r => r.move)).size !== 3) return false;
+            for (const r of d.replies) {
+              if (!r.text || r.text.length > 280) return false;
+            }
+            return true;
+          } catch(e) { return false; }
+
+  - description: "TC3 — Tweet already contains stats (must add friction, not repeat)"
+    vars:
+      original_tweet: "US GDP grew 2.8% in Q3. Consumer spending up 3.1%. The economy is stronger than anyone expected."
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            if (new Set(d.replies.map(r => r.move)).size !== 3) return false;
+            // Check Sol isn't just agreeing — each reply should add friction
+            const agreePhrases = ['great', 'exactly right', 'correct', 'well said', 'agree'];
+            for (const r of d.replies) {
+              if (!r.text || r.text.length > 280) return false;
+              const low = r.text.toLowerCase();
+              if (agreePhrases.some(p => low.includes(p))) return false;
+            }
+            return true;
+          } catch(e) { return false; }
+
+  - description: "TC4 — Moralizing tweet (Sol must stay dry/factual, not match tone)"
+    vars:
+      original_tweet: "What China is doing to Taiwan is shameful and unacceptable. The international community must act now before it's too late. This aggression cannot stand."
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          const MORAL_WORDS = ['shameful','disgraceful','unacceptable','outrageous','wrong','must act',
+            'cannot stand','international community must','good vs evil','this is wrong'];
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            if (new Set(d.replies.map(r => r.move)).size !== 3) return false;
+            for (const r of d.replies) {
+              if (!r.text || r.text.length > 280) return false;
+              const low = r.text.toLowerCase();
+              // Sol should not moralize back
+              if (MORAL_WORDS.some(m => low.includes(m))) return false;
+            }
+            return true;
+          } catch(e) { return false; }
+
+  - description: "TC5 — Crypto/macro crossover (Sol connects to geopolitics, not just price)"
+    vars:
+      original_tweet: "BTC hits $95K as macro uncertainty grows. Institutional buyers are accumulating. This could be the next leg up to $120K. Inflation hedge narrative is back."
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            if (new Set(d.replies.map(r => r.move)).size !== 3) return false;
+            for (const r of d.replies) {
+              if (!r.text || r.text.length > 280) return false;
+            }
+            // At least one reply should reference macro/geopolitical angle, not just price
+            const allText = d.replies.map(r => r.text.toLowerCase()).join(' ');
+            const macroTerms = ['rate','dollar','fed','real','yield','treasury','reserve','capital','inflation','monetary','fiscal','deficit'];
+            const hasMacro = macroTerms.some(t => allText.includes(t));
+            return hasMacro;
+          } catch(e) { return false; }
+
+  - description: "TC6 — Edge case: very short tweet (under 20 chars)"
+    vars:
+      original_tweet: "Iran nuclear deal dead."
+    assert:
+      - type: is-json
+      - type: javascript
+        value: |
+          const VALID_MOVES = new Set(['Cold Fact Drop','Buried Lede','Nobody Noticed','History Rhyme','Math Check']);
+          try {
+            const d = JSON.parse(output);
+            if (!d.replies || d.replies.length !== 3) return false;
+            const moves = d.replies.map(r => r.move);
+            if (new Set(moves).size !== 3) return false;
+            for (const r of d.replies) {
+              if (!VALID_MOVES.has(r.move)) return false;
+              if (!r.text || r.text.length > 280) return false;
+            }
+            if (!d.context_used || !Array.isArray(d.context_used)) return false;
+            return true;
+          } catch(e) { return false; }

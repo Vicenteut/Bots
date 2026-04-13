@@ -2,8 +2,10 @@
 controls.py — Safe operational controls for Sol Bot Dashboard.
 Phase 4: Every action requires confirmation + is written to audit.log.
 """
+import os
 import subprocess
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -11,20 +13,33 @@ import streamlit as st
 import settings as cfg
 
 AUDIT_LOG = cfg.LOG_DIR / "dashboard_audit.log"
+AUDIT_LOG_LOCK = cfg.LOG_DIR / "dashboard_audit.lock"
+
+try:
+    from filelock import FileLock as _FileLock
+    _HAS_FILELOCK = True
+except ImportError:
+    _HAS_FILELOCK = False
 
 
 # ── Audit trail ───────────────────────────────────────────────────────
 def _audit(action: str, result: str, detail: str = "") -> None:
-    """Append one JSON line to the audit log."""
+    """Append one JSON line to the audit log atomically."""
     entry = {
         "ts":     datetime.utcnow().isoformat(),
         "action": action,
         "result": result,
         "detail": detail,
     }
+    line = json.dumps(entry) + "\n"
     try:
-        with open(AUDIT_LOG, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        if _HAS_FILELOCK:
+            with _FileLock(str(AUDIT_LOG_LOCK), timeout=5):
+                with open(AUDIT_LOG, "a", encoding="utf-8") as f:
+                    f.write(line)
+        else:
+            with open(AUDIT_LOG, "a", encoding="utf-8") as f:
+                f.write(line)
     except Exception as e:
         st.warning(f"Audit log write failed: {e}")
 

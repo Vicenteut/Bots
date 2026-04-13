@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 scheduler.py — Scheduled news scanner + tweet generator for @napoleotics.
-Implements shadowban mitigation: jittered times + down days simulation.
+Uses jittered scheduling and variable post counts for organic posting rhythm.
 """
 
+import json
 import random
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
 
-from config import load_environment
+from config import load_environment, BASE_DIR
 from fetcher import get_latest_headlines
 from filter import is_sensitive
 from generator import generate_tweet
@@ -20,12 +22,12 @@ load_environment()
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
-# Shadowban mitigation — down days simulation
+# Organic posting rhythm
 # ------------------------------------------------------------------
 
 def get_daily_post_count() -> int:
     """
-    Simulate organic posting behavior.
+    Variable daily post count for natural posting rhythm.
     ~1/30 days: silent (0 posts)
     ~1/14 days: light (1 post)
     else: normal (2-3 posts)
@@ -93,6 +95,10 @@ def main():
     nl = chr(10)
     published = 0
 
+    # Clear previous scheduler pending files
+    for old_f in BASE_DIR.glob("pending_sched_*.json"):
+        old_f.unlink(missing_ok=True)
+
     for i, h in enumerate(selected, 1):
         try:
             tweet_text = generate_tweet(h)
@@ -102,12 +108,31 @@ def main():
 
         img_path = get_image_for_tweet(h["title"], output_name=f"sched_{i}.jpg")
 
+        # Save to numbered pending file so Sol can publish via /publica N
+        pending_data = {
+            "tweet": tweet_text,
+            "headline": h,
+            "generated_at": datetime.now().isoformat(),
+            "tweet_type": "SCHEDULED",
+        }
+        if img_path:
+            pending_data["media_path"] = str(img_path)
+            pending_data["media_paths"] = [str(img_path)]
+            pending_data["media_type"] = "photo"
+
+        pending_file = BASE_DIR /f"pending_sched_{i}.json"
+        try:
+            pending_file.write_text(json.dumps(pending_data, ensure_ascii=False, indent=2))
+        except Exception as e:
+            logger.warning(f"Could not save pending_sched_{i}.json: {e}")
+
+        img_note = " 📷" if img_path else ""
         caption = (
-            f"Tweet {i}/{len(selected)}:{nl}{nl}"
+            f"Tweet {i}/{len(selected)}{img_note}:{nl}{nl}"
             f"{tweet_text}{nl}{nl}"
             f"Fuente: {h['source']}{nl}"
             f"Noticia: {h['title'][:100]}{nl}{nl}"
-            f'Responde "publica {i}" a Sol para publicar con imagen.'
+            f"→ /publica {i}  (X + Threads{', con imagen' if img_path else ''})"
         )
 
         if img_path:
