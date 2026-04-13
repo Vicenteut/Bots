@@ -57,12 +57,12 @@ MODEL_MAP_ANTHROPIC = {
 MODEL_OVERRIDE_OR = {
     "haiku":  "anthropic/claude-haiku-4-5",
     "sonnet": "anthropic/claude-sonnet-4-6",
-    "opus":   "anthropic/claude-sonnet-4-6",
+    "opus":   "anthropic/claude-sonnet-4-6"  # opus removed, using sonnet,
 }
 MODEL_OVERRIDE_ANTHROPIC = {
     "haiku":  "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
-    "opus":   "claude-sonnet-4-6",
+    "opus":   "claude-sonnet-4-6"  # opus removed, using sonnet,
 }
 
 def get_model(tweet_type: str, manual: bool = False) -> str:

@@ -81,7 +81,7 @@ OPENROUTER_BASE   = "https://openrouter.ai/api/v1"
 REPLY_MODEL_MAP   = {
     "haiku":  "anthropic/claude-haiku-4-5",
     "sonnet": "anthropic/claude-sonnet-4-6",
-    "opus":   "anthropic/claude-opus-4-6",
+    "opus":   "anthropic/claude-sonnet-4-6",
 }
 REPLY_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
@@ -501,7 +501,7 @@ class GeneratePayload(BaseModel):
     headline: str
     tweet_type: str = "RANDOM"   # WIRE|ANALISIS|DEBATE|CONEXION|RANDOM
     manual: bool = True
-    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"|"opus"
+    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"
 
 
 class MixedPayload(BaseModel):
@@ -520,7 +520,7 @@ class MonitorActionPayload(BaseModel):
 class ReplyPayload(BaseModel):
     input_type: str               # "text" | "url"
     content: str                  # pasted text OR tweet URL
-    model_override: Optional[str] = None  # "haiku"|"sonnet"|"opus"|null
+    model_override: Optional[str] = None  # "haiku"|"sonnet"|null
 
 class ReplyRegenPayload(BaseModel):
     move: str
