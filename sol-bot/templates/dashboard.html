@@ -1559,7 +1559,7 @@ async function publishPost(platform, source, btn) {
       if (tOk && resultEl) {
         const pid = d.threads_post_id || '';
         const ts_now = new Date().toLocaleTimeString();
-        const link = pid ? `<a href="https://www.threads.net/@napoleotiks/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
+        const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
         resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
@@ -1603,7 +1603,7 @@ async function _publishNow(platform, source, btn, resultEl) {
       if (d.threads_success && resultEl) {
         const pid = d.threads_post_id || '';
         const ts_now = new Date().toLocaleTimeString();
-        const link = pid ? `<a href="https://www.threads.net/@napoleotiks/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
+        const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
         resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
