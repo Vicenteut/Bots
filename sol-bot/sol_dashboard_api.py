@@ -632,6 +632,17 @@ class RegeneratePayload(BaseModel):
 class MonitorActionPayload(BaseModel):
     action: str                   # "generate" | "mixed" | "original" | "ignore"
     tweet_type: Optional[str] = None
+    edited_title: Optional[str] = None
+    edited_summary: Optional[str] = None
+
+
+class MonitorBulkPayload(BaseModel):
+    ids: list[str]
+
+
+class MonitorSavePayload(BaseModel):
+    edited_title: str
+    edited_summary: Optional[str] = None
 
 class ReplyPayload(BaseModel):
     input_type: str               # "text"; URL fetch was removed with X support
@@ -1085,17 +1096,91 @@ def _write_queue(queue: list) -> None:
         os.replace(tmp, MONITOR_QUEUE)
 
 
+def _entry_media_paths(entry: dict) -> list[str]:
+    paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
+    return [p for p in paths if p]
+
+
+def _valid_media_paths(entry: dict) -> list[str]:
+    return [p for p in _entry_media_paths(entry) if Path(p).exists()]
+
+
+def _suggest_monitor_format(entry: dict) -> str:
+    headline = entry.get("headline", {}) or {}
+    text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
+    topic = classify_topic(text)
+    low = text.lower()
+    if topic in {"crypto", "mercados"} and len(text) >= 140:
+        return "COMBINADA"
+    if len(text) <= 140 or low.startswith(("just in", "breaking", "urgent")):
+        return "WIRE"
+    if topic == "geopolitica" and len(text) >= 180:
+        return "ANALISIS"
+    return "ANALISIS"
+
+
+def _enrich_monitor_entry(entry: dict) -> dict:
+    enriched = dict(entry)
+    headline = dict(enriched.get("headline") or {})
+    text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
+    paths = _entry_media_paths(enriched)
+    received = enriched.get("received_at")
+    age_seconds = None
+    if received:
+        try:
+            dt = datetime.fromisoformat(received)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            age_seconds = max(0, int((datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()))
+        except Exception:
+            age_seconds = None
+    enriched["headline"] = headline
+    enriched["source_name"] = enriched.get("source_name") or headline.get("source") or "Unknown"
+    enriched["media_count"] = len(paths)
+    enriched["has_media"] = bool(paths)
+    enriched["age_seconds"] = age_seconds
+    enriched["topic_guess"] = classify_topic(text)
+    enriched["suggested_format"] = _suggest_monitor_format(enriched)
+    enriched["media_files"] = [
+        {"path": p, "filename": Path(p).name, "exists": Path(p).exists()}
+        for p in paths
+    ]
+    return enriched
+
+
+def _headline_from_payload(entry: dict, payload: MonitorActionPayload | MonitorSavePayload) -> dict:
+    headline = dict(entry.get("headline") or {})
+    if getattr(payload, "edited_title", None) is not None:
+        headline["title"] = (payload.edited_title or "").strip()
+    if getattr(payload, "edited_summary", None) is not None:
+        headline["summary"] = (payload.edited_summary or "").strip()
+    if not headline.get("summary"):
+        headline["summary"] = headline.get("title", "")
+    if entry.get("source_name"):
+        headline["source"] = entry.get("source_name")
+    return headline
+
+
+def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
+    media_paths = _valid_media_paths(entry)
+    if media_paths:
+        data["media_paths"] = media_paths
+        data["media_path"] = media_paths[0]
+        data["media_type"] = entry.get("media_type", "photo")
+        print(f"[monitor/{label}] attached {len(media_paths)} media file(s)", flush=True)
+
+
 @app.get("/api/monitor/queue")
 async def api_monitor_queue():
-    """Return full queue, oldest first."""
-    return JSONResponse(_read_queue())
+    """Return enriched queue, oldest first."""
+    return JSONResponse([_enrich_monitor_entry(e) for e in _read_queue()])
 
 
 @app.get("/api/monitor/current")
 async def api_monitor_current():
     """Return oldest unprocessed entry, or null."""
     queue = _read_queue()
-    return JSONResponse(queue[0] if queue else None)
+    return JSONResponse(_enrich_monitor_entry(queue[0]) if queue else None)
 
 
 ALLOWED_MEDIA_EXT = {".jpg", ".jpeg", ".png", ".mp4", ".gif"}
@@ -1113,6 +1198,47 @@ async def serve_media(filename: str):
     return FileResponse(path)
 
 
+@app.post("/api/monitor/save/{alert_id}")
+async def api_monitor_save(request: Request, alert_id: str, payload: MonitorSavePayload):
+    _require_csrf(request)
+    queue = _read_queue()
+    changed = False
+    for entry in queue:
+        if entry.get("id") != alert_id:
+            continue
+        headline = dict(entry.get("headline") or {})
+        title = payload.edited_title.strip()
+        if not title:
+            raise HTTPException(422, "edited_title is empty")
+        headline["title"] = title
+        headline["summary"] = (payload.edited_summary or title).strip()
+        headline["source"] = entry.get("source_name") or headline.get("source", "manual")
+        entry["headline"] = headline
+        entry["source_name"] = entry.get("source_name") or headline.get("source")
+        entry["edited_at"] = datetime.now().isoformat()
+        changed = True
+        break
+    if not changed:
+        raise HTTPException(404, f"Alert {alert_id} not found in queue")
+    _write_queue(queue)
+    return {"success": True, "alert": _enrich_monitor_entry(next(e for e in queue if e.get("id") == alert_id))}
+
+
+@app.post("/api/monitor/bulk-ignore")
+async def api_monitor_bulk_ignore(request: Request, payload: MonitorBulkPayload):
+    _require_csrf(request)
+    ids = {str(i) for i in payload.ids if str(i).strip()}
+    if not ids:
+        return {"success": True, "removed": 0, "remaining": len(_read_queue())}
+    queue = _read_queue()
+    before = len(queue)
+    queue = [e for e in queue if e.get("id") not in ids]
+    _write_queue(queue)
+    removed = before - len(queue)
+    print(f"[monitor/bulk-ignore] removed={removed} ids={list(ids)[:8]}", flush=True)
+    return {"success": True, "removed": removed, "remaining": len(queue)}
+
+
 @app.post("/api/monitor/action/{alert_id}")
 async def api_monitor_action(request: Request, alert_id: str, payload: MonitorActionPayload):
     _require_csrf(request)
@@ -1121,30 +1247,31 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
     if entry is None:
         raise HTTPException(404, f"Alert {alert_id} not found in queue")
 
-    headline_dict = entry.get("headline", {})
     action = payload.action.lower()
+    headline_dict = _headline_from_payload(entry, payload)
+    source_name = entry.get("source_name") or headline_dict.get("source", "Unknown")
+    media_count = len(_entry_media_paths(entry))
 
     try:
         if action == "generate":
+            tweet_type = (payload.tweet_type or _suggest_monitor_format(entry) or "WIRE").upper()
+            if tweet_type == "COMBINADA":
+                tweet_type = "ANALISIS"
             loop = asyncio.get_event_loop()
             tweet = await loop.run_in_executor(
-                None, lambda: _generate_tweet(headline_dict, tweet_type=payload.tweet_type, manual=True)
+                None, lambda: _generate_tweet(headline_dict, tweet_type=tweet_type, manual=True)
             )
             data = {
                 "tweet": tweet,
-                "tweet_type": payload.tweet_type or "WIRE",
+                "tweet_type": tweet_type,
                 "generated_at": datetime.now().isoformat(),
                 "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
             }
-            # Copy media from queue entry
-            media_paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
-            media_paths = [p for p in media_paths if Path(p).exists()]
-            if media_paths:
-                data["media_paths"] = media_paths
-                data["media_path"] = media_paths[0]
-                data["media_type"] = entry.get("media_type", "photo")
-                print(f"[monitor/generate] attached {len(media_paths)} media file(s)", flush=True)
+            _attach_entry_media(data, entry, "generate")
             _save_json(PENDING_TWEET, data)
+            pending_target = "pending_tweet"
 
         elif action == "mixed":
             loop = asyncio.get_event_loop()
@@ -1156,74 +1283,49 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                 "tweet_type": "COMBINADA",
                 "generated_at": datetime.now().isoformat(),
                 "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
             }
-            # Copy media from queue entry
-            media_paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
-            media_paths = [p for p in media_paths if Path(p).exists()]
-            if media_paths:
-                data["media_paths"] = media_paths
-                data["media_path"] = media_paths[0]
-                data["media_type"] = entry.get("media_type", "photo")
-                print(f"[monitor/mixed] attached {len(media_paths)} media file(s)", flush=True)
+            _attach_entry_media(data, entry, "mixed")
             _save_json(PENDING_COMBO, data)
+            pending_target = "pending_combo"
 
         elif action == "original":
-            tweet = headline_dict.get("title", "")
+            tweet = headline_dict.get("title", "").strip()
             if not tweet:
                 raise HTTPException(422, "headline.title is empty")
-            media_args: list[str] = []
-            media_paths = entry.get("media_paths") or []
-            if not media_paths and entry.get("media_path"):
-                media_paths = [entry["media_path"]]
-            for mp in media_paths:
-                if mp and Path(mp).exists():
-                    flag = "--video" if Path(mp).suffix.lower() == ".mp4" else "--image"
-                    media_args += [flag, mp]
-                    print(f"[monitor/original] media flag={flag} path={mp}", flush=True)
-                elif mp:
-                    print(f"[monitor/original] media path not found: {mp}", flush=True)
-            cmd = ["python3", "threads_publisher.py", "--quiet"] + media_args + [tweet]
-            print(f"[monitor/original] running Threads-only command: {cmd[:6]}", flush=True)
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR), timeout=360 if entry.get("media_type") == "video" else 120)
-            stdout = result.stdout + result.stderr
-            if result.stdout:
-                print(f"[monitor/original] stdout: {result.stdout[:400]}", flush=True)
-            if result.stderr:
-                print(f"[monitor/original] stderr: {result.stderr[:400]}", flush=True)
-            media_kind = _media_kind_from_args(entry.get("media_type", "photo"), media_paths)
-            parsed_result = _classify_publish_result(stdout, result.returncode, media_kind)
-            m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
-            post_id = parsed_result["post_id"] or (m_t.group(1) if m_t else None)
-            success = result.returncode == 0 and bool(post_id or parsed_result["success"])
-            if success:
-                parsed_result["status"] = "OK"
-                parsed_result["error_category"] = None
-                parsed_result["error_message"] = None
-            _append_publish_log("threads", success, tweet,
-                                tweet_id=post_id,
-                                has_media=bool(media_args), media_type=media_kind,
-                                media_count=len(media_paths), status=parsed_result["status"],
-                                error_category=parsed_result["error_category"],
-                                error_message=parsed_result["error_message"],
-                                fbtrace_id=parsed_result["fbtrace_id"],
-                                public_media_urls=parsed_result["public_media_urls"])
-            if not success:
-                # Remove from queue even on publish failure so it doesn't get stuck
-                queue = [e for e in queue if e.get("id") != alert_id]
-                _write_queue(queue)
-                return {"success": False, "action": action, "tweet": tweet, "remaining": len(queue),
-                        "status": parsed_result["status"], "error_message": parsed_result["error_message"]}
+            data = {
+                "tweet": tweet,
+                "tweet_type": "ORIGINAL",
+                "generated_at": datetime.now().isoformat(),
+                "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
+            }
+            _attach_entry_media(data, entry, "original")
+            _save_json(PENDING_TWEET, data)
+            pending_target = "pending_tweet"
 
         elif action == "ignore":
             tweet = None
+            pending_target = None
 
         else:
             raise HTTPException(400, f"Unknown action: {action}")
 
-        # Remove processed entry from queue
         queue = [e for e in queue if e.get("id") != alert_id]
         _write_queue(queue)
-        return {"success": True, "action": action, "tweet": tweet if action != "ignore" else None, "remaining": len(queue)}
+        print(
+            f"[monitor/action] action={action} source={source_name} pending={pending_target} media_count={media_count}",
+            flush=True,
+        )
+        return {
+            "success": True,
+            "action": action,
+            "tweet": tweet if action != "ignore" else None,
+            "pending_target": pending_target,
+            "remaining": len(queue),
+        }
 
     except HTTPException:
         raise

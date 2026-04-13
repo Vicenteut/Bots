@@ -214,7 +214,7 @@
     animation: pulse 1.2s ease-in-out infinite;
   }
   .monitor-drawer {
-    position: fixed; top: 0; right: 0; width: 360px; height: 100vh;
+    position: fixed; top: 0; right: 0; width: min(920px, 92vw); height: 100vh;
     background: var(--surface1); border-left: 3px solid var(--border2);
     transform: translateX(100%);
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
@@ -223,13 +223,29 @@
   }
   .monitor-drawer.open { transform: translateX(0); }
   .monitor-drawer.has-alert { border-left-color: var(--amber); }
-  #monitor-content { padding: 12px; flex: 1; overflow-y: auto; }
+  #monitor-content { padding: 12px; flex: 1; overflow: hidden; min-height: 0; }
   .monitor-empty { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: center; padding: 32px 0; }
   .monitor-card { background: rgba(245,158,11,0.04); border-left: 3px solid var(--amber); border-radius: 0 4px 4px 0; padding: 10px 12px; }
   .monitor-img { width: 100%; border-radius: 4px; margin: 8px 0; display: block; }
   .monitor-title { font-family: var(--mono); font-size: 14px; font-weight: 500; margin: 10px 0 6px; line-height: 1.4; }
   .monitor-summary { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; }
   .monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .monitor-inbox { height: 100%; display: grid; grid-template-columns: 320px 1fr; gap: 10px; min-height: 0; }
+  .monitor-list-pane, .monitor-detail-pane { min-height: 0; overflow: hidden; display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--surface1); }
+  .monitor-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
+  .monitor-filters input, .monitor-filters select { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px; border-radius: 2px; min-width: 0; }
+  .monitor-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .monitor-list-item { width: 100%; text-align: left; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px; margin-bottom: 6px; cursor: pointer; border-radius: 3px; font-family: var(--mono); }
+  .monitor-list-item.active { border-color: var(--amber); background: rgba(245,158,11,0.08); }
+  .monitor-list-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 9px; color: var(--muted2); }
+  .monitor-list-title { font-size: 11px; line-height: 1.35; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .monitor-detail { flex: 1; overflow-y: auto; padding: 12px; }
+  .monitor-detail textarea { min-height: 96px; margin-bottom: 8px; }
+  .monitor-detail-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .monitor-detail-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .monitor-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 10px; }
+  .monitor-media-grid img, .monitor-media-grid video { width: 100%; max-height: 170px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border2); }
+  .monitor-bulk-row { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
 
   /* ── REPLY DRAWER ───────────────────────────────────────────── */
   #reply-drawer {
@@ -937,49 +953,41 @@ pollStatus(); pollPending();
 setInterval(pollStatus,  5000);
 setInterval(pollPending, 5000);
 
-// ─── MONITOR FEED ────────────────────────────────────────────
+// ─── MONITOR INBOX ────────────────────────────────────────────
 let _monitorCount    = 0;
 let _lastPendingKey  = '';
 let _lastMonitorKey  = '';
 let _lastRecentKey   = '';
+let _monitorQueue    = [];
+let _monitorSelected = null;
+let _monitorFilters  = {q:'', source:'all', media:'all', format:'all'};
+let _monitorChecked  = new Set();
 
-function _buildAlertCard(entry) {
-  const h       = entry.headline || {};
-  const id      = _esc(entry.id || '');
-  const source  = _esc(h.source || 'Unknown');
-  const title   = _esc(h.title  || '');
-  const summary = _esc(h.summary || '');
-  const ago     = entry.received_at ? _timeAgo(entry.received_at) : '';
+function _monitorSources(queue) {
+  return Array.from(new Set((queue || []).map(e => e.source_name || (e.headline && e.headline.source) || 'Unknown'))).sort();
+}
 
-  const mediaPath = (entry.media_paths && entry.media_paths.length > 0)
-    ? entry.media_paths[0] : entry.media_path;
-  const mediaType = entry.media_type || '';
-  let mediaHtml = '';
-  if (mediaPath) {
-    const fname = _esc(mediaPath.split('/').pop());
-    mediaHtml = mediaType === 'video'
-      ? `<video src="/media/${fname}" class="monitor-img" controls muted playsinline></video>`
-      : `<img src="/media/${fname}" class="monitor-img" alt="media" loading="lazy">`;
-  }
+function _monitorFiltered() {
+  const q = (_monitorFilters.q || '').toLowerCase();
+  return (_monitorQueue || []).filter(e => {
+    const h = e.headline || {};
+    const source = e.source_name || h.source || 'Unknown';
+    const hay = `${source} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
+    if (q && !hay.includes(q)) return false;
+    if (_monitorFilters.source !== 'all' && source !== _monitorFilters.source) return false;
+    if (_monitorFilters.media === 'media' && !e.has_media) return false;
+    if (_monitorFilters.media === 'text' && e.has_media) return false;
+    if (_monitorFilters.format !== 'all' && e.suggested_format !== _monitorFilters.format) return false;
+    return true;
+  });
+}
 
-  return `
-    <div class="monitor-card" id="mc-${id}" data-alert-id="${id}">
-      <div class="section-label" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="dot"></span>
-        <span class="badge" style="background:var(--amber-dim);color:var(--amber)">📡 ${source}</span>
-        <span style="font-size:11px;color:var(--muted)">${ago}</span>
-      </div>
-      ${mediaHtml}
-      <div class="monitor-title">${title}</div>
-      ${summary ? `<div class="monitor-summary">${summary}</div>` : ''}
-      <div class="monitor-actions">
-        <button class="btn btn-primary"   onclick="doMonitorAction('${id}','generate',this)">⚡ GENERATE</button>
-        <button class="btn btn-secondary" onclick="doMonitorAction('${id}','mixed',this)">🧩 MIXED</button>
-        <button class="btn btn-cyan"      onclick="doMonitorAction('${id}','original',this)">📰 ORIGINAL</button>
-        <button class="btn btn-danger"    onclick="doMonitorAction('${id}','ignore',this)">🚫 IGNORE</button>
-      </div>
-      <div class="monitor-card-result" style="margin-top:6px;font-size:11px;font-family:var(--mono);color:var(--muted)"></div>
-    </div>`;
+function _mediaUrl(path) {
+  return '/media/' + encodeURIComponent((path || '').split('/').pop());
+}
+
+function _pill(text, color) {
+  return `<span class="badge" style="background:${color || 'var(--surface2)'};border-color:var(--border2);color:var(--text);padding:2px 6px;font-size:9px;">${_esc(text)}</span>`;
 }
 
 async function pollMonitor() {
@@ -987,11 +995,12 @@ async function pollMonitor() {
     const r = await fetch('/api/monitor/queue');
     if (r.ok) {
       const d = await r.json();
-      const el         = document.getElementById('monitor-content');
       const monitorKey = JSON.stringify(d);
       if (monitorKey !== _lastMonitorKey) {
         _lastMonitorKey = monitorKey;
-        fadeSwap(el, () => renderMonitor(d));
+        _monitorQueue = Array.isArray(d) ? d : [];
+        if (!_monitorQueue.some(e => e.id === _monitorSelected)) _monitorSelected = _monitorQueue[0] ? _monitorQueue[0].id : null;
+        renderMonitor(_monitorQueue);
       }
     }
   } catch(e) {}
@@ -1005,10 +1014,11 @@ function renderMonitor(queue) {
   const countBadge  = document.getElementById('monitor-count-badge');
   const headerCount = document.getElementById('monitor-header-count');
   const content     = document.getElementById('monitor-content');
-  const wasEmpty    = _monitorCount === 0;
 
-  if (!queue || queue.length === 0) {
-    _monitorCount = 0;
+  const prevCount = _monitorCount;
+  _monitorCount = queue ? queue.length : 0;
+
+  if (!_monitorCount) {
     countBadge.style.display = 'none';
     headerCount.textContent = '';
     toggle.classList.remove('has-alert');
@@ -1017,29 +1027,229 @@ function renderMonitor(queue) {
     return;
   }
 
-  const prevCount = _monitorCount;
-  _monitorCount = queue.length;
   countBadge.style.display = 'inline';
-  countBadge.textContent = queue.length;
-  headerCount.textContent = `(${queue.length} pending)`;
+  countBadge.textContent = _monitorCount;
+  const sources = _monitorSources(queue);
+  headerCount.textContent = `(${_monitorCount} pending · ${sources.length} sources)`;
   toggle.classList.add('has-alert');
   drawer.classList.add('has-alert');
 
-  // Full re-render (simple; queue is small)
-  content.innerHTML = queue.map(_buildAlertCard).join(
-    '<hr style="border:none;border-top:1px solid var(--border2);margin:8px 0">'
-  );
+  content.innerHTML = `
+    <div class="monitor-inbox">
+      <div class="monitor-list-pane">
+        <div class="monitor-filters">
+          <input id="mon-filter-q" placeholder="search" value="${_esc(_monitorFilters.q)}" oninput="setMonitorFilter('q', this.value)">
+          <select id="mon-filter-source" onchange="setMonitorFilter('source', this.value)">
+            <option value="all">all sources</option>
+            ${sources.map(s => `<option value="${_esc(s)}" ${_monitorFilters.source === s ? 'selected' : ''}>${_esc(s)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('media', this.value)">
+            <option value="all" ${_monitorFilters.media === 'all' ? 'selected' : ''}>all media</option>
+            <option value="media" ${_monitorFilters.media === 'media' ? 'selected' : ''}>media only</option>
+            <option value="text" ${_monitorFilters.media === 'text' ? 'selected' : ''}>text only</option>
+          </select>
+          <select onchange="setMonitorFilter('format', this.value)">
+            <option value="all" ${_monitorFilters.format === 'all' ? 'selected' : ''}>all formats</option>
+            <option value="WIRE" ${_monitorFilters.format === 'WIRE' ? 'selected' : ''}>WIRE</option>
+            <option value="ANALISIS" ${_monitorFilters.format === 'ANALISIS' ? 'selected' : ''}>ANALISIS</option>
+            <option value="COMBINADA" ${_monitorFilters.format === 'COMBINADA' ? 'selected' : ''}>COMBINADA</option>
+          </select>
+        </div>
+        <div id="monitor-list" class="monitor-list"></div>
+        <div class="monitor-bulk-row">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted2);"><span id="monitor-selected-count">0</span> selected</span>
+          <button class="btn btn-danger btn-sm" onclick="bulkIgnoreMonitor()">IGNORE SELECTED</button>
+        </div>
+      </div>
+      <div class="monitor-detail-pane"><div id="monitor-detail" class="monitor-detail"></div></div>
+    </div>`;
+  renderMonitorList();
+  renderMonitorDetail();
 
-  // Auto-open if new alert arrived while drawer was closed
   if (prevCount === 0 && _monitorCount > 0) {
     drawer.classList.add('open');
     _syncBackdrop();
   }
 }
 
+function setMonitorFilter(key, value) {
+  _monitorFilters[key] = value;
+  renderMonitorList();
+  const filtered = _monitorFiltered();
+  if (!_monitorSelected || !filtered.some(e => e.id === _monitorSelected)) _monitorSelected = filtered[0] ? filtered[0].id : null;
+  renderMonitorDetail();
+}
+
+function toggleMonitorCheck(id, checked) {
+  if (checked) _monitorChecked.add(id); else _monitorChecked.delete(id);
+  const el = document.getElementById('monitor-selected-count');
+  if (el) el.textContent = _monitorChecked.size;
+}
+
+function renderMonitorList() {
+  const el = document.getElementById('monitor-list');
+  if (!el) return;
+  const filtered = _monitorFiltered();
+  if (!filtered.length) {
+    el.innerHTML = '<div class="monitor-empty" style="padding:18px 0;">No alerts match filters</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(e => {
+    const h = e.headline || {};
+    const source = e.source_name || h.source || 'Unknown';
+    const active = e.id === _monitorSelected ? 'active' : '';
+    const checked = _monitorChecked.has(e.id) ? 'checked' : '';
+    return `<button class="monitor-list-item ${active}" onclick="selectMonitorAlert('${_esc(e.id)}')">
+      <div class="monitor-list-item-top">
+        <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
+        <span style="color:var(--amber);">${_esc(source)}</span>
+        <span>${_esc(e.suggested_format || 'ANALISIS')}</span>
+        <span>${e.has_media ? 'media ' + (e.media_count || 1) : 'text'}</span>
+        <span style="margin-left:auto;">${e.received_at ? _timeAgo(e.received_at) : ''}</span>
+      </div>
+      <div class="monitor-list-title">${_esc(h.title || '[no text]')}</div>
+    </button>`;
+  }).join('');
+  const countEl = document.getElementById('monitor-selected-count');
+  if (countEl) countEl.textContent = _monitorChecked.size;
+}
+
+function selectMonitorAlert(id) {
+  _monitorSelected = id;
+  renderMonitorList();
+  renderMonitorDetail();
+}
+
+function renderMonitorDetail() {
+  const el = document.getElementById('monitor-detail');
+  if (!el) return;
+  const entry = (_monitorQueue || []).find(e => e.id === _monitorSelected) || _monitorFiltered()[0];
+  if (!entry) {
+    el.innerHTML = '<div class="monitor-empty">Select an alert</div>';
+    return;
+  }
+  _monitorSelected = entry.id;
+  const h = entry.headline || {};
+  const source = entry.source_name || h.source || 'Unknown';
+  const media = entry.media_files || [];
+  const mediaHtml = media.length ? `<div class="monitor-media-grid">${media.map(m => {
+    const url = _mediaUrl(m.path || m.filename);
+    return (entry.media_type === 'video' || (m.filename || '').endsWith('.mp4'))
+      ? `<video src="${url}" controls muted playsinline></video>`
+      : `<img src="${url}" loading="lazy" alt="media">`;
+  }).join('')}</div>` : '';
+  el.innerHTML = `
+    <div class="monitor-detail-meta">
+      ${_pill(source, 'rgba(245,158,11,0.12)')}
+      ${_pill(entry.topic_guess || 'general', 'rgba(34,211,238,0.10)')}
+      ${_pill('suggested ' + (entry.suggested_format || 'ANALISIS'), 'rgba(34,197,94,0.10)')}
+      ${_pill(entry.has_media ? `${entry.media_count || 1} media` : 'text only', 'rgba(255,255,255,0.04)')}
+      ${_pill(entry.received_at ? _timeAgo(entry.received_at) : 'unknown age', 'rgba(255,255,255,0.04)')}
+    </div>
+    ${mediaHtml}
+    <div class="field-label">Title / post source</div>
+    <textarea id="mon-edit-title">${_esc(h.title || '')}</textarea>
+    <div class="field-label">Context / summary</div>
+    <textarea id="mon-edit-summary">${_esc(h.summary || h.title || '')}</textarea>
+    <div class="monitor-detail-actions">
+      <button class="btn btn-primary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'WIRE')">WIRE</button>
+      <button class="btn btn-cyan btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'ANALISIS')">ANALISIS</button>
+      <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','mixed',this,'COMBINADA')">COMBINADA</button>
+      <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','original',this,'ORIGINAL')">ORIGINAL</button>
+      <button class="btn btn-danger btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','ignore',this)">IGNORE</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="saveMonitorEdit('${_esc(entry.id)}', this)">SAVE EDIT</button>
+      <span id="monitor-action-result" style="font-family:var(--mono);font-size:11px;color:var(--muted);align-self:center;"></span>
+    </div>`;
+}
+
 function toggleMonitorDrawer() {
   document.getElementById('monitor-drawer').classList.toggle('open');
   _syncBackdrop();
+}
+
+function _monitorPayload(action, tweetType) {
+  return {
+    action,
+    tweet_type: tweetType || null,
+    edited_title: (document.getElementById('mon-edit-title') || {}).value || null,
+    edited_summary: (document.getElementById('mon-edit-summary') || {}).value || null,
+  };
+}
+
+async function saveMonitorEdit(alertId, btn) {
+  const resultEl = document.getElementById('monitor-action-result');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'SAVING...'; }
+  try {
+    const r = await fetch(`/api/monitor/save/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({
+        edited_title: document.getElementById('mon-edit-title').value,
+        edited_summary: document.getElementById('mon-edit-summary').value,
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error || 'save failed');
+    if (resultEl) resultEl.textContent = '✓ saved';
+    await pollMonitor();
+  } catch(e) {
+    if (resultEl) resultEl.textContent = `✗ ${e.message || e}`;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function bulkIgnoreMonitor() {
+  if (!_monitorChecked.size) return;
+  const ids = Array.from(_monitorChecked);
+  try {
+    const r = await fetch('/api/monitor/bulk-ignore', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({ids})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || 'bulk ignore failed');
+    _monitorChecked.clear();
+    addLogLine('ok', `[monitor] ignored ${d.removed || 0} alerts`);
+    await pollMonitor();
+  } catch(e) {
+    addLogLine('err', `[monitor] bulk ignore failed: ${e.message || e}`);
+  }
+}
+
+async function doMonitorAction(alertId, action, btn, tweetType) {
+  const detail = document.getElementById('monitor-detail');
+  const btns = detail ? detail.querySelectorAll('.monitor-detail-actions .btn') : [];
+  btns.forEach(b => b.disabled = true);
+  const orig = btn ? btn.textContent : '';
+  if (btn) btn.textContent = '...';
+  const resultEl = document.getElementById('monitor-action-result');
+
+  try {
+    const r = await fetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify(_monitorPayload(action, tweetType))
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'action failed');
+    if (resultEl) resultEl.textContent = action === 'ignore' ? '✓ ignored' : `✓ created ${d.pending_target || 'pending'}`;
+    addLogLine('ok', `[monitor] ${action} → ${d.pending_target || 'queue'} (${d.remaining} left)`);
+    _monitorChecked.delete(alertId);
+    await pollMonitor();
+    if (action !== 'ignore') await pollPending();
+    if ((d.remaining || 0) === 0) {
+      document.getElementById('monitor-drawer').classList.remove('open');
+      _syncBackdrop();
+    }
+  } catch(e) {
+    if (resultEl) resultEl.textContent = `✗ ${e.message || e}`;
+    btns.forEach(b => b.disabled = false);
+  }
+  if (btn) btn.textContent = orig;
 }
 
 // ─── BRAIN HISTORY ────────────────────────────────────────────
@@ -1087,45 +1297,6 @@ function renderBrainHistory(d) {
 }
 
 setInterval(pollBrainHistory, 30000);
-
-async function doMonitorAction(alertId, action, btn) {
-  const card = document.getElementById(`mc-${alertId}`);
-  const btns = card ? card.querySelectorAll('.monitor-actions .btn') : [];
-  btns.forEach(b => b.disabled = true);
-  if (btn) { btn.textContent = '…'; }
-  const resultEl = card ? card.querySelector('.monitor-card-result') : null;
-
-  try {
-    const r = await fetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
-      method: 'POST',
-      headers: _csrfHeaders(),
-      body: JSON.stringify({action})
-    });
-    d = await r.json();
-
-    if (d.success) {
-      // Animate card out
-      if (card) {
-        card.style.transition = 'opacity 0.3s';
-        card.style.opacity = '0';
-        setTimeout(() => card.remove(), 300);
-      }
-      await pollMonitor();
-      if (action === 'generate' || action === 'mixed') await pollPending();
-      // Close drawer only if queue now empty
-      if ((d.remaining || 0) === 0) {
-        document.getElementById('monitor-drawer').classList.remove('open');
-        _syncBackdrop();
-      }
-    } else {
-      if (resultEl) resultEl.textContent = '✗ failed';
-      btns.forEach(b => b.disabled = false);
-    }
-  } catch(e) {
-    if (resultEl) resultEl.textContent = '✗ network error';
-    btns.forEach(b => b.disabled = false);
-  }
-}
 
 // ─── STATUS RENDERER ─────────────────────────────────────────
 function renderStatus(d) {
