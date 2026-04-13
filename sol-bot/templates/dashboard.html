@@ -1398,7 +1398,7 @@ async function doRegenerate(btn) {
   try {
     const r = await fetch('/api/generate/regenerate', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: _csrfHeaders(),
       body: JSON.stringify({instruction: instr || null, tweet_type: _activeFmt !== 'ANALISIS' ? _activeFmt : null}),
     });
     const d = await r.json();
@@ -1704,7 +1704,7 @@ function _fmtTime(isoStr) {
     try {
       const r = await fetch('/api/replies/generate', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: _csrfHeaders(),
         body: JSON.stringify({input_type: _replyMode, content, model_override: _replyModel}),
       });
       const d = await r.json();
@@ -1779,7 +1779,7 @@ function _fmtTime(isoStr) {
     try {
       const r = await fetch('/api/replies/regenerate-one', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: _csrfHeaders(),
         body: JSON.stringify({move, original_tweet: _replyLastTweet, model_override: _replyModel}),
       });
       const d = await r.json();

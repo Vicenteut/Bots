@@ -5,6 +5,7 @@ FastAPI + htmx operational dashboard, port 8502
 import asyncio
 import base64
 import glob
+import hashlib
 import json
 import os
 import re
@@ -89,8 +90,14 @@ _markets_cache: dict = {"data": None, "ts": 0.0}
 
 # ─── AUTH ────────────────────────────────────────────────────────────────────
 DASHBOARD_USER = os.getenv("DASHBOARD_USER", "sol")
-DASHBOARD_PASS = os.getenv("DASHBOARD_PASS") or "solpass123"
+DASHBOARD_PASSWORD_HASH = (os.getenv("DASHBOARD_PASSWORD_HASH") or "").strip().lower()
+if not DASHBOARD_PASSWORD_HASH or DASHBOARD_PASSWORD_HASH == "change_me_to_sha256_hash":
+    raise RuntimeError("DASHBOARD_PASSWORD_HASH must be set in the environment")
+if not re.fullmatch(r"[0-9a-f]{64}", DASHBOARD_PASSWORD_HASH):
+    raise RuntimeError("DASHBOARD_PASSWORD_HASH must be a 64-character SHA-256 hex digest")
+
 SESSION_COOKIE = "sol_session"
+SESSION_MAX_AGE = 86400 * 7
 # Cryptographically random session token — generated at startup, never derived from credentials
 SESSION_TOKEN  = secrets.token_hex(32)
 # CSRF token — separate random value, sent to browser and echoed back on state-changing requests
@@ -98,7 +105,11 @@ CSRF_TOKEN     = secrets.token_hex(32)
 
 
 def _check_credentials(user: str, pwd: str) -> bool:
-    return secrets.compare_digest(user, DASHBOARD_USER) and secrets.compare_digest(pwd, DASHBOARD_PASS)
+    pwd_hash = hashlib.sha256(pwd.encode("utf-8")).hexdigest()
+    return (
+        secrets.compare_digest(user, DASHBOARD_USER)
+        and secrets.compare_digest(pwd_hash, DASHBOARD_PASSWORD_HASH)
+    )
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -125,7 +136,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     response = await call_next(request)
                     response.set_cookie(
                         SESSION_COOKIE, SESSION_TOKEN,
-                        httponly=True, samesite="lax", max_age=86400 * 7,
+                        httponly=True, samesite="lax", max_age=SESSION_MAX_AGE,
                     )
                     return response
             except Exception:
@@ -388,11 +399,11 @@ def _tail_file(path: Path, n: int) -> list[str]:
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
-    if username == DASHBOARD_USER and password == DASHBOARD_PASS:
+    if _check_credentials(username, password):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
             SESSION_COOKIE, SESSION_TOKEN,
-            httponly=True, samesite="lax", max_age=86400 * 7,
+            httponly=True, samesite="lax", max_age=SESSION_MAX_AGE,
         )
         return response
     return RedirectResponse(url="/?error=1", status_code=303)
@@ -415,11 +426,7 @@ async def api_csrf_token():
 
 
 def _require_csrf(request: Request) -> None:
-    """Raise 403 if the X-CSRF-Token header is missing or invalid.
-    Skips check for requests from localhost (e.g. nginx proxy, curl tests)."""
-    client_host = request.client.host if request.client else ""
-    if client_host in ("127.0.0.1", "::1", "localhost"):
-        return
+    """Raise 403 if the X-CSRF-Token header is missing or invalid."""
     token = request.headers.get("X-CSRF-Token", "")
     if not secrets.compare_digest(token, CSRF_TOKEN):
         raise HTTPException(status_code=403, detail="CSRF validation failed")
@@ -714,7 +721,8 @@ async def api_mixed(request: Request, payload: MixedPayload):
 
 
 @app.post("/api/generate/regenerate")
-async def api_regenerate(payload: RegeneratePayload):
+async def api_regenerate(request: Request, payload: RegeneratePayload):
+    _require_csrf(request)
     if not _GENERATOR_AVAILABLE:
         raise HTTPException(503, f"generator.py unavailable: {_GENERATOR_ERROR}")
 
@@ -1156,7 +1164,8 @@ def _reply_parse(raw: str) -> dict:
 
 
 @app.post("/api/replies/generate")
-async def api_replies_generate(payload: ReplyPayload):
+async def api_replies_generate(request: Request, payload: ReplyPayload):
+    _require_csrf(request)
     # Resolve original text. URL fetching via X/Twitter API was removed with X support.
     if payload.input_type == "url":
         return JSONResponse({"error": "URL fetch is disabled. Paste the text instead."}, status_code=422)
@@ -1203,7 +1212,8 @@ async def api_replies_generate(payload: ReplyPayload):
 
 
 @app.post("/api/replies/regenerate-one")
-async def api_replies_regenerate_one(payload: ReplyRegenPayload):
+async def api_replies_regenerate_one(request: Request, payload: ReplyRegenPayload):
+    _require_csrf(request)
     try:
         system_prompt = REPLY_PROMPT.read_text()
     except FileNotFoundError as e:
@@ -1419,6 +1429,7 @@ async def n8n_gdelt_baseline_get():
 
 @app.post("/api/n8n/gdelt-baseline")
 async def n8n_gdelt_baseline_post(request: Request):
+    _require_csrf(request)
     """Partial update: {keyword, count, set_alert: bool}.
     Updates only the named keyword. set_alert=true stamps last_alert=now."""
     try:
