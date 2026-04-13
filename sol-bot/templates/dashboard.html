@@ -836,6 +836,9 @@
 </div>
 
 <script>
+const THREADS_CHAR_LIMIT = 500;
+const THREADS_CHAR_WARN  = 460;
+
 // ─── CSRF TOKEN ───────────────────────────────────────────────
 let _csrfToken = '';
 (async function initCsrf() {
@@ -1199,16 +1202,16 @@ function renderPending(d) {
     const t = d.tweet;
     const text = t.tweet || t.text || '';
     const len = text.length;
-    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
-    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    const pct = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1);
+    const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
     const ttype = t.tweet_type || '';
     const gen_at = t.generated_at ? _fmtTime(t.generated_at) : '';
     html += `
     <div class="pending-section">
-      <div class="section-label"><span class="dot"></span>PENDING TWEET</div>
+      <div class="section-label"><span class="dot"></span>PENDING POST</div>
       <div class="pending-tweet-text">${_esc(text)}</div>
       <div class="char-counter">
-        <span class="char-count-num ${cls}">${len}/280</span>
+        <span class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
         <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
       </div>
       <div class="platform-badges">
@@ -1234,15 +1237,15 @@ function renderPending(d) {
     const c = d.combo;
     const tweet = c.tweet || c.wire || '';
     const len = tweet.length;
-    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
-    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    const pct = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1);
+    const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
     html += `
     <div class="pending-section" style="border-left-color:var(--cyan-dim);">
       <div class="section-label"><span class="dot" style="background:var(--cyan);"></span>PENDING COMBO</div>
       ${tweet ? `<div style="margin-bottom:6px;">
         <div class="pending-tweet-text" style="white-space:pre-wrap;">${_esc(tweet)}</div>
         <div class="char-counter">
-          <span class="char-count-num ${cls}">${len}/280</span>
+          <span class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
           <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
         </div>
       </div>` : ''}
@@ -1440,7 +1443,7 @@ function renderValidate(d) {
   const moveColor = (d.rhetorical_move === 'none' || d.rhetorical_move === 'none') ? 'var(--amber)' : 'var(--cyan)';
   const overallColor = d.overall === 'pass' ? 'var(--success)' : d.overall === 'warning' ? 'var(--amber)' : 'var(--danger)';
   el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 0;">
-    ${pill(charColor, `CHARS: ${d.char_count}/280`)}
+    ${pill(charColor, `CHARS: ${d.char_count}/${d.char_limit || THREADS_CHAR_LIMIT}`)}
     ${d.ai_isms.length ? pill('var(--danger)', 'AI-ISMS: ' + d.ai_isms.join(', ')) : pill('var(--success)', 'AI-ISMS: CLEAN')}
     ${pill(moveColor, 'MOVE: ' + d.rhetorical_move.toUpperCase())}
     ${d.moralizing.length ? pill('var(--danger)', 'MORAL: ' + d.moralizing.join(', ')) : pill('var(--success)', 'MORAL: CLEAN')}

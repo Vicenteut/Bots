@@ -79,6 +79,9 @@ REPLY_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
 LOG_ALLOWLIST = {"sol_commands", "monitor", "scheduler", "analytics", "trending", "replies"}
 
+THREADS_POST_MAX_CHARS = 500
+THREADS_POST_WARN_CHARS = 460
+
 # ─── SIGNALS CACHE ───────────────────────────────────────────────────────────
 _gdelt_cache: dict = {"data": None, "ts": 0.0}
 _polymarket_cache: dict = {"data": None, "ts": 0.0}
@@ -545,6 +548,8 @@ async def api_publish(request: Request, payload: PublishPayload):
         tweet_text = data.get("tweet") or data.get("text") or ""
         if not tweet_text:
             raise HTTPException(422, "Source file has no tweet text")
+    if len(tweet_text) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Threads post is {len(tweet_text)} chars; max is {THREADS_POST_MAX_CHARS}")
 
     # Build media args — use --video for .mp4, --image otherwise
     media_args: list[str] = []
@@ -757,9 +762,9 @@ async def api_validate():
     char_count = len(tweet)
 
     # 1. Char count
-    if char_count > 280:
+    if char_count > THREADS_POST_MAX_CHARS:
         char_status = "error"
-    elif char_count > 270:
+    elif char_count > THREADS_POST_WARN_CHARS:
         char_status = "warning"
     else:
         char_status = "ok"
@@ -810,6 +815,7 @@ async def api_validate():
     return {
         "empty": False,
         "char_count": char_count,
+        "char_limit": THREADS_POST_MAX_CHARS,
         "char_status": char_status,
         "ai_isms": found_isms,
         "rhetorical_move": move,

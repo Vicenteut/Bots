@@ -46,6 +46,7 @@ USER_ID      = os.environ.get("THREADS_USER_ID", "")
 TG_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 MEDIA_HOST   = os.environ.get("THREADS_MEDIA_HOST", "").rstrip("/")
+THREADS_POST_MAX_CHARS = 500
 
 if not ACCESS_TOKEN or not USER_ID:
     print("[ERROR] THREADS_ACCESS_TOKEN and THREADS_USER_ID must be set in .env")
@@ -55,6 +56,14 @@ if not ACCESS_TOKEN or not USER_ID:
 def replace_flags(text):
     text = re.compile('[🇠-🇿]{2}').sub('', text)
     return re.sub(r'  +', ' ', text).strip()
+
+
+def prepare_post_text(text):
+    text = replace_flags(text)
+    if len(text) > THREADS_POST_MAX_CHARS:
+        print(f"[ERROR] Threads post is {len(text)} chars; max is {THREADS_POST_MAX_CHARS}", file=sys.stderr)
+        return None
+    return text
 
 
 def api_post(url, params):
@@ -273,8 +282,11 @@ def _publish(container_id):
 
 
 def publish_text(text):
-    print(f"[THREADS] Publishing text ({len(text)} chars)...")
-    cid = _create_container({"media_type": "TEXT", "text": replace_flags(text), "access_token": ACCESS_TOKEN})
+    post_text = prepare_post_text(text)
+    if not post_text:
+        return None
+    print(f"[THREADS] Publishing text ({len(post_text)} chars)...")
+    cid = _create_container({"media_type": "TEXT", "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
         return None
     post_id = _publish(cid)
@@ -285,8 +297,11 @@ def publish_text(text):
 
 
 def publish_single_image(text, image_url):
+    post_text = prepare_post_text(text)
+    if not post_text:
+        return None
     print(f"[THREADS] Publishing single image...")
-    cid = _create_container({"media_type": "IMAGE", "image_url": image_url, "text": replace_flags(text), "access_token": ACCESS_TOKEN})
+    cid = _create_container({"media_type": "IMAGE", "image_url": image_url, "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
         return None
     if not wait_for_container(cid):
@@ -299,6 +314,9 @@ def publish_single_image(text, image_url):
 
 
 def publish_carousel(text, image_urls):
+    post_text = prepare_post_text(text)
+    if not post_text:
+        return None
     print(f"[THREADS] Publishing carousel with {len(image_urls)} images...")
     children_ids = []
     for i, url in enumerate(image_urls[:10]):
@@ -329,7 +347,7 @@ def publish_carousel(text, image_urls):
     carousel_cid = _create_container({
         "media_type": "CAROUSEL",
         "children": ",".join(children_ids),
-        "text": replace_flags(text),
+        "text": post_text,
         "access_token": ACCESS_TOKEN,
     })
     if not carousel_cid:
@@ -344,8 +362,11 @@ def publish_carousel(text, image_urls):
 
 
 def publish_video(text, video_url):
+    post_text = prepare_post_text(text)
+    if not post_text:
+        return None
     print(f"[THREADS] Publishing video...")
-    cid = _create_container({"media_type": "VIDEO", "video_url": video_url, "text": replace_flags(text), "access_token": ACCESS_TOKEN})
+    cid = _create_container({"media_type": "VIDEO", "video_url": video_url, "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
         return None
     # Video processing often takes longer than images; avoid false negatives too early.

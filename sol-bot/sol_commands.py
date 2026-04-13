@@ -62,6 +62,7 @@ PENDING_NEWS_FILE = BASE_DIR / "pending_news_text.txt"
 MEDIA_DIR = BASE_DIR / "media"
 PID_FILE = BASE_DIR / "sol_commands.pid"
 BOT_DIR = str(BASE_DIR)
+THREADS_POST_MAX_CHARS = 500
 
 # Intent keywords → tweet type (only matched on SHORT text with pending tweet)
 FORMAT_INTENTS = {
@@ -947,6 +948,10 @@ def _read_pending_meta() -> tuple:
 
 def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None, media_paths: list = None):
     tweet_type, model_used = _read_pending_meta()
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        send_message(f"Post demasiado largo para Threads: {len(tweet)}/{THREADS_POST_MAX_CHARS} chars. Regenera antes de publicar.")
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        return False
     if media_paths is None:
         media_paths = [media_path] if media_path else []
     media_paths = [p for p in media_paths if p]
