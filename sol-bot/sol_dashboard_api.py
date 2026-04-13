@@ -575,13 +575,17 @@ async def api_publish(request: Request, payload: PublishPayload):
             print(f"[publish/{source}] media flag=--video path={mp}", flush=True)
         elif mp:
             print(f"[publish/{source}] video path not found: {mp}", flush=True)
-    else:
+    elif media_paths:
+        valid = [p for p in media_paths if p and Path(p).exists()]
+        if len(valid) > 1:
+            # Multiple images: use --images with comma-separated list
+            media_args += ["--images", ",".join(valid)]
+            print(f"[publish/{source}] media flag=--images count={len(valid)}", flush=True)
+        elif len(valid) == 1:
+            media_args += ["--image", valid[0]]
+            print(f"[publish/{source}] media flag=--image path={valid[0]}", flush=True)
         for mp in media_paths:
-            if mp and Path(mp).exists():
-                flag = "--video" if Path(mp).suffix.lower() == ".mp4" else "--image"
-                media_args += [flag, mp]
-                print(f"[publish/{source}] media flag={flag} path={mp}", flush=True)
-            elif mp:
+            if mp and not Path(mp).exists():
                 print(f"[publish/{source}] media path not found: {mp}", flush=True)
 
     # Build command — all platforms routed through publish_dual.py for consistent media handling
