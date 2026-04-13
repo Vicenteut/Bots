@@ -28,3 +28,11 @@ __pycache__/
 data/
 files/
 backups/
+
+# Sessions y logs de runtime
+.omc/
+logs/
+monitor_session.session
+*.session
+sol-bot/audit_*.md
+sol-bot/friction_audit.md
