@@ -373,8 +373,10 @@ def upload_image_for_threads(local_path):
         print(f'[ERROR] Image file not found: {local_path}', file=sys.stderr)
         return None
 
+    media_host = os.environ.get("THREADS_MEDIA_HOST", "http://89.167.109.62:8080")
+    media_host = media_host.rstrip("/")
     filename = _Path(local_path).name
-    public_url = f"http://89.167.109.62:8080/media/{_quote(filename)}"
+    public_url = f"{media_host}/media/{_quote(filename)}"
     print(f'  Using self-hosted URL: {public_url}')
     return public_url
 

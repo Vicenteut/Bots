@@ -593,12 +593,16 @@ async def api_publish(request: Request, payload: PublishPayload):
         cmd = ["python3", "publish_dual.py", "--threads-only"] + media_args + [tweet_text]
     print(f"[publish/{source}] platform={platform} cmd={cmd[:6]}", flush=True)
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=str(BOT_DIR),
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(BOT_DIR),
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Publish timed out after 120s — check Threads token or media upload")
     stdout = result.stdout + result.stderr
 
     # Parse results
@@ -1058,7 +1062,7 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                     print(f"[monitor/original] media path not found: {mp}", flush=True)
             cmd = ["python3", "publish_dual.py"] + media_args + [tweet]
             print(f"[monitor/original] running: {cmd}", flush=True)
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR))
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR), timeout=120)
             if result.stdout:
                 print(f"[monitor/original] stdout: {result.stdout[:400]}", flush=True)
             if result.stderr:
