@@ -669,7 +669,7 @@ async def api_publish(request: Request, payload: PublishPayload):
             if mp and not Path(mp).exists():
                 print(f"[publish/{source}] media path not found: {mp}", flush=True)
 
-    # X publishing is retired: route every publish request to Threads only.
+    # Legacy platform selectors are ignored: route every publish request to Threads only.
     requested_platform = platform
     platform = "threads"
     cmd = ["python3", "threads_publisher.py", "--quiet"] + media_args + [tweet_text]
@@ -1283,12 +1283,12 @@ def _reply_parse(raw: str) -> dict:
 @app.post("/api/replies/generate")
 async def api_replies_generate(request: Request, payload: ReplyPayload):
     _require_csrf(request)
-    # Resolve original text. URL fetching via X/Twitter API was removed with X support.
+    # Resolve original text. URL fetching was removed; paste source text instead.
     if payload.input_type == "url":
         return JSONResponse({"error": "URL fetch is disabled. Paste the text instead."}, status_code=422)
     else:
-        tweet_text = payload.content.strip()
-        if not tweet_text:
+        post_text = payload.content.strip()
+        if not post_text:
             return JSONResponse({"error": "content is empty"}, status_code=422)
 
     # Load system prompt and user template
@@ -1300,7 +1300,7 @@ async def api_replies_generate(request: Request, payload: ReplyPayload):
 
     sol_posts_today, headlines_in_queue = _reply_get_context()
     user_msg = (user_template
-                .replace("{{original_tweet}}", tweet_text)
+                .replace("{{original_tweet}}", post_text)
                 .replace("{{sol_posts_today}}", sol_posts_today)
                 .replace("{{headlines_in_queue}}", headlines_in_queue))
 
@@ -1321,7 +1321,7 @@ async def api_replies_generate(request: Request, payload: ReplyPayload):
     return JSONResponse({
         "replies":        parsed.get("replies", []),
         "context_used":   parsed.get("context_used", []),
-        "original_tweet": tweet_text,
+        "original_tweet": post_text,
         "model_used":     model_id,
         "sol_count":      sol_count,
         "hl_count":       hl_count,
@@ -1338,7 +1338,7 @@ async def api_replies_regenerate_one(request: Request, payload: ReplyRegenPayloa
 
     sol_posts_today, headlines_in_queue = _reply_get_context()
     user_msg = (
-        f"ORIGINAL_TWEET:\n{payload.original_tweet}\n\n"
+        f"ORIGINAL_POST:\n{payload.original_tweet}\n\n"
         f"SOL_POSTS_TODAY:\n{sol_posts_today}\n\n"
         f"HEADLINES_IN_QUEUE:\n{headlines_in_queue}\n\n"
         f"Regenerate ONLY the '{payload.move}' reply. "

@@ -16,11 +16,11 @@ def run():
     headline = random.choice(headlines)
     print(f"Noticia seleccionada: {headline['title']}")
 
-    tweet = generate_tweet(headline)
-    print(f"\nTweet generado:\n{tweet}\n")
+    post_text = generate_tweet(headline)
+    print(f"\nPost generado:\n{post_text}\n")
 
     result = subprocess.run(
-        ["python3", "threads_publisher.py", tweet],
+        ["python3", "threads_publisher.py", post_text],
         capture_output=True,
         text=True,
         check=False,

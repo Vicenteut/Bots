@@ -2,16 +2,16 @@
 """
 sol_commands.py — Manual command listener for Sol Bot (@napoleotics).
 
-The owner sends news to Sol's Telegram bot; Sol generates a tweet
+The owner sends news to Sol's Telegram bot; Sol generates a Threads post
 using the full copywriting engine and optionally publishes it.
 
 Usage via Telegram (owner only):
-  <any text>              Treat as news title — generate tweet
+  <any text>              Treat as news title — generate post
   <title> | <context>    Title + extra context for richer generation
   /noticia <text>        Explicit news command (same as plain text)
-  /publica               Publish the last generated pending tweet to Threads
+  /publica               Publish the last generated pending post to Threads
   /publica threads       Publish to Threads
-  /regenera              Regenerate last tweet with a different angle
+  /regenera              Regenerate last post with a different angle
   /wire                  Regenerate as breaking news (WIRE)
   /analisis              Regenerate as deep analysis (ANALISIS)
   /debate                Regenerate as debate/question (DEBATE)
@@ -64,7 +64,7 @@ PID_FILE = BASE_DIR / "sol_commands.pid"
 BOT_DIR = str(BASE_DIR)
 THREADS_POST_MAX_CHARS = 500
 
-# Intent keywords → tweet type (only matched on SHORT text with pending tweet)
+# Intent keywords -> post format (only matched on SHORT text with pending post)
 FORMAT_INTENTS = {
     "WIRE":     ["wire", "ultima hora", "última hora", "breaking", "flash"],
     "ANALISIS": ["analisis", "análisis", "analiza", "analizar", "profundo", "deep", "explica"],
@@ -77,8 +77,8 @@ REGEN_KEYWORDS = ["regenera", "regenerar", "otra vez", "de nuevo", "intenta de n
 
 # Short confirmations that mean "generate from the last monitor headline"
 CONFIRM_KEYWORDS = ["si", "sí", "dale", "ok", "okay", "genera", "generalo", "genéralo",
-                    "genera un tweet", "genera el tweet", "genera un tweet de esto",
-                    "hazlo", "adelante", "procede", "tweet", "twittea"]
+                    "genera un post", "genera el post", "genera un post de esto",
+                    "hazlo", "adelante", "procede", "post", "publica"]
 
 # Feedback phrases that mean "you haven't published" or "that's wrong" — don't treat as news
 FEEDBACK_NEGATIVE = ["no lo has publicado", "no publicaste", "no lo publicaste",
@@ -142,7 +142,7 @@ def send_generation_keyboard(news_preview: str):
 
 
 def send_publish_keyboard(tweet_preview: str = "", media_note: str = ""):
-    """Send the pending tweet with Publish / Regen / Cancel inline buttons."""
+    """Send the pending post with Publish / Regen / Cancel inline buttons."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     text = (
@@ -325,14 +325,14 @@ def cmd_status():
             pending = f"({ts}) {preview}..."
         except Exception:
             pass
-    send_message(f"Sol Bot operativo.\nPendiente: {pending}\nEnvia una noticia para generar un tweet.")
+    send_message(f"Sol Bot operativo.\nPendiente: {pending}\nEnvia una noticia para generar un post.")
 
 
 def detect_format_intent(text: str, has_pending: bool = False):
     """Return tweet_type if text is a format/regen request, else None.
 
     Free-text keyword matching only activates when:
-    - There IS a pending tweet (so the user is clearly requesting a format change), AND
+    - There IS a pending post (so the user is clearly requesting a format change), AND
     - The text is SHORT (< 80 chars) — long text is almost always a news headline.
     Slash commands always work regardless.
     """
@@ -350,7 +350,7 @@ def detect_format_intent(text: str, has_pending: bool = False):
     if lower in ("/regenera", "/regenerar"):
         return "RANDOM"
 
-    # Free-text keywords: only if there's a pending tweet AND text is short
+    # Free-text keywords: only if there's a pending post AND text is short
     if not has_pending or len(text) >= 80:
         return None
 
@@ -373,9 +373,9 @@ def is_monitor_confirm(text: str) -> bool:
 
 
 def cmd_regen(tweet_type: str = "RANDOM", instruction: str = ""):
-    """Regenerate the last pending headline with a specific tweet type."""
+    """Regenerate the last pending headline with a specific post format."""
     if not PENDING_FILE.exists():
-        send_message("No hay tweet pendiente para regenerar.")
+        send_message("No hay post pendiente para regenerar.")
         return
 
     try:
@@ -454,7 +454,7 @@ def cmd_mixed(text: str = "", reply_news: str = None, target: str = "both"):
             "Necesito una noticia. Opciones:\n"
             "  /mixed <titular>\n"
             "  Responde a un titular del monitor con /mixed\n"
-            "  O genera un tweet primero con /noticia"
+            "  O genera un post primero con /noticia"
         )
         return
 
@@ -648,13 +648,13 @@ def cmd_generate_from_monitor(reply_news: str = None, tweet_type: str = None):
         send_message("No hay noticia pendiente del monitor. Envíame el titular directamente.")
         return
 
-    send_message(f"Generando tweet para:\n{headline['title'][:120]}...")
+    send_message(f"Generando post para:\n{headline['title'][:120]}...")
 
     try:
         tweet = generate_tweet(headline, tweet_type=tweet_type, manual=True)
     except Exception as e:
         logger.error(f"generate_tweet error: {e}")
-        send_message(f"Error generando tweet: {e}")
+        send_message(f"Error generando post: {e}")
         return
 
     pending = {
@@ -680,9 +680,9 @@ def cmd_ayuda():
     send_message(
         "Comandos de Sol Bot:\n\n"
         "GENERAR:\n"
-        "  <noticia>      Genera tweet desde titular\n"
+        "  <noticia>      Genera post desde titular\n"
         "  titulo | contexto  Con contexto extra\n\n"
-        "FORMATO (regenera el ultimo tweet):\n"
+        "FORMATO (regenera el ultimo post):\n"
         "  /wire          Ultima hora / breaking\n"
         "  /analisis      Analisis profundo\n"
         "  /debate        Pregunta / opinion\n"
@@ -698,8 +698,8 @@ def cmd_ayuda():
         "  /to             Solo Threads original\n"
         "  /traduce       Traduce al espanol y publica\n\n"
         "SCHEDULER:\n"
-        "  /publica 1  publica tweet 1 del scheduler\n"
-        "  /publica 2  publica tweet 2\n\n"
+        "  /publica 1  publica post 1 del scheduler\n"
+        "  /publica 2  publica post 2\n\n"
         "  /status        Estado del bot\n"
         "  /ayuda         Este menu"
     )
@@ -739,13 +739,13 @@ def _do_generate(text: str):
         "url": "",
     }
 
-    send_message(f"Generando tweet para:\n{title[:120]}...")
+    send_message(f"Generando post para:\n{title[:120]}...")
 
     try:
         tweet = generate_tweet(headline, tweet_type=None, manual=True)
     except Exception as e:
         logger.error(f"generate_tweet error: {e}")
-        send_message(f"Error generando tweet: {e}")
+        send_message(f"Error generando post: {e}")
         return
 
     # Check if monitor_pending has media matching this headline
@@ -799,7 +799,7 @@ def cmd_publish_from_sched(n: int):
     if not sched_file.exists():
         all_sched = sorted(BASE_DIR.glob('pending_sched_*.json'))
         if not all_sched:
-            send_message(f'No hay tweet {n} del scheduler. Espera el proximo ciclo.')
+            send_message(f'No hay post {n} del scheduler. Espera el proximo ciclo.')
         else:
             nums = [f.stem.replace("pending_sched_", "") for f in all_sched]
             send_message(f'No existe tweet {n}. Disponibles: {", ".join(nums)}')
@@ -807,7 +807,7 @@ def cmd_publish_from_sched(n: int):
     try:
         data = json.loads(sched_file.read_text())
     except Exception as e:
-        send_message(f'Error leyendo tweet {n}: {e}')
+        send_message(f'Error leyendo post {n}: {e}')
         return
     PENDING_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
     sched_file.unlink(missing_ok=True)
@@ -821,7 +821,7 @@ def cmd_publish_from_sched(n: int):
         media_note = f" + {label}"
     else:
         media_note = ""
-    send_message(f"Publicando tweet {n}{media_note}: {tweet[:80]}...")
+    send_message(f"Publicando post {n}{media_note}: {tweet[:80]}...")
     _publish_threads(tweet, media_path, media_type, media_paths=media_paths)
     PENDING_FILE.unlink(missing_ok=True)
 
@@ -832,7 +832,7 @@ def cmd_publish(args: str = ""):
         return
 
     if not PENDING_FILE.exists():
-        send_message("No hay tweet pendiente. Envia una noticia primero.")
+        send_message("No hay post pendiente. Envia una noticia primero.")
         return
 
     try:
@@ -845,10 +845,10 @@ def cmd_publish(args: str = ""):
         media_path = media_paths[0] if media_paths else None
         tg_media_url = pending.get("tg_media_url")
     except Exception as e:
-        send_message(f"Error leyendo tweet pendiente: {e}")
+        send_message(f"Error leyendo post pendiente: {e}")
         return
 
-    # Also check PENDING_MEDIA_FILE as fallback if no media in pending tweet
+    # Also check PENDING_MEDIA_FILE as fallback if no media in pending post
     if not media_path and PENDING_MEDIA_FILE.exists():
         try:
             pm = json.loads(PENDING_MEDIA_FILE.read_text())
@@ -1093,13 +1093,13 @@ def _publish_threads(tweet: str, media_path: str = None, media_type: str = "phot
 
 
 def _publish_both(tweet, media_path=None, media_type="photo", media_paths=None, tg_media_url=None):
-    """Compatibility wrapper: X publishing is retired, so legacy dual calls publish Threads only."""
+    """Compatibility wrapper: legacy dual calls publish Threads only."""
     return _publish_threads(tweet, media_path=media_path, media_type=media_type,
                             tg_media_url=tg_media_url, media_paths=media_paths)
 
 
 def _publish_combo(args: str = ""):
-    """Publish a single mixed tweet from pending_combo.json to Threads only."""
+    """Publish a single mixed post from pending_combo.json to Threads only."""
     try:
         data = json.loads(COMBO_FILE.read_text())
     except Exception as e:
@@ -1151,13 +1151,13 @@ def _dispatch_brain_action(action: str, instruction: str, text: str, reply_news:
 
     elif action == "regenerate":
         if not PENDING_FILE.exists():
-            send_message("No hay tweet pendiente para regenerar.")
+            send_message("No hay post pendiente para regenerar.")
             return
         cmd_regen("RANDOM")
 
     elif action == "regenerate_with_instruction":
         if not PENDING_FILE.exists():
-            send_message("No hay tweet pendiente para regenerar.")
+            send_message("No hay post pendiente para regenerar.")
             return
         cmd_regen("RANDOM", instruction=instruction)
 
@@ -1181,7 +1181,7 @@ def handle_message(text: str, reply_news: str = None):
         cmd_status()
     elif lower.startswith("/publica"):
         args = text[8:].strip()
-        # /publica 1  or /publica 2 -> publish scheduler tweet
+        # /publica 1  or /publica 2 -> publish scheduler post
         if args.isdigit():
             cmd_publish_from_sched(int(args))
             log_brain_action("publish", text)

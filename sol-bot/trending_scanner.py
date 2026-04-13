@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-trending_scanner.py — Detect relevant topics and suggest tweets for @napoleotics.
+trending_scanner.py — Detect relevant topics and suggest Threads posts for Sol.
 
 Reads headlines from the local fetcher, filters by niche keywords
-(geopolitics, crypto, finance), generates tweet suggestions with
+(geopolitics, crypto, finance), generates post suggestions with
 Claude Haiku, and sends them to Telegram for owner approval.
 
 CLI mode:
@@ -129,18 +129,18 @@ def filter_topics(topics: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Claude Haiku — generate tweet suggestions
+# Claude Haiku — generate post suggestions
 # ---------------------------------------------------------------------------
 
 def generate_suggestion(topic_name: str) -> str:
-    """Call Claude Haiku to generate a tweet suggestion for a topic."""
+    """Call Claude Haiku to generate a post suggestion for a topic."""
     if not ANTHROPIC_API_KEY:
         return f"[Sin API key] Tema: {topic_name}"
 
     prompt = (
         f"Eres un analista de geopolitica y finanzas. "
         f'El tema es: "{topic_name}". '
-        f"Genera un tweet en espanol, maximo 280 caracteres, estilo analitico "
+        f"Genera un post en espanol, maximo 500 caracteres, estilo analitico "
         f"con perspectiva unica. Sin hashtags. Maximo 1 emoji."
     )
 
@@ -165,8 +165,8 @@ def generate_suggestion(topic_name: str) -> str:
         resp.raise_for_status()
         data = resp.json()
         text = data["content"][0]["text"].strip()
-        if len(text) > 280:
-            text = text[:277] + "..."
+        if len(text) > 500:
+            text = text[:497] + "..."
         text = text.strip('"').strip("\u201c").strip("\u201d")
         return text
     except Exception as e:
@@ -196,7 +196,7 @@ def build_telegram_message(topics_with_suggestions: list[dict]) -> str:
         lines.append(f"{i}. {name[:80]}" + (f" [{source}]" if source else ""))
         lines.append(f'💡 Sugerencia: "{suggestion}"\n')
 
-    lines.append('Responde "publica X" para publicar.')
+    lines.append('Responde "publica 1" (o el numero correspondiente) para publicar.')
     return "\n".join(lines)
 
 

@@ -47,14 +47,14 @@ tests:
           return j.action === 'publish';
 
   # ── 3. legacy platform wording ──────────────────────────────────────
-  - description: "3. súbelo solo a X → publish"
+  - description: "3. súbelo solo en Threads → publish_threads_only"
     vars:
-      message: "súbelo solo a X"
+      message: "súbelo solo en Threads"
     assert:
       - type: javascript
         value: |
           const j = JSON.parse(output.replace(/^```(?:json)?\s*\n?/,'').replace(/\n?```\s*$/,'').trim());
-          return j.action === 'publish';
+          return j.action === 'publish_threads_only';
 
   # ── 4. publish_threads_only ─────────────────────────────────────────
   - description: "4. publícalo solo en threads → publish_threads_only"

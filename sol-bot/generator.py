@@ -117,7 +117,7 @@ def _call_api(client, model: str, system: str, user_prompt: str, max_tokens: int
 CHARACTER_SHEET = """
 SOL'S CHARACTER:
 - You are Sol, geopolitical-macro analyst. Skeptical of consensus by default.
-- When everyone says X, your instinct is to explore not-X before accepting it.
+- When everyone repeats the consensus story, your instinct is to explore the missing counter-angle before accepting it.
 - You believe geography and demographics move markets more than monetary policy.
 - Globalization is unwinding. Supply chains are regionalizing. Sol noticed in 2019.
 - Moderately bullish on Bitcoin as a non-sovereign store of value. Deeply cynical about altcoins — most are securities wearing a hoodie.
@@ -192,14 +192,14 @@ Sol notices what others skip. Sol says it short. Sol trusts the data over the ta
 
 WRITING_RULES = """
 WRITING RULES:
-- 60% of tweets: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
+- 60% of posts: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
 - Emojis allowed occasionally: 💀 🤡 (only for genuine sarcasm)
 - Hook distribution:
   30% ultra-short (under 50 chars): "This doesn't add up.", "Something's coming."
   50% normal (50-100 chars)
   20% long (100-140 chars, only WIRE with numerical data)
 - Mix short sentences (5 words) with long ones (20 words).
-- Write in English. No hashtags on X.
+- Write in English. No hashtags on Threads.
 - ALWAYS use line breaks between ideas. NEVER a continuous block.
 """
 
@@ -263,7 +263,7 @@ THREADS_COMBINADA_LENGTH_GUIDE = "Target 360-480 characters. Hard max 500."
 
 
 # ------------------------------------------------------------------
-# Tone modifiers per tweet type
+# Tone modifiers per post format
 # ------------------------------------------------------------------
 
 TONE_MODIFIERS = {
@@ -285,9 +285,9 @@ TONE_MODIFIERS = {
 
 PLATFORM_INSTRUCTIONS = {
     "x": (
-        "Write for X. Be provocative and direct. "
+        "Write for Threads. Be provocative and direct. "
         "Include at least one specific numerical data point when possible. "
-        "Optimize for bookmarks and quote-tweets. Max 280 characters."
+        "Optimize for saves, replies, and reposts. Use the format-specific Threads length guide."
     ),
     "threads": (
         "Write for Threads. Same Sol voice but slightly more accessible — "
@@ -337,7 +337,7 @@ def generate_tweet(
     model_override: str = None,
 ) -> str:
     """
-    Generate a single tweet/post for the given headline.
+    Generate a single Threads post for the given headline.
 
     Args:
         headline: dict with keys title, summary, source
@@ -425,7 +425,7 @@ IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstan
 
 def generate_combinada_tweet(headline: dict, manual: bool = False) -> str:
     """
-    Generate a single fused tweet: raw headline + Sol's hooked analysis.
+    Generate a single fused Threads post: raw headline + Sol's hooked analysis.
 
     Format:
       Line 1: raw news headline (verbatim or near-verbatim)
@@ -462,8 +462,8 @@ Write exclusively in English."""
     return tweet
 
 
-def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "x") -> list[str]:
-    """Generate a multi-tweet thread."""
+def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "threads") -> list[str]:
+    """Generate a multi-post thread."""
     hook_angle = random.choice(HOOK_ANGLES)
     topic = _detect_topic(headline)
     mood = random.choice(MOODS)
@@ -479,21 +479,21 @@ Source: {headline['source']}
 Hook angle: {hook_angle}
 Mood: {MOOD_INSTRUCTIONS[mood]}
 
-Write a thread of {num_tweets} tweets:
-Tweet 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
-Tweets 2-{num_tweets - 1}: One data point or angle per tweet. Short lines. No filler.
-Tweet {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
+Write a thread of {num_tweets} posts:
+Post 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
+Posts 2-{num_tweets - 1}: One data point or angle per post. Short lines. No filler.
+Post {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
 
-Separate each tweet with ---
+Separate each post with ---
 Text only. No numbers, no labels. Write exclusively in English."""
 
     client, is_or = _get_client()
     raw = _call_api(client, model, system, prompt, 900, is_or)
-    tweets = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
-    tweets = tweets[:num_tweets]
+    posts = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
+    posts = posts[:num_tweets]
 
     # Save thread opener to memory
-    if tweets:
-        memory.add_tweet(tweets[0], "ANALISIS", topic, platform)
+    if posts:
+        memory.add_tweet(posts[0], "ANALISIS", topic, platform)
 
-    return tweets
+    return posts

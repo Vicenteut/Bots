@@ -1,6 +1,6 @@
 # n8n Workflow Setup Guide — Sol Bot
 
-Sol Bot now publishes and tracks publishing through Threads only. The old X engagement tracker has been removed, so n8n only needs the GDELT escalation workflow.
+Sol Bot now publishes and tracks publishing through Threads only. The legacy engagement tracker has been removed, so n8n only needs the GDELT escalation workflow.
 
 ## Workflows
 
@@ -30,6 +30,7 @@ nohup n8n start > /var/log/n8n.log 2>&1 &
 2. Settings -> Variables -> Add Variable
 3. Add: `TELEGRAM_BOT_TOKEN` = value from `.env`
 4. Add: `TELEGRAM_CHAT_ID` = value from `.env`
+5. Add: `SOL_DASHBOARD_BASIC_AUTH` = base64 of `DASHBOARD_USER:DASHBOARD_PASSWORD` for the private dashboard API
 
 ---
 
