@@ -98,8 +98,8 @@ def send_tg(message):
         print(f"[TG WARNING] {e}")
 
 
-def upload_video_to_litterbox(local_path, duration="1h"):
-    """Upload a normalized video to Litterbox and return a temporary HTTPS URL."""
+def upload_file_to_litterbox(local_path, duration="1h", content_type="application/octet-stream", label="media"):
+    """Upload a local media file to Litterbox and return a temporary HTTPS URL."""
     if local_path.startswith("http"):
         return local_path
     if not os.path.exists(local_path):
@@ -122,7 +122,7 @@ def upload_video_to_litterbox(local_path, duration="1h"):
     body += (
         f"--{boundary}\r\n"
         f"Content-Disposition: form-data; name=\"fileToUpload\"; filename=\"{filename}\"\r\n"
-        f"Content-Type: video/mp4\r\n\r\n"
+        f"Content-Type: {content_type}\r\n\r\n"
     ).encode("utf-8")
     with open(local_path, "rb") as f:
         body += f.read()
@@ -130,7 +130,7 @@ def upload_video_to_litterbox(local_path, duration="1h"):
 
     req = urllib.request.Request("https://litterbox.catbox.moe/resources/internals/api.php", data=bytes(body), method="POST")
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
-    req.add_header("User-Agent", "sol-bot/threads-video-uploader")
+    req.add_header("User-Agent", "sol-bot/threads-media-uploader")
     try:
         with urllib.request.urlopen(req, timeout=90) as resp:
             url = resp.read().decode("utf-8", errors="replace").strip()
@@ -140,8 +140,28 @@ def upload_video_to_litterbox(local_path, duration="1h"):
     if not url.startswith("https://"):
         print(f"[ERROR] Litterbox upload returned unexpected response: {url}", file=sys.stderr)
         return None
-    print(f"[THREADS] Temporary HTTPS video URL: {url}")
+    print(f"[THREADS] Temporary HTTPS {label} URL: {url}")
     return url
+
+
+def upload_video_to_litterbox(local_path, duration="1h"):
+    """Upload a normalized video to Litterbox and return a temporary HTTPS URL."""
+    return upload_file_to_litterbox(local_path, duration, "video/mp4", "video")
+
+
+def get_image_url(local_path):
+    """Return an HTTPS URL for Threads image uploads."""
+    if local_path.startswith("https://"):
+        return local_path
+    if local_path.startswith("http://"):
+        print("[ERROR] Threads image uploads require HTTPS; got HTTP URL", file=sys.stderr)
+        return None
+    ext = os.path.splitext(local_path)[1].lower()
+    content_type = "image/png" if ext == ".png" else "image/jpeg"
+    host_mode = os.environ.get("THREADS_IMAGE_HOST", "litterbox").strip().lower()
+    if host_mode in ("litterbox", "catbox", "https"):
+        return upload_file_to_litterbox(local_path, os.environ.get("THREADS_IMAGE_TTL", "1h"), content_type, "image")
+    return get_public_url(local_path)
 
 
 def get_video_url(local_path):
@@ -413,7 +433,7 @@ def main():
         post_id = publish_text(text)
         sys.exit(0 if post_id else 1)
 
-    image_urls = [u for u in (get_public_url(p) for p in image_inputs) if u]
+    image_urls = [u for u in (get_image_url(p) for p in image_inputs) if u]
 
     if not image_urls:
         print("[ERROR] No valid image URLs; refusing to publish media request as text-only")

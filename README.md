@@ -12,9 +12,10 @@ Bot automatizado de noticias para Threads.
 
 ### Deploy notes
 - Requiere `ffmpeg` y `ffprobe` instalados en el servidor para publicar videos.
-- `THREADS_MEDIA_HOST` sirve imagenes desde el host propio.
+- `THREADS_MEDIA_HOST` queda disponible para hosting propio, pero Threads requiere HTTPS para procesar media.
+- Las imagenes locales usan `THREADS_IMAGE_HOST=litterbox` por defecto para generar una URL HTTPS temporal compatible con Threads.
 - Los videos locales usan `THREADS_VIDEO_HOST=litterbox` por defecto para generar una URL HTTPS temporal compatible con Threads.
-- `THREADS_VIDEO_TTL` permite ajustar la duracion de esa URL temporal, por defecto `1h`.
+- `THREADS_IMAGE_TTL` y `THREADS_VIDEO_TTL` permiten ajustar la duracion de esas URLs temporales, por defecto `1h`.
 
 ## armandito/
 Asistente personal en Telegram.
