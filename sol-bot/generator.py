@@ -448,3 +448,40 @@ Write exclusively in English."""
     memory.add_tweet(tweet, "ANALISIS", topic, "x")
 
     return tweet
+
+
+def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "x") -> list[str]:
+    """Generate a multi-tweet thread."""
+    hook_angle = random.choice(HOOK_ANGLES)
+    topic = _detect_topic(headline)
+    mood = random.choice(MOODS)
+    model = get_model("ANALISIS")  # threads are always deep-form
+
+    memory = get_memory()
+    continuity = memory.build_continuity_prompt()
+    system = SYSTEM_PROMPT + ("\n\n" + continuity if continuity else "")
+
+    prompt = f"""News: {headline['title']}
+Context: {headline['summary'][:600]}
+Source: {headline['source']}
+Hook angle: {hook_angle}
+Mood: {MOOD_INSTRUCTIONS[mood]}
+
+Write a thread of {num_tweets} tweets:
+Tweet 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
+Tweets 2-{num_tweets - 1}: One data point or angle per tweet. Short lines. No filler.
+Tweet {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
+
+Separate each tweet with ---
+Text only. No numbers, no labels. Write exclusively in English."""
+
+    client, is_or = _get_client()
+    raw = _call_api(client, model, system, prompt, 900, is_or)
+    tweets = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
+    tweets = tweets[:num_tweets]
+
+    # Save thread opener to memory
+    if tweets:
+        memory.add_tweet(tweets[0], "ANALISIS", topic, platform)
+
+    return tweets
