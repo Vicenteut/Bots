@@ -1,6 +1,8 @@
 # Sol Bot Data Strategy
 **Generated:** 2026-04-09 | **Data window:** 2026-03-21 → 2026-04-05 (15 days, 237 tweets)
 
+> Historical note: this document was written before Sol moved to Threads-only. Treat X/Twitter API, `analytics.db`, retweet, and dual-publish references as legacy analysis ideas until a Threads-native analytics store is designed.
+
 ---
 
 ## 1. EXECUTIVE SUMMARY

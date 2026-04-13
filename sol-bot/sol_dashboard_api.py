@@ -12,6 +12,7 @@ import re
 import secrets
 import subprocess
 import urllib.parse
+import urllib.request
 from filelock import FileLock
 try:
     from openai import OpenAI as _OpenAI
@@ -332,7 +333,10 @@ def _attach_media_to_pending(data: dict) -> dict:
 
 def _append_publish_log(platform: str, success: bool, tweet: str,
                         tweet_id: str = None, tweet_type: str = None,
-                        has_media: bool = False, media_type: str = "") -> None:
+                        has_media: bool = False, media_type: str = "",
+                        media_count: int = 0, status: str = None,
+                        error_category: str = None, error_message: str = None,
+                        fbtrace_id: str = None, public_media_urls: list[str] = None) -> None:
     """Append a publish event to logs/publish_log.json (same format as sol_commands.py)."""
     try:
         entry = {
@@ -345,6 +349,12 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
             "char_count": len(tweet) if tweet else 0,
             "has_media": has_media,
             "media_type": media_type,
+            "media_count": media_count,
+            "status": status or ("OK" if success else "FAILED"),
+            "error_category": error_category,
+            "error_message": (error_message or "")[:500] if error_message else None,
+            "fbtrace_id": fbtrace_id,
+            "public_media_urls": public_media_urls or [],
         }
         if PUBLISH_LOG.exists():
             try:
@@ -371,6 +381,74 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
             raise
     except Exception as e:
         logger.warning(f"[publish_log] Failed to append: {e}")
+
+
+def _extract_threads_result(output: str) -> dict:
+    """Parse the structured result emitted by threads_publisher.py."""
+    result = {}
+    for line in (output or "").splitlines():
+        if line.startswith("[THREADS_RESULT]"):
+            raw = line.split("]", 1)[1].strip()
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    result = parsed
+            except Exception:
+                pass
+    return result
+
+
+def _classify_publish_result(output: str, returncode: int, media_kind: str) -> dict:
+    parsed = _extract_threads_result(output)
+    post_id = parsed.get("post_id") if parsed else None
+    success = returncode == 0 and bool(post_id or parsed.get("success"))
+    category = parsed.get("category") if parsed else None
+    message = parsed.get("message") if parsed else None
+    stage = parsed.get("stage") if parsed else None
+
+    if not success and not category:
+        lower = (output or "").lower()
+        if "csrf" in lower:
+            category = "AUTH_ERROR"
+        elif "token" in lower or "permission" in lower or "unauthorized" in lower:
+            category = "AUTH_ERROR"
+        elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
+            category = "MEDIA_ERROR"
+        elif "timed out" in lower or "timeout" in lower:
+            category = "TIMEOUT"
+        elif "http error" in lower or "meta error" in lower or "fbtrace_id" in lower:
+            category = "META_ERROR"
+        else:
+            category = "FAILED"
+
+    if not message and not success:
+        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+        interesting = [ln for ln in lines if "[ERROR]" in ln or "[META ERROR]" in ln or "Container failed" in ln]
+        message = (interesting[-1] if interesting else (lines[-1] if lines else "Threads publish failed"))
+
+    status = "OK" if success else (category or "FAILED")
+    return {
+        "success": success,
+        "post_id": post_id,
+        "status": status,
+        "error_category": None if success else category,
+        "error_message": None if success else message,
+        "stage": stage,
+        "http_code": parsed.get("http_code") if parsed else None,
+        "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
+        "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
+        "media_kind": parsed.get("media_type") or media_kind,
+    }
+
+
+def _media_kind_from_args(media_type: str, media_paths: list[str]) -> str:
+    if media_type == "video" and media_paths:
+        return "video"
+    if len(media_paths) > 1:
+        return "carousel"
+    if len(media_paths) == 1:
+        return "image"
+    return "text"
 
 
 def _tail_file(path: Path, n: int) -> list[str]:
@@ -569,8 +647,9 @@ async def api_publish(request: Request, payload: PublishPayload):
         valid_paths = [p for p in media_paths if p and Path(p).exists()]
         missing = [p for p in media_paths if p and not Path(p).exists()]
         if missing:
-            print(f"[publish/{source}] WARNING: {len(missing)} media file(s) missing, publishing text-only: {missing}", flush=True)
+            raise HTTPException(422, f"Media file missing: {missing[0]}")
         media_paths = valid_paths
+    media_kind = _media_kind_from_args(media_type, media_paths)
 
     if media_type == "video" and media_paths:
         mp = media_paths[0]
@@ -605,30 +684,54 @@ async def api_publish(request: Request, payload: PublishPayload):
             timeout=360 if media_type == "video" else 120,
         )
     except subprocess.TimeoutExpired:
+        _append_publish_log("threads", False, tweet_text, tweet_type=data.get("tweet_type"),
+                            has_media=bool(media_args), media_type=media_kind,
+                            media_count=len(media_paths), status="TIMEOUT",
+                            error_category="TIMEOUT",
+                            error_message="Publish timed out — check Threads token, media URL, or video processing")
         raise HTTPException(504, "Publish timed out — check Threads token, media URL, or video processing")
     stdout = result.stdout + result.stderr
     if result.returncode != 0:
         print(f"[publish/{source}] Threads publish failed rc={result.returncode}: {stdout[-1200:]}", flush=True)
 
-    # Parse Threads result.
-    threads_success = result.returncode == 0
-    threads_post_id = None
-
-    m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
-    if m_t:
-        threads_post_id = m_t.group(1)
+    parsed_result = _classify_publish_result(stdout, result.returncode, media_kind)
+    threads_success = parsed_result["success"]
+    threads_post_id = parsed_result["post_id"]
+    if not threads_post_id:
+        m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
+        if m_t:
+            threads_post_id = m_t.group(1)
+            threads_success = result.returncode == 0
+            if threads_success:
+                parsed_result["status"] = "OK"
+                parsed_result["error_category"] = None
+                parsed_result["error_message"] = None
 
     # Write to publish_log.json so Recent Posts panel updates.
     tweet_type_log = data.get("tweet_type")
     _has_media = bool(media_args)
     _append_publish_log("threads", threads_success, tweet_text, tweet_id=threads_post_id,
-                        tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
+                        tweet_type=tweet_type_log, has_media=_has_media, media_type=media_kind,
+                        media_count=len(media_paths), status=parsed_result["status"],
+                        error_category=parsed_result["error_category"],
+                        error_message=parsed_result["error_message"],
+                        fbtrace_id=parsed_result["fbtrace_id"],
+                        public_media_urls=parsed_result["public_media_urls"])
 
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
 
     return {
         "threads_success": threads_success,
         "threads_post_id": threads_post_id,
+        "status": "OK" if threads_success else parsed_result["status"],
+        "error_category": parsed_result["error_category"],
+        "error_message": parsed_result["error_message"],
+        "stage": parsed_result["stage"],
+        "http_code": parsed_result["http_code"],
+        "fbtrace_id": parsed_result["fbtrace_id"],
+        "media_type": media_kind,
+        "media_count": len(media_paths),
+        "public_media_urls": parsed_result["public_media_urls"],
         "stdout": stdout[-2000:],  # last 2000 chars for debugging
         "wire_repost_warning": wire_repost_warning,
     }
@@ -1051,15 +1154,29 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                 print(f"[monitor/original] stdout: {result.stdout[:400]}", flush=True)
             if result.stderr:
                 print(f"[monitor/original] stderr: {result.stderr[:400]}", flush=True)
+            media_kind = _media_kind_from_args(entry.get("media_type", "photo"), media_paths)
+            parsed_result = _classify_publish_result(stdout, result.returncode, media_kind)
             m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
-            _append_publish_log("threads", result.returncode == 0, tweet,
-                                tweet_id=m_t.group(1) if m_t else None,
-                                has_media=bool(media_args), media_type=entry.get("media_type", "photo"))
-            if result.returncode != 0:
+            post_id = parsed_result["post_id"] or (m_t.group(1) if m_t else None)
+            success = result.returncode == 0 and bool(post_id or parsed_result["success"])
+            if success:
+                parsed_result["status"] = "OK"
+                parsed_result["error_category"] = None
+                parsed_result["error_message"] = None
+            _append_publish_log("threads", success, tweet,
+                                tweet_id=post_id,
+                                has_media=bool(media_args), media_type=media_kind,
+                                media_count=len(media_paths), status=parsed_result["status"],
+                                error_category=parsed_result["error_category"],
+                                error_message=parsed_result["error_message"],
+                                fbtrace_id=parsed_result["fbtrace_id"],
+                                public_media_urls=parsed_result["public_media_urls"])
+            if not success:
                 # Remove from queue even on publish failure so it doesn't get stuck
                 queue = [e for e in queue if e.get("id") != alert_id]
                 _write_queue(queue)
-                return {"success": False, "action": action, "tweet": tweet, "remaining": len(queue)}
+                return {"success": False, "action": action, "tweet": tweet, "remaining": len(queue),
+                        "status": parsed_result["status"], "error_message": parsed_result["error_message"]}
 
         elif action == "ignore":
             tweet = None

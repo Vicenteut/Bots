@@ -1142,7 +1142,10 @@ function renderStatus(d) {
     const ago = _timeAgo(lp.published_at);
     const plat = lp.platform === 'threads' ? 'T' : lp.platform;
     const type = lp.tweet_type ? ` · ${lp.tweet_type}` : '';
-    lastPubHtml = `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}</span>`;
+    const ok = lp.success !== false;
+    const color = ok ? 'var(--cyan)' : 'var(--danger)';
+    const state = lp.status ? ` · ${lp.status}` : '';
+    lastPubHtml = `<span style="color:${color};font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}${state}</span>`;
   }
   const genBadge = d.generator_available
     ? ''
@@ -1184,10 +1187,17 @@ function renderRecentPosts(posts) {
       ? `<span class="badge badge-type" style="padding:1px 5px;font-size:9px;">${_esc(p.tweet_type)}</span>`
       : '';
     const ok = p.success ? 'log-ok' : 'log-err';
-    const mediaEmoji = p.media_type === 'video' ? '🎥\u00a0' : (p.has_media ? '📷\u00a0' : '');
+    const status = p.status || (p.success ? 'OK' : 'FAILED');
+    const statusColor = p.success ? 'var(--success)' : 'var(--danger)';
+    const statusBadge = `<span style="padding:1px 5px;font-size:9px;border:1px solid ${statusColor};color:${statusColor};border-radius:3px;">${_esc(status)}</span>`;
+    const mediaEmoji = p.media_type === 'video' ? '🎥\u00a0' : (p.media_type === 'carousel' ? '▦\u00a0' : (p.has_media ? '📷\u00a0' : ''));
+    const err = !p.success && p.error_message
+      ? `<div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.35;">${_esc(p.error_message).slice(0,180)}${p.fbtrace_id ? ` · fbtrace_id ${_esc(p.fbtrace_id)}` : ''}</div>`
+      : '';
     return `<div class="post-row">
-      <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}</div>
+      <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}${statusBadge}</div>
       <div class="post-row-text ${ok}">${mediaEmoji}${_esc(p.text_preview || '')}</div>
+      ${err}
     </div>`;
   }).join('');
 }
@@ -1513,6 +1523,26 @@ function _finishPublishBars(container, platform, xOk, tOk) {
   }
 }
 
+function _publishFailureHtml(d, source) {
+  const status = d.status || d.error_category || 'FAILED';
+  const msg = d.error_message || 'Threads publish failed.';
+  const stage = d.stage ? ` · stage: ${_esc(d.stage)}` : '';
+  const trace = d.fbtrace_id ? `<div style="margin-top:4px;color:var(--muted);">fbtrace_id: ${_esc(d.fbtrace_id)}</div>` : '';
+  const media = d.media_type ? `<div style="margin-top:4px;color:var(--muted);">media: ${_esc(d.media_type)}${d.media_count ? ` (${d.media_count})` : ''}</div>` : '';
+  const urls = (d.public_media_urls || []).length
+    ? `<details style="margin-top:6px;color:var(--muted);"><summary style="cursor:pointer;color:var(--cyan);">public media URLs</summary><pre style="white-space:pre-wrap;margin-top:4px;">${_esc((d.public_media_urls || []).join('\\n'))}</pre></details>`
+    : '';
+  const out = d.stdout
+    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;color:var(--muted);">technical log</summary><pre style="white-space:pre-wrap;margin-top:6px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre></details>`
+    : '';
+  return `<div style="margin-top:8px;padding:9px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--danger);">
+    <strong>${_esc(status)}</strong>${stage}
+    <div style="margin-top:5px;color:var(--text);line-height:1.45;">${_esc(msg)}</div>
+    ${media}${trace}${urls}${out}
+    <button class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;" onclick="publishPost('threads','${source}',this)">RETRY SAME PENDING POST</button>
+  </div>`;
+}
+
 async function publishPost(platform, source, btn) {
   platform = 'threads';
   const resultId = source === 'combo' ? 'publish-result-combo' : 'publish-result';
@@ -1536,8 +1566,7 @@ async function publishPost(platform, source, btn) {
       const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
       if (!tOk && resultEl) {
-        const out = d.stdout ? `<pre style="white-space:pre-wrap;margin-top:8px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre>` : '';
-        resultEl.innerHTML = `<span class="pub-fail">T FAILED</span>${out}`;
+        resultEl.innerHTML = _publishFailureHtml(d, source);
       } else if (tOk && resultEl) {
         const pid = d.threads_post_id || '';
         const ts_now = new Date().toLocaleTimeString();
@@ -1589,9 +1618,7 @@ async function _publishNow(platform, source, btn, resultEl) {
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
       } else if (resultEl) {
-        const cls = d.threads_success ? 'pub-ok' : 'pub-fail';
-        const out = d.stdout ? `<pre style="white-space:pre-wrap;margin-top:8px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre>` : '';
-        resultEl.innerHTML = `<span class="${cls}">${summary}</span>${out}`;
+        resultEl.innerHTML = _publishFailureHtml(d, source);
       }
       pollPending();
       pollStatus();

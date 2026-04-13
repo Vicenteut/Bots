@@ -1,5 +1,7 @@
 # RESEARCH MISSION: Sol Bot — Dashboard & UI Integration Proposal
 
+> Historical research prompt. Sol is now Threads-only; X publishing, dual-publish, and Streamlit references below describe the old system and should not be used as current implementation guidance.
+
 ## System Context
 
 Sol bot is a production automated news publishing system for X (@inequaliti) and Threads.

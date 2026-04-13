@@ -64,7 +64,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Basic c29sOnNvbHBhc3MxMjM="
+              "value": "={{ 'Basic ' + $env.SOL_DASHBOARD_BASIC_AUTH }}"
             }
           ]
         },
@@ -124,10 +124,10 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM/sendMessage",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
         "sendBody": true,
         "contentType": "json",
-        "body": "={{ JSON.stringify({ chat_id: 6054558214, text: '🚨 <b>GDELT Escalation Alert</b>\\n\\nKeyword: <b>' + $json.keyword + '</b>\\nArticles (30min): <b>' + $json.currentCount + '</b>\\nBaseline: ' + $json.baselineCount + '\\nSpike: <b>+' + $json.spikePercent + '%</b>' + ($json.topHeadline ? '\\n\\n' + $json.topHeadline : '') + '\\n\\n→ Consider publishing on this topic', parse_mode: 'HTML' }) }}",
+        "body": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: '🚨 <b>GDELT Escalation Alert</b>\\n\\nKeyword: <b>' + $json.keyword + '</b>\\nArticles (30min): <b>' + $json.currentCount + '</b>\\nBaseline: ' + $json.baselineCount + '\\nSpike: <b>+' + $json.spikePercent + '%</b>' + ($json.topHeadline ? '\\n\\n' + $json.topHeadline : '') + '\\n\\n→ Consider publishing on this topic', parse_mode: 'HTML' }) }}",
         "options": {}
       }
     },
@@ -144,7 +144,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Basic c29sOnNvbHBhc3MxMjM=" }
+            { "name": "Authorization", "value": "={{ 'Basic ' + $env.SOL_DASHBOARD_BASIC_AUTH }}" }
           ]
         },
         "sendBody": true,
@@ -166,7 +166,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Basic c29sOnNvbHBhc3MxMjM=" }
+            { "name": "Authorization", "value": "={{ 'Basic ' + $env.SOL_DASHBOARD_BASIC_AUTH }}" }
           ]
         },
         "sendBody": true,

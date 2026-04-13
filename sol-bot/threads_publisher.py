@@ -26,6 +26,51 @@ ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 BASE_URL = "https://graph.threads.net/v1.0"
 
 
+class ThreadsPublishError(Exception):
+    def __init__(self, category, message, stage="unknown", http_code=None, fbtrace_id=None, details=None, media_type=None):
+        super().__init__(message)
+        self.category = category
+        self.message = message
+        self.stage = stage
+        self.http_code = http_code
+        self.fbtrace_id = fbtrace_id
+        self.details = details or {}
+        self.media_type = media_type
+
+
+def emit_result(success, stage, post_id=None, category=None, message=None,
+                http_code=None, fbtrace_id=None, media_type="text", media_urls=None):
+    payload = {
+        "success": bool(success),
+        "stage": stage,
+        "post_id": post_id,
+        "category": category,
+        "message": message,
+        "http_code": http_code,
+        "fbtrace_id": fbtrace_id,
+        "media_type": media_type,
+        "media_urls": media_urls or [],
+    }
+    print(f"[THREADS_RESULT] {json.dumps(payload, ensure_ascii=False)}")
+
+
+def _parse_meta_error(body):
+    try:
+        data = json.loads(body)
+    except Exception:
+        return {"message": body.strip()[:500], "fbtrace_id": None}
+    err = data.get("error") if isinstance(data, dict) else None
+    if not isinstance(err, dict):
+        return {"message": str(data)[:500], "fbtrace_id": None}
+    msg = err.get("error_user_msg") or err.get("message") or "Meta API request failed"
+    return {
+        "message": msg,
+        "fbtrace_id": err.get("fbtrace_id"),
+        "code": err.get("code"),
+        "type": err.get("type"),
+    }
+
+
 def load_env(path):
     if not os.path.exists(path):
         print(f"[ERROR] .env file not found: {path}")
@@ -75,11 +120,21 @@ def api_post(url, params):
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
-        print(f"[HTTP ERROR {e.code}] {error_body}")
-        raise
+        parsed = _parse_meta_error(error_body)
+        print(f"[META ERROR] HTTP {e.code}: {parsed.get('message')}")
+        if parsed.get("fbtrace_id"):
+            print(f"  fbtrace_id: {parsed['fbtrace_id']}")
+        raise ThreadsPublishError(
+            "AUTH_ERROR" if e.code in (400, 401, 403) and "token" in parsed.get("message", "").lower() else "META_ERROR",
+            parsed.get("message") or f"Meta API HTTP {e.code}",
+            stage="meta_api",
+            http_code=e.code,
+            fbtrace_id=parsed.get("fbtrace_id"),
+            details=parsed,
+        ) from e
     except urllib.error.URLError as e:
         print(f"[URL ERROR] {e.reason}")
-        raise
+        raise ThreadsPublishError("URL_ERROR", str(e.reason), stage="meta_api") from e
 
 
 def api_get(url):
@@ -88,8 +143,19 @@ def api_get(url):
         with urllib.request.urlopen(req, timeout=45) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        print(f"[HTTP ERROR {e.code}] {e.read().decode('utf-8', errors='replace')}")
-        raise
+        error_body = e.read().decode("utf-8", errors="replace")
+        parsed = _parse_meta_error(error_body)
+        print(f"[META ERROR] HTTP {e.code}: {parsed.get('message')}")
+        if parsed.get("fbtrace_id"):
+            print(f"  fbtrace_id: {parsed['fbtrace_id']}")
+        raise ThreadsPublishError(
+            "AUTH_ERROR" if e.code in (400, 401, 403) and "token" in parsed.get("message", "").lower() else "META_ERROR",
+            parsed.get("message") or f"Meta API HTTP {e.code}",
+            stage="meta_api",
+            http_code=e.code,
+            fbtrace_id=parsed.get("fbtrace_id"),
+            details=parsed,
+        ) from e
 
 
 def send_tg(message):
@@ -153,6 +219,32 @@ def upload_file_to_litterbox(local_path, duration="1h", content_type="applicatio
     return url
 
 
+def validate_public_media_url(url, expected_prefix):
+    """Confirm Meta can fetch an HTTPS media URL before creating a container."""
+    if not url.startswith("https://"):
+        print(f"[ERROR] Public media URL must be HTTPS: {url}", file=sys.stderr)
+        return False
+    req = urllib.request.Request(url, method="GET", headers={
+        "User-Agent": "sol-bot/media-preflight",
+        "Range": "bytes=0-0",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            status = getattr(resp, "status", 200)
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+    except Exception as e:
+        print(f"[ERROR] Media URL preflight failed: {e}", file=sys.stderr)
+        return False
+    if status not in (200, 206):
+        print(f"[ERROR] Media URL returned HTTP {status}: {url}", file=sys.stderr)
+        return False
+    if expected_prefix and not ctype.startswith(expected_prefix):
+        print(f"[ERROR] Media URL Content-Type '{ctype}' does not look like {expected_prefix}: {url}", file=sys.stderr)
+        return False
+    print(f"[THREADS] Media URL preflight OK: HTTP {status} {ctype}")
+    return True
+
+
 def upload_video_to_litterbox(local_path, duration="1h"):
     """Upload a normalized video to Litterbox and return a temporary HTTPS URL."""
     return upload_file_to_litterbox(local_path, duration, "video/mp4", "video")
@@ -205,8 +297,10 @@ def get_image_url(local_path):
         return None
     host_mode = os.environ.get("THREADS_IMAGE_HOST", "litterbox").strip().lower()
     if host_mode in ("litterbox", "catbox", "https"):
-        return upload_file_to_litterbox(prepared, os.environ.get("THREADS_IMAGE_TTL", "1h"), "image/jpeg", "image")
-    return get_public_url(prepared)
+        url = upload_file_to_litterbox(prepared, os.environ.get("THREADS_IMAGE_TTL", "1h"), "image/jpeg", "image")
+    else:
+        url = get_public_url(prepared)
+    return url if url and validate_public_media_url(url, "image/") else None
 
 
 def get_video_url(local_path):
@@ -221,8 +315,10 @@ def get_video_url(local_path):
         return None
     host_mode = os.environ.get("THREADS_VIDEO_HOST", "litterbox").strip().lower()
     if host_mode in ("litterbox", "catbox", "https"):
-        return upload_video_to_litterbox(prepared, os.environ.get("THREADS_VIDEO_TTL", "1h"))
-    return get_public_url(prepared)
+        url = upload_video_to_litterbox(prepared, os.environ.get("THREADS_VIDEO_TTL", "1h"))
+    else:
+        url = get_public_url(prepared)
+    return url if url and validate_public_media_url(url, "video/") else None
 
 
 def prepare_video_for_threads(local_path):
@@ -293,12 +389,14 @@ def wait_for_container(container_id, max_wait=60, interval=3):
         if status == "FINISHED":
             return True
         if status == "ERROR":
-            print(f"[ERROR] Container failed: {result.get('error_message', 'unknown')}")
-            return False
+            msg = result.get("error_message", "unknown")
+            print(f"[ERROR] Container failed: {msg}")
+            raise ThreadsPublishError("MEDIA_ERROR", msg, stage="container_processing")
         time.sleep(interval)
         elapsed += interval
-    print(f"[ERROR] Container timed out after {max_wait}s")
-    return False
+    msg = f"Container timed out after {max_wait}s"
+    print(f"[ERROR] {msg}")
+    raise ThreadsPublishError("TIMEOUT", msg, stage="container_processing")
 
 
 def _create_container(params):
@@ -320,7 +418,7 @@ def _publish(container_id):
 def publish_text(text):
     post_text = prepare_post_text(text)
     if not post_text:
-        return None
+        raise ThreadsPublishError("VALIDATION_ERROR", f"Threads post exceeds {THREADS_POST_MAX_CHARS} chars", stage="input_validation", media_type="text")
     print(f"[THREADS] Publishing text ({len(post_text)} chars)...")
     cid = _create_container({"media_type": "TEXT", "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
@@ -335,13 +433,12 @@ def publish_text(text):
 def publish_single_image(text, image_url):
     post_text = prepare_post_text(text)
     if not post_text:
-        return None
+        raise ThreadsPublishError("VALIDATION_ERROR", f"Threads post exceeds {THREADS_POST_MAX_CHARS} chars", stage="input_validation", media_type="image")
     print(f"[THREADS] Publishing single image...")
     cid = _create_container({"media_type": "IMAGE", "image_url": image_url, "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
         return None
-    if not wait_for_container(cid):
-        return None
+    wait_for_container(cid)
     post_id = _publish(cid)
     if post_id:
         print(f"[SUCCESS] Image post published! ID: {post_id}")
@@ -352,7 +449,7 @@ def publish_single_image(text, image_url):
 def publish_carousel(text, image_urls):
     post_text = prepare_post_text(text)
     if not post_text:
-        return None
+        raise ThreadsPublishError("VALIDATION_ERROR", f"Threads post exceeds {THREADS_POST_MAX_CHARS} chars", stage="input_validation", media_type="carousel")
     print(f"[THREADS] Publishing carousel with {len(image_urls)} images...")
     children_ids = []
     for i, url in enumerate(image_urls[:10]):
@@ -366,7 +463,10 @@ def publish_carousel(text, image_urls):
         if not cid:
             print(f"  [WARN] Skipping item {i+1}")
             continue
-        if not wait_for_container(cid, max_wait=60):
+        try:
+            wait_for_container(cid, max_wait=60)
+        except ThreadsPublishError as e:
+            print(f"  [WARN] Item {i+1} failed processing: {e.message}")
             print(f"  [WARN] Item {i+1} failed processing, skipping")
             continue
         children_ids.append(cid)
@@ -374,7 +474,7 @@ def publish_carousel(text, image_urls):
 
     if len(children_ids) == 0:
         print("[ERROR] No carousel items succeeded")
-        return None
+        raise ThreadsPublishError("MEDIA_ERROR", "No carousel items succeeded", stage="carousel_items")
     if len(children_ids) == 1:
         print("[FALLBACK] Only 1 item succeeded, publishing as single image")
         return publish_single_image(text, image_urls[0])
@@ -388,8 +488,7 @@ def publish_carousel(text, image_urls):
     })
     if not carousel_cid:
         return None
-    if not wait_for_container(carousel_cid, max_wait=60):
-        return None
+    wait_for_container(carousel_cid, max_wait=60)
     post_id = _publish(carousel_cid)
     if post_id:
         print(f"[SUCCESS] Carousel published! ID: {post_id}")
@@ -400,14 +499,13 @@ def publish_carousel(text, image_urls):
 def publish_video(text, video_url):
     post_text = prepare_post_text(text)
     if not post_text:
-        return None
+        raise ThreadsPublishError("VALIDATION_ERROR", f"Threads post exceeds {THREADS_POST_MAX_CHARS} chars", stage="input_validation", media_type="video")
     print(f"[THREADS] Publishing video...")
     cid = _create_container({"media_type": "VIDEO", "video_url": video_url, "text": post_text, "access_token": ACCESS_TOKEN})
     if not cid:
         return None
     # Video processing often takes longer than images; avoid false negatives too early.
-    if not wait_for_container(cid, max_wait=300, interval=5):
-        return None
+    wait_for_container(cid, max_wait=300, interval=5)
     post_id = _publish(cid)
     if post_id:
         print(f"[SUCCESS] Video published! ID: {post_id}")
@@ -442,7 +540,7 @@ def refresh_token():
     return new_token
 
 
-def main():
+def main_impl():
     global QUIET_MODE
     args = sys.argv[1:]
 
@@ -465,10 +563,12 @@ def main():
         video_url = get_video_url(args[1])
         text = " ".join(args[2:])
         if not video_url:
-            print("[ERROR] Video could not be normalized/uploaded to an HTTPS URL")
-            sys.exit(1)
+            raise ThreadsPublishError("MEDIA_ERROR", "Video could not be normalized, uploaded, or validated as an HTTPS URL", stage="media_preflight")
         post_id = publish_video(text, video_url)
-        sys.exit(0 if post_id else 1)
+        if post_id:
+            emit_result(True, "published", post_id=post_id, media_type="video", media_urls=[video_url])
+            return 0
+        raise ThreadsPublishError("META_ERROR", "Threads did not return a post ID", stage="publish", media_type="video")
 
     image_inputs = []
     remaining = []
@@ -484,24 +584,55 @@ def main():
     text = " ".join(remaining).strip()
     if not text:
         print("[ERROR] No caption text provided")
-        sys.exit(1)
+        raise ThreadsPublishError("VALIDATION_ERROR", "No caption text provided", stage="input_validation")
 
     if not image_inputs:
         post_id = publish_text(text)
-        sys.exit(0 if post_id else 1)
+        if post_id:
+            emit_result(True, "published", post_id=post_id, media_type="text")
+            return 0
+        raise ThreadsPublishError("META_ERROR", "Threads did not return a post ID", stage="publish", media_type="text")
 
     image_urls = [u for u in (get_image_url(p) for p in image_inputs) if u]
 
     if not image_urls:
         print("[ERROR] No valid image URLs; refusing to publish media request as text-only")
-        sys.exit(1)
+        raise ThreadsPublishError("MEDIA_ERROR", "No valid image URLs; refusing to publish media request as text-only", stage="media_preflight")
 
     if len(image_urls) == 1:
         post_id = publish_single_image(text, image_urls[0])
+        media_kind = "image"
     else:
         post_id = publish_carousel(text, image_urls)
-    sys.exit(0 if post_id else 1)
+        media_kind = "carousel"
+    if post_id:
+        emit_result(True, "published", post_id=post_id, media_type=media_kind, media_urls=image_urls)
+        return 0
+    raise ThreadsPublishError("META_ERROR", "Threads did not return a post ID", stage="publish", media_type=media_kind)
+
+
+def main():
+    try:
+        args_before = [a for a in sys.argv[1:] if a != "--quiet"]
+        media_type = "text"
+        if args_before and args_before[0] == "--video":
+            media_type = "video"
+        elif "--image" in args_before:
+            media_type = "carousel" if args_before.count("--image") > 1 else "image"
+
+        return main_impl()
+    except ThreadsPublishError as e:
+        emit_result(
+            False,
+            e.stage,
+            category=e.category,
+            message=e.message,
+            http_code=e.http_code,
+            fbtrace_id=e.fbtrace_id,
+            media_type=e.media_type or locals().get("media_type", "text"),
+        )
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

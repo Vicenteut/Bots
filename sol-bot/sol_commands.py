@@ -892,8 +892,69 @@ def cmd_publish(args: str = ""):
     PENDING_MEDIA_FILE.unlink(missing_ok=True)
 
 
+def _extract_threads_result(output: str) -> dict:
+    result = {}
+    for line in (output or "").splitlines():
+        if line.startswith("[THREADS_RESULT]"):
+            try:
+                parsed = json.loads(line.split("]", 1)[1].strip())
+                if isinstance(parsed, dict):
+                    result = parsed
+            except Exception:
+                pass
+    return result
+
+
+def _media_kind(media_type: str, media_paths: list) -> str:
+    if media_type == "video" and media_paths:
+        return "video"
+    if len(media_paths) > 1:
+        return "carousel"
+    if len(media_paths) == 1:
+        return "image"
+    return "text"
+
+
+def _classify_publish_result(output: str, returncode: int, media_kind: str) -> dict:
+    parsed = _extract_threads_result(output)
+    post_id = parsed.get("post_id") if parsed else None
+    success = returncode == 0 and bool(post_id or parsed.get("success"))
+    category = parsed.get("category") if parsed else None
+    message = parsed.get("message") if parsed else None
+    if not success and not category:
+        lower = (output or "").lower()
+        if "token" in lower or "permission" in lower or "unauthorized" in lower:
+            category = "AUTH_ERROR"
+        elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
+            category = "MEDIA_ERROR"
+        elif "timed out" in lower or "timeout" in lower:
+            category = "TIMEOUT"
+        elif "http error" in lower or "meta error" in lower or "fbtrace_id" in lower:
+            category = "META_ERROR"
+        else:
+            category = "FAILED"
+    if not message and not success:
+        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+        interesting = [ln for ln in lines if "[ERROR]" in ln or "[META ERROR]" in ln or "Container failed" in ln]
+        message = (interesting[-1] if interesting else (lines[-1] if lines else "Threads publish failed"))
+    return {
+        "success": success,
+        "post_id": post_id,
+        "status": "OK" if success else (category or "FAILED"),
+        "error_category": None if success else category,
+        "error_message": None if success else message,
+        "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
+        "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
+        "media_kind": parsed.get("media_type") or media_kind,
+    }
+
+
 def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str = None,
-                         tweet_type: str = None, model_used: str = None):
+                         tweet_type: str = None, model_used: str = None,
+                         has_media: bool = False, media_type: str = "text",
+                         media_count: int = 0, status: str = None,
+                         error_category: str = None, error_message: str = None,
+                         fbtrace_id: str = None, public_media_urls: list = None):
     """Append one publish event to logs/publish_log.json. Never raises."""
     try:
         import tempfile
@@ -907,6 +968,14 @@ def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str 
             "tweet_type": tweet_type,
             "model_used": model_used,
             "char_count": len(tweet) if tweet else 0,
+            "has_media": has_media,
+            "media_type": media_type,
+            "media_count": media_count,
+            "status": status or ("OK" if success else "FAILED"),
+            "error_category": error_category,
+            "error_message": (error_message or "")[:500] if error_message else None,
+            "fbtrace_id": fbtrace_id,
+            "public_media_urls": public_media_urls or [],
         }
         if log_path.exists():
             try:
@@ -948,13 +1017,16 @@ def _read_pending_meta() -> tuple:
 
 def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None, media_paths: list = None):
     tweet_type, model_used = _read_pending_meta()
+    media_paths = media_paths or ([media_path] if media_path else [])
+    media_paths = [p for p in media_paths if p]
+    media_kind = _media_kind(media_type, media_paths)
     if len(tweet) > THREADS_POST_MAX_CHARS:
         send_message(f"Post demasiado largo para Threads: {len(tweet)}/{THREADS_POST_MAX_CHARS} chars. Regenera antes de publicar.")
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            media_type=media_kind, media_count=len(media_paths),
+                            status="VALIDATION_ERROR", error_category="VALIDATION_ERROR",
+                            error_message=f"Post too long: {len(tweet)}/{THREADS_POST_MAX_CHARS}")
         return False
-    if media_paths is None:
-        media_paths = [media_path] if media_path else []
-    media_paths = [p for p in media_paths if p]
     primary_media = tg_media_url or (media_paths[0] if media_paths else media_path)
     send_message(_get_media_status(primary_media, tg_media_url))
 
@@ -970,13 +1042,18 @@ def _publish_threads(tweet: str, media_path: str = None, media_type: str = "phot
 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=360 if media_type == "video" else 120, cwd=BOT_DIR)
-        if r.returncode == 0:
+        combined_output = (r.stdout or "") + (r.stderr or "")
+        parsed_result = _classify_publish_result(combined_output, r.returncode, media_kind)
+        if r.returncode == 0 and parsed_result["success"]:
             if "[ERROR]" in (r.stdout or ""):
                 logger.warning(f"Threads media issue: {r.stdout[:300]}")
             m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            post_id = m.group(1) if m else None
+            post_id = parsed_result["post_id"] or (m.group(1) if m else None)
             _append_publish_log("threads", True, tweet, tweet_id=post_id,
-                                  tweet_type=tweet_type, model_used=model_used)
+                                  tweet_type=tweet_type, model_used=model_used,
+                                  has_media=bool(media_paths), media_type=parsed_result["media_kind"],
+                                  media_count=len(media_paths), status="OK",
+                                  public_media_urls=parsed_result["public_media_urls"])
             send_message("Publicado en Threads.")
             for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
                 try:
@@ -986,16 +1063,31 @@ def _publish_threads(tweet: str, media_path: str = None, media_type: str = "phot
                     logger.warning(f"[cleanup] Could not delete {f}: {e}")
             return True
 
-        combined = (r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        send_message(f"Error en Threads:\n{combined.strip()[-400:]}")
+        combined = (r.stdout or "")[-500:] + "\n" + (r.stderr or "")[-500:]
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=parsed_result["media_kind"],
+                            media_count=len(media_paths), status=parsed_result["status"],
+                            error_category=parsed_result["error_category"],
+                            error_message=parsed_result["error_message"],
+                            fbtrace_id=parsed_result["fbtrace_id"],
+                            public_media_urls=parsed_result["public_media_urls"])
+        short_error = parsed_result["error_message"] or combined.strip()[-400:]
+        trace = f"\nfbtrace_id: {parsed_result['fbtrace_id']}" if parsed_result.get("fbtrace_id") else ""
+        send_message(f"Error en Threads [{parsed_result['status']}]:\n{short_error[:400]}{trace}")
         return False
     except subprocess.TimeoutExpired:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=media_kind,
+                            media_count=len(media_paths), status="TIMEOUT",
+                            error_category="TIMEOUT",
+                            error_message="Timeout publicando en Threads")
         send_message("Timeout publicando en Threads.")
         return False
     except Exception as e:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=media_kind,
+                            media_count=len(media_paths), status="FAILED",
+                            error_category="FAILED", error_message=str(e))
         send_message(f"Error Threads: {e}")
         return False
 
