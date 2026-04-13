@@ -1,0 +1,234 @@
+{
+  "id": "5USeLIzjIlBK0qUI",
+  "name": "Engagement Tracker",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Fetch Publish Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8502/api/n8n/publish-log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic c29sOnNvbHBhc3MxMjM="
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "name": "Split into Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300],
+      "parameters": {
+        "jsCode": "// HTTP response is an array — split into individual n8n items\nconst tweets = $input.first().json;\nif (!Array.isArray(tweets) || tweets.length === 0) {\n  return [{ json: { _empty: true } }];\n}\nreturn tweets.map(t => ({ json: t }));"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-0004-0004-000000000004",
+      "name": "Split Tweets",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [860, 300],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-0005-0005-000000000005",
+      "name": "Fetch X Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 300],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.twitter.com/2/tweets/' + $json.tweet_id + '?tweet.fields=public_metrics' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "X Bearer Token"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-0006-0006-000000000006",
+      "name": "Extract Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300],
+      "parameters": {
+        "jsCode": "// Recover tweet_id and text_preview from the batch loop\nlet batchItem;\ntry { batchItem = $('Split Tweets').item.json; } catch(e) { batchItem = {}; }\n\nconst tweet_id = batchItem.tweet_id || '';\nconst text_preview = batchItem.text_preview || '';\n\nif (!tweet_id) return [{ json: { _skip: true } }];\n\n// Extract metrics from X API v2 response\nconst metrics = ($input.first().json?.data?.public_metrics) || {};\n\nreturn [{\n  json: {\n    tweet_id,\n    text_preview,\n    like_count:       parseInt(metrics.like_count       || 0, 10),\n    retweet_count:    parseInt(metrics.retweet_count    || 0, 10),\n    reply_count:      parseInt(metrics.reply_count      || 0, 10),\n    impression_count: parseInt(metrics.impression_count || 0, 10)\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0007-0007-0007-000000000007",
+      "name": "Update Engagement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1520, 300],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8502/api/n8n/update-engagement",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic c29sOnNvbHBhc3MxMjM="
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ tweet_id: $json.tweet_id, views: $json.impression_count, likes: $json.like_count, retweets: $json.retweet_count, replies: $json.reply_count }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-0008-0008-000000000008",
+      "name": "Check Traction",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1740, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-views-100",
+              "leftValue": "={{ $json.impression_count }}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0009-0009-0009-000000000009",
+      "name": "Send Traction Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1960, 200],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM/sendMessage",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ chat_id: 6054558214, text: '📈 Post gaining traction: ' + $json.impression_count + ' views\\n' + $json.text_preview + '\\nhttps://x.com/inequaliti/status/' + $json.tweet_id, parse_mode: 'HTML' }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000010",
+      "name": "No Action",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1960, 400],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [{ "node": "Fetch Publish Log", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Publish Log": {
+      "main": [
+        [{ "node": "Split into Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split into Items": {
+      "main": [
+        [{ "node": "Split Tweets", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Tweets": {
+      "main": [
+        [{ "node": "Fetch X Metrics", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Fetch X Metrics": {
+      "main": [
+        [{ "node": "Extract Metrics", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Metrics": {
+      "main": [
+        [{ "node": "Update Engagement", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Engagement": {
+      "main": [
+        [{ "node": "Check Traction", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Traction": {
+      "main": [
+        [{ "node": "Send Traction Alert", "type": "main", "index": 0 }],
+        [{ "node": "No Action", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "2"
+}

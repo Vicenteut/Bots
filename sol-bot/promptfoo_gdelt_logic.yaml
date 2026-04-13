@@ -1,0 +1,100 @@
+description: "GDELT Spike Detection Logic — unit tests (target: 5/5 pass)"
+
+# Run: cd /root/x-bot/sol-bot && promptfoo eval -c promptfoo_gdelt_logic.yaml
+
+providers:
+  - id: "file:///root/x-bot/sol-bot/gdelt_spike_runner.js"
+    label: "gdelt-spike-detector"
+
+prompts:
+  - label: "spike-input"
+    raw: >
+      {"currentCount":{{currentCount}},"baselineCount":{{baselineCount}},"lastAlert":{{lastAlert}},"nowISO":"{{nowISO}}"}
+
+tests:
+  - description: "TC1 — Normal load: count below baseline, no spike"
+    vars:
+      currentCount: 3
+      baselineCount: 4
+      lastAlert: "null"
+      nowISO: "2026-04-10T12:00:00.000Z"
+    assert:
+      - type: javascript
+        value: |
+          try {
+            const r = JSON.parse(output);
+            if (r.shouldAlert !== false) return 'FAIL: shouldAlert should be false, got ' + r.shouldAlert;
+            if (r.spikePercent >= 0) {
+              // Actually with count=3, baseline=4, spike = (3-4)/4*100 = -25% which is < 0
+              // So spikePercent should be negative (rounded to -25)
+              if (r.spikePercent > 0) return 'FAIL: spikePercent should be <= 0, got ' + r.spikePercent;
+            }
+            return true;
+          } catch(e) { return 'FAIL: ' + e.message; }
+
+  - description: "TC2 — 3x spike (300%): far above 200% threshold, no cooldown"
+    vars:
+      currentCount: 12
+      baselineCount: 3
+      lastAlert: "null"
+      nowISO: "2026-04-10T12:00:00.000Z"
+    assert:
+      - type: javascript
+        value: |
+          try {
+            const r = JSON.parse(output);
+            if (r.shouldAlert !== true) return 'FAIL: shouldAlert should be true, got ' + r.shouldAlert;
+            if (r.spikePercent < 200) return 'FAIL: spikePercent should be >= 200, got ' + r.spikePercent;
+            if (r.inCooldown !== false) return 'FAIL: inCooldown should be false, got ' + r.inCooldown;
+            return true;
+          } catch(e) { return 'FAIL: ' + e.message; }
+
+  - description: "TC3 — Edge case: baseline=0, only 2 articles (below absolute threshold of 3)"
+    vars:
+      currentCount: 2
+      baselineCount: 0
+      lastAlert: "null"
+      nowISO: "2026-04-10T12:00:00.000Z"
+    assert:
+      - type: javascript
+        value: |
+          try {
+            const r = JSON.parse(output);
+            if (r.shouldAlert !== false) return 'FAIL: shouldAlert should be false (below absolute threshold), got ' + r.shouldAlert;
+            if (r.spikePercent !== 0) return 'FAIL: spikePercent should be 0, got ' + r.spikePercent;
+            return true;
+          } catch(e) { return 'FAIL: ' + e.message; }
+
+  - description: "TC4 — Cooldown active: 350% spike but alert fired 45 minutes ago"
+    vars:
+      currentCount: 9
+      baselineCount: 2
+      lastAlert: '"2026-04-10T11:20:00.000Z"'
+      nowISO: "2026-04-10T12:05:00.000Z"
+    assert:
+      - type: javascript
+        value: |
+          try {
+            const r = JSON.parse(output);
+            if (r.inCooldown !== true) return 'FAIL: inCooldown should be true (45min < 2h), got ' + r.inCooldown;
+            if (r.shouldAlert !== false) return 'FAIL: shouldAlert should be false (in cooldown), got ' + r.shouldAlert;
+            if (r.spikePercent < 200) return 'FAIL: spikePercent should reflect real spike (>=200), got ' + r.spikePercent;
+            return true;
+          } catch(e) { return 'FAIL: ' + e.message; }
+
+  - description: "TC5 — Cooldown expired: 300% spike, alert fired 3 hours ago"
+    vars:
+      currentCount: 8
+      baselineCount: 2
+      lastAlert: '"2026-04-10T09:00:00.000Z"'
+      nowISO: "2026-04-10T12:05:00.000Z"
+    assert:
+      - type: javascript
+        value: |
+          try {
+            const r = JSON.parse(output);
+            if (r.inCooldown !== false) return 'FAIL: inCooldown should be false (3h > 2h cooldown), got ' + r.inCooldown;
+            if (r.shouldAlert !== true) return 'FAIL: shouldAlert should be true, got ' + r.shouldAlert;
+            if (r.spikePercent < 200) return 'FAIL: spikePercent should be >= 200, got ' + r.spikePercent;
+            return true;
+          } catch(e) { return 'FAIL: ' + e.message; }
