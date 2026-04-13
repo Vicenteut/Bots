@@ -81,7 +81,7 @@ OPENROUTER_BASE   = "https://openrouter.ai/api/v1"
 REPLY_MODEL_MAP   = {
     "haiku":  "anthropic/claude-haiku-4-5",
     "sonnet": "anthropic/claude-sonnet-4-6",
-    "opus":   "anthropic/claude-opus-4-6",
+    "opus":   "anthropic/claude-sonnet-4-6",
 }
 REPLY_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
@@ -501,7 +501,7 @@ class GeneratePayload(BaseModel):
     headline: str
     tweet_type: str = "RANDOM"   # WIRE|ANALISIS|DEBATE|CONEXION|RANDOM
     manual: bool = True
-    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"|"opus"
+    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"
 
 
 class MixedPayload(BaseModel):
@@ -520,7 +520,7 @@ class MonitorActionPayload(BaseModel):
 class ReplyPayload(BaseModel):
     input_type: str               # "text" | "url"
     content: str                  # pasted text OR tweet URL
-    model_override: Optional[str] = None  # "haiku"|"sonnet"|"opus"|null
+    model_override: Optional[str] = None  # "haiku"|"sonnet"|null
 
 class ReplyRegenPayload(BaseModel):
     move: str
@@ -575,67 +575,52 @@ async def api_publish(request: Request, payload: PublishPayload):
             print(f"[publish/{source}] media flag=--video path={mp}", flush=True)
         elif mp:
             print(f"[publish/{source}] video path not found: {mp}", flush=True)
-    else:
+    elif media_paths:
+        valid = [p for p in media_paths if p and Path(p).exists()]
+        if valid:
+            # threads_publisher.py expects repeated --image flags for carousels.
+            for mp in valid:
+                media_args += ["--image", mp]
+            print(f"[publish/{source}] media flag=--image count={len(valid)}", flush=True)
         for mp in media_paths:
-            if mp and Path(mp).exists():
-                flag = "--video" if Path(mp).suffix.lower() == ".mp4" else "--image"
-                media_args += [flag, mp]
-                print(f"[publish/{source}] media flag={flag} path={mp}", flush=True)
-            elif mp:
+            if mp and not Path(mp).exists():
                 print(f"[publish/{source}] media path not found: {mp}", flush=True)
 
-    # Build command — all platforms routed through publish_dual.py for consistent media handling
-    if platform == "both":
-        cmd = ["python3", "publish_dual.py"] + media_args + [tweet_text]
-    elif platform == "x":
-        cmd = ["python3", "publish_dual.py", "--x-only"] + media_args + [tweet_text]
-    else:  # threads
-        cmd = ["python3", "publish_dual.py", "--threads-only"] + media_args + [tweet_text]
-    print(f"[publish/{source}] platform={platform} cmd={cmd[:6]}", flush=True)
+    # X publishing is retired: route every publish request to Threads only.
+    requested_platform = platform
+    platform = "threads"
+    cmd = ["python3", "threads_publisher.py", "--quiet"] + media_args + [tweet_text]
+    print(f"[publish/{source}] requested_platform={requested_platform} routed_platform=threads cmd={cmd[:6]}", flush=True)
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=str(BOT_DIR),
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(BOT_DIR),
+            timeout=360 if media_type == "video" else 120,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Publish timed out — check Threads token, media URL, or video processing")
     stdout = result.stdout + result.stderr
+    if result.returncode != 0:
+        print(f"[publish/{source}] Threads publish failed rc={result.returncode}: {stdout[-1200:]}", flush=True)
 
-    # Parse results
+    # Parse Threads result. Keep x_* fields false/null for UI backward compatibility.
     x_success = False
-    threads_success = False
     x_tweet_id = None
+    threads_success = result.returncode == 0
     threads_post_id = None
 
-    if platform == "both":
-        m = re.search(r"\[RESULT\]\s+X:\s*(OK|FAILED)\s*\|\s*Threads:\s*(OK|FAILED)", stdout)
-        if m:
-            x_success = m.group(1) == "OK"
-            threads_success = m.group(2) == "OK"
-    elif platform == "x":
-        x_success = result.returncode == 0
-    elif platform == "threads":
-        threads_success = result.returncode == 0
-
-    # Extract IDs
-    m_x = re.search(r"Tweet \d+ publicado\. ID:\s*(\S+)", stdout)
-    if m_x:
-        x_tweet_id = m_x.group(1)
-    m_t = re.search(r"\[SUCCESS\] Post published! ID:\s*(\S+)", stdout)
+    m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
     if m_t:
         threads_post_id = m_t.group(1)
 
-    # Write to publish_log.json so Recent Posts panel updates
+    # Write to publish_log.json so Recent Posts panel updates.
     tweet_type_log = data.get("tweet_type")
     _has_media = bool(media_args)
-    if x_success:
-        _append_publish_log("x", True, tweet_text, tweet_id=x_tweet_id, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    elif platform in ("both", "x"):
-        _append_publish_log("x", False, tweet_text, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    if threads_success:
-        _append_publish_log("threads", True, tweet_text, tweet_id=threads_post_id, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    elif platform in ("both", "threads"):
-        _append_publish_log("threads", False, tweet_text, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
+    _append_publish_log("threads", threads_success, tweet_text, tweet_id=threads_post_id,
+                        tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
 
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
 
@@ -1056,13 +1041,18 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                     print(f"[monitor/original] media flag={flag} path={mp}", flush=True)
                 elif mp:
                     print(f"[monitor/original] media path not found: {mp}", flush=True)
-            cmd = ["python3", "publish_dual.py"] + media_args + [tweet]
-            print(f"[monitor/original] running: {cmd}", flush=True)
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR))
+            cmd = ["python3", "threads_publisher.py", "--quiet"] + media_args + [tweet]
+            print(f"[monitor/original] running Threads-only command: {cmd[:6]}", flush=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR), timeout=360 if entry.get("media_type") == "video" else 120)
+            stdout = result.stdout + result.stderr
             if result.stdout:
                 print(f"[monitor/original] stdout: {result.stdout[:400]}", flush=True)
             if result.stderr:
                 print(f"[monitor/original] stderr: {result.stderr[:400]}", flush=True)
+            m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
+            _append_publish_log("threads", result.returncode == 0, tweet,
+                                tweet_id=m_t.group(1) if m_t else None,
+                                has_media=bool(media_args), media_type=entry.get("media_type", "photo"))
             if result.returncode != 0:
                 # Remove from queue even on publish failure so it doesn't get stuck
                 queue = [e for e in queue if e.get("id") != alert_id]

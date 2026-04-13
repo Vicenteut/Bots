@@ -1108,7 +1108,7 @@ async function doMonitorAction(alertId, action, btn) {
       headers: _csrfHeaders(),
       body: JSON.stringify({action})
     });
-    const d = await r.json();
+    d = await r.json();
 
     if (d.success) {
       // Animate card out
@@ -1533,6 +1533,7 @@ function _finishPublishBars(container, platform, xOk, tOk) {
 }
 
 async function publishPost(platform, source, btn) {
+  platform = 'threads';
   const resultId = source === 'combo' ? 'publish-result-combo' : 'publish-result';
   const resultEl = document.getElementById(resultId);
   if (resultEl) resultEl.innerHTML = '';
@@ -1541,7 +1542,7 @@ async function publishPost(platform, source, btn) {
   const progContainer = _insertPublishProgress(grid, platform);
   const intervalId = _animatePublishBars(progContainer, platform);
 
-  let xOk = false, tOk = false;
+  let xOk = false, tOk = false, d = null;
   try {
     const r = await fetch('/api/publish', {
       method: 'POST',
@@ -1550,13 +1551,14 @@ async function publishPost(platform, source, btn) {
     });
     const d = await r.json();
     if (r.ok) {
-      xOk = !!d.x_success;
+      xOk = false;
       tOk = !!d.threads_success;
-      const xs = d.x_success      ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
-      const ts = d.threads_success ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
-      const summary = [xs, ts].filter(Boolean).join(' · ');
+      const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
-      if (tOk && resultEl) {
+      if (!tOk && resultEl) {
+        const out = d.stdout ? `<pre style="white-space:pre-wrap;margin-top:8px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre>` : '';
+        resultEl.innerHTML = `<span class="pub-fail">T FAILED</span>${out}`;
+      } else if (tOk && resultEl) {
         const pid = d.threads_post_id || '';
         const ts_now = new Date().toLocaleTimeString();
         const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
@@ -1586,6 +1588,7 @@ async function publishPost(platform, source, btn) {
 }
 
 async function _publishNow(platform, source, btn, resultEl) {
+  platform = 'threads';
   try {
     const r = await fetch('/api/publish', {
       method: 'POST',
@@ -1596,9 +1599,7 @@ async function _publishNow(platform, source, btn, resultEl) {
     if (!r.ok) {
       if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;
     } else {
-      const xs = d.x_success       ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
-      const ts = d.threads_success  ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
-      const summary = [xs, ts].filter(Boolean).join(' · ');
+      const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
       if (d.threads_success && resultEl) {
         const pid = d.threads_post_id || '';
@@ -1608,8 +1609,9 @@ async function _publishNow(platform, source, btn, resultEl) {
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
       } else if (resultEl) {
-        const cls = (d.x_success || d.threads_success) ? 'pub-ok' : 'pub-fail';
-        resultEl.innerHTML = `<span class="${cls}">${summary}</span>`;
+        const cls = d.threads_success ? 'pub-ok' : 'pub-fail';
+        const out = d.stdout ? `<pre style="white-space:pre-wrap;margin-top:8px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre>` : '';
+        resultEl.innerHTML = `<span class="${cls}">${summary}</span>${out}`;
       }
       pollPending();
       pollStatus();

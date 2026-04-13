@@ -562,10 +562,7 @@ def cmd_publish_translated(reply_news: str = None):
     media_note = f" + {'video' if media_type == 'video' else 'imagen'}" if media_path else ""
     send_message(f"Publicando traducción{media_note}: {translated[:80]}...")
 
-    if media_path:
-        _publish_both(translated, media_path, media_type)
-    else:
-        _publish_both(translated)
+    _publish_threads(translated, media_path, media_type)
 
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_publish_translated()")
     MONITOR_PENDING_FILE.unlink(missing_ok=True)
@@ -608,13 +605,8 @@ def cmd_publish_original(reply_news: str = None, target: str = "both"):
     send_message(f"Publicando original{media_note}: {text[:80]}...")
 
     if target == "x":
-        _publish_x(text, media_path, media_type)
-    elif target == "threads":
-        _publish_threads(text, media_path, media_type)
-    elif media_path:
-        _publish_both(text, media_path, media_type)
-    else:
-        _publish_both(text)
+        send_message("X esta desactivado; publicando en Threads.")
+    _publish_threads(text, media_path, media_type)
 
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_publish_original()")
     MONITOR_PENDING_FILE.unlink(missing_ok=True)
@@ -837,7 +829,7 @@ def cmd_publish_from_sched(n: int):
     else:
         media_note = ""
     send_message(f"Publicando tweet {n}{media_note}: {tweet[:80]}...")
-    _publish_both(tweet, media_path, media_type, media_paths=media_paths)
+    _publish_threads(tweet, media_path, media_type, media_paths=media_paths)
     PENDING_FILE.unlink(missing_ok=True)
 
 
@@ -886,11 +878,8 @@ def cmd_publish(args: str = ""):
     send_message(f"Publicando{media_note}: {tweet[:80]}...")
 
     if target == "x":
-        _publish_x(tweet, media_path, media_type, media_paths=media_paths)
-    elif target == "threads":
-        _publish_threads(tweet, media_path, media_type, tg_media_url=tg_media_url)
-    else:
-        _publish_both(tweet, media_path, media_type, media_paths=media_paths, tg_media_url=tg_media_url)
+        send_message("X esta desactivado; publicando en Threads.")
+    _publish_threads(tweet, media_path, media_type, tg_media_url=tg_media_url, media_paths=media_paths)
 
     for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
         try:
@@ -967,54 +956,31 @@ def _read_pending_meta() -> tuple:
 
 
 def _publish_x(tweet: str, media_path: str = None, media_type: str = "photo", media_paths: list = None):
-    tweet_type, model_used = _read_pending_meta()
-    send_message(_get_media_status(media_path))
-    cmd = ["python3", os.path.join(BOT_DIR, "x_publisher.py")]
-    if media_type == "video" and media_path:
-        cmd += ["--video", media_path]
-    elif media_paths and len(media_paths) > 1:
-        # Multiple images: --images img1.jpg,img2.jpg
-        cmd += ["--images", ",".join(media_paths)]
-    elif media_path:
-        cmd += ["--image", media_path]
-    cmd.append(tweet)
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=BOT_DIR)
-        if r.returncode == 0:
-            m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            tweet_id = m.group(1) if m else None
-            _append_publish_log("x", True, tweet, tweet_id=tweet_id,
-                                 tweet_type=tweet_type, model_used=model_used)
-            send_message("Publicado en X.")
-            for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
-                try:
-                    if f.exists():
-                        f.unlink()
-                except (OSError, FileNotFoundError) as e:
-                    logger.warning(f"[cleanup] Could not delete {f}: {e}")
-        else:
-            _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            send_message(f"Error en X:\n{r.stderr[-400:]}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        send_message("Timeout publicando en X (>3 min).")
-    except Exception as e:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        send_message(f"Error X: {e}")
+    """X publishing is retired; keep this shim so old commands cannot post to X."""
+    send_message("X esta desactivado; publicando en Threads.")
+    return _publish_threads(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
 
 
-def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None):
+def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None, media_paths: list = None):
     tweet_type, model_used = _read_pending_meta()
-    send_message(_get_media_status(media_path, tg_media_url))
-    cmd = ["python3", os.path.join(BOT_DIR, "threads_publisher.py")]
-    # Prefer tg_media_url (already public) over local path (requires catbox upload)
-    threads_media = tg_media_url if tg_media_url else media_path
-    if threads_media:
-        flag = "--video" if media_type == "video" else "--image"
-        cmd += [flag, threads_media]
+    if media_paths is None:
+        media_paths = [media_path] if media_path else []
+    media_paths = [p for p in media_paths if p]
+    primary_media = tg_media_url or (media_paths[0] if media_paths else media_path)
+    send_message(_get_media_status(primary_media, tg_media_url))
+
+    cmd = ["python3", os.path.join(BOT_DIR, "threads_publisher.py"), "--quiet"]
+    if media_type == "video" and primary_media:
+        cmd += ["--video", primary_media]
+    elif tg_media_url:
+        cmd += ["--image", tg_media_url]
+    else:
+        for mp in media_paths:
+            cmd += ["--image", mp]
     cmd.append(tweet)
+
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=BOT_DIR)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=360 if media_type == "video" else 120, cwd=BOT_DIR)
         if r.returncode == 0:
             if "[ERROR]" in (r.stdout or ""):
                 logger.warning(f"Threads media issue: {r.stdout[:300]}")
@@ -1029,98 +995,30 @@ def _publish_threads(tweet: str, media_path: str = None, media_type: str = "phot
                         f.unlink()
                 except (OSError, FileNotFoundError) as e:
                     logger.warning(f"[cleanup] Could not delete {f}: {e}")
-        else:
-            combined = (r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]
-            _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            send_message(f"Error en Threads:\n{combined.strip()[-400:]}")
+            return True
+
+        combined = (r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        send_message(f"Error en Threads:\n{combined.strip()[-400:]}")
+        return False
     except subprocess.TimeoutExpired:
         _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
         send_message("Timeout publicando en Threads.")
+        return False
     except Exception as e:
         _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
         send_message(f"Error Threads: {e}")
+        return False
 
 
 def _publish_both(tweet, media_path=None, media_type="photo", media_paths=None, tg_media_url=None):
-    tweet_type, model_used = _read_pending_meta()
-    if media_path is None and PENDING_MEDIA_FILE.exists():
-        try:
-            pm = json.loads(PENDING_MEDIA_FILE.read_text())
-            lp = pm.get("local_path", "")
-            if os.path.exists(lp):
-                media_path = lp
-                media_paths = [lp]
-                media_type = pm.get("media_type", "photo")
-                tg_media_url = pm.get("tg_file_url") or tg_media_url
-        except Exception:
-            pass
-    send_message(_get_media_status(media_path, tg_media_url))
-    results = []
-    # --- X ---
-    cmd = ["python3", os.path.join(BOT_DIR, "x_publisher.py")]
-    if media_type == "video" and media_path:
-        cmd += ["--video", media_path]
-    elif media_paths and len(media_paths) > 1:
-        cmd += ["--images", ",".join(media_paths)]
-    elif media_path:
-        cmd += ["--image", media_path]
-    cmd.append(tweet)
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=BOT_DIR)
-        if r.returncode == 0:
-            m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            _append_publish_log("x", True, tweet, tweet_id=m.group(1) if m else None,
-                                 tweet_type=tweet_type, model_used=model_used)
-            results.append("X: Publicado")
-        else:
-            combined = ((r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]).strip()
-            _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            results.append(f"X: Error\n{combined}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append("X: Timeout")
-    except Exception as e:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append(f"X: Error {e}")
-    # --- Threads ---
-    cmd2 = ["python3", os.path.join(BOT_DIR, "threads_publisher.py"), "--quiet"]
-    # Prefer tg_media_url (already public) over local path (requires catbox upload)
-    threads_media = tg_media_url if tg_media_url else media_path
-    if threads_media:
-        flag = "--video" if media_type == "video" else "--image"
-        cmd2 += [flag, threads_media]
-    cmd2.append(tweet)
-    try:
-        r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=120, cwd=BOT_DIR)
-        if r2.returncode == 0:
-            m2 = re.search(r"ID:\s*(\d+)", r2.stdout or "")
-            _append_publish_log("threads", True, tweet, tweet_id=m2.group(1) if m2 else None,
-                                 tweet_type=tweet_type, model_used=model_used)
-            if "[ERROR]" in (r2.stdout or ""):
-                logger.warning(f"Threads media issue: {r2.stdout[:300]}")
-                results.append(f"Threads: Publicado (advertencia media: {r2.stdout[:150]})")
-            else:
-                results.append("Threads: Publicado")
-        else:
-            combined = ((r2.stdout or "")[-200:] + "\n" + (r2.stderr or "")[-200:]).strip()
-            _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            results.append(f"Threads: Error\n{combined}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append("Threads: Timeout")
-    except Exception as e:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append(f"Threads: Error {e}")
-    send_message("Publicacion dual:\n- " + "\n- ".join(results))
-    for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
-        try:
-            if f.exists():
-                f.unlink()
-        except (OSError, FileNotFoundError) as e:
-            logger.warning(f"[cleanup] Could not delete {f}: {e}")
+    """Compatibility wrapper: X publishing is retired, so legacy dual calls publish Threads only."""
+    return _publish_threads(tweet, media_path=media_path, media_type=media_type,
+                            tg_media_url=tg_media_url, media_paths=media_paths)
+
 
 def _publish_combo(args: str = ""):
-    """Publish a single mixed tweet from pending_combo.json."""
+    """Publish a single mixed tweet from pending_combo.json to Threads only."""
     try:
         data = json.loads(COMBO_FILE.read_text())
     except Exception as e:
@@ -1128,29 +1026,16 @@ def _publish_combo(args: str = ""):
         return
 
     tweet = data.get("tweet", "")
-    default_target = data.get("default_target", "both")
     media_paths, media_type = _load_media_from_pending(data)
     media_path = media_paths[0] if media_paths else None
 
-    arg = args.strip().lower()
-    if arg == "x":
-        target = "x"
-    elif arg in ("threads", "thread"):
-        target = "threads"
-    else:
-        target = default_target
+    if args.strip().lower() == "x":
+        send_message("X esta desactivado; publicando mixed en Threads.")
 
-    target_label = {"both": "X + Threads", "x": "solo X", "threads": "solo Threads"}.get(target, "X + Threads")
-
-    send_message(_get_media_status(media_path))
-
-    if target in ("both", "x"):
-        _publish_x(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
-    if target in ("both", "threads"):
-        _publish_threads(tweet, media_path=media_path, media_type=media_type)
+    _publish_threads(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
 
     COMBO_FILE.unlink(missing_ok=True)
-    send_message(f"Mixed publicado en {target_label}.")
+    send_message("Mixed publicado en Threads.")
     for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
         try:
             if f.exists():
@@ -1181,11 +1066,12 @@ def _dispatch_brain_action(action: str, instruction: str, text: str, reply_news:
             send_message("No hay nada pendiente para publicar. ¿Querés generar algo primero?")
             return
         if action == "publish_x_only":
-            target = "x"
+            send_message("X esta desactivado; publicando en Threads.")
+            target = "threads"
         elif action == "publish_threads_only":
             target = "threads"
         else:
-            target = ""
+            target = "threads"
         cmd_publish(target)
 
     elif action == "regenerate":
@@ -1226,7 +1112,7 @@ def handle_message(text: str, reply_news: str = None):
             log_brain_action("publish", text)
         else:
             cmd_publish(args)
-            _pub_action = "publish_x_only" if args.lower() == "x" else ("publish_threads_only" if args.lower() in ("threads", "thread") else "publish")
+            _pub_action = "publish_threads_only"
             log_brain_action(_pub_action, text)
     elif lower.startswith("/noticia"):
         cmd_generate(text)
