@@ -541,8 +541,8 @@
     .monitor-filters input, .monitor-filters select { flex: 0 0 148px; min-height: 38px; font-size: 11px; }
     .monitor-list { max-height: none; overflow: visible; padding: 10px; }
     .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; touch-action: pan-y; position: relative; }
-    .monitor-list-item.long-pressing { border-color: var(--success); box-shadow: 0 0 0 1px rgba(34,197,94,0.35), 0 0 20px rgba(34,197,94,0.12); }
-    .monitor-list-item.long-pressing::after { content: 'Hold to COMBINADA'; position: absolute; right: 10px; bottom: 8px; font-family: var(--mono); font-size: 9px; color: var(--success); }
+    .monitor-list-item.long-pressing { border-color: var(--success); box-shadow: 0 0 0 1px rgba(34,197,94,0.45), 0 0 24px rgba(34,197,94,0.16); transform: scale(0.995); }
+    .monitor-list-item.long-pressing::after { content: 'Keep holding → COMBINADA'; position: absolute; right: 10px; bottom: 8px; font-family: var(--mono); font-size: 9px; color: var(--success); }
     .monitor-band-header { margin: 14px 2px 8px; padding: 7px 10px; font-size: 10px; }
     .monitor-list-title { font-size: 13px; -webkit-line-clamp: 4; }
     .monitor-list-item-top { gap: 8px; flex-wrap: wrap; font-size: 10px; }
@@ -576,6 +576,9 @@
     body.mobile-tab-analytics .col-system.mob-active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     body.mobile-tab-analytics .mobile-system-inner { min-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 92px; }
     body.mobile-tab-analytics #analytics-panel.mobile-inline { min-height: calc(100dvh - 60px); }
+    body.mobile-tab-pending .col-manager-inner,
+    body.mobile-tab-inbox #monitor-content,
+    body.mobile-tab-analytics .mobile-system-inner { overscroll-behavior: contain; }
     .mobile-system-inner { flex: 1; overflow-y: auto; padding: 12px; background: var(--bg); }
     .mobile-card { border: 1px solid var(--border2); border-radius: 14px; background: var(--surface1); padding: 14px; margin-bottom: 12px; }
     .mobile-card-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--purple2); text-transform: uppercase; margin-bottom: 8px; }
@@ -1079,6 +1082,10 @@ function closeAllDrawers() {
 
 function fadeSwap(el, renderFn) {
   if (!el) { renderFn(); return; }
+  if (isMobileViewport()) {
+    renderFn();
+    return;
+  }
   el.classList.add('content-fading');
   setTimeout(function() {
     renderFn();
@@ -1113,8 +1120,12 @@ async function pollPending() {
       const pendingKey = JSON.stringify(d);
       if (pendingKey !== _lastPendingKey) {
         if (_pendingComboDirty) return;
+        const snap = isMobileViewport()
+          ? _scrollSnapshot(['.col-manager-inner', '#pending-container'])
+          : {};
         _lastPendingKey = pendingKey;
         fadeSwap(el, () => renderPending(d));
+        if (isMobileViewport()) _restoreScrollSnapshot(snap);
       }
     }
   } catch(e) {}
@@ -1143,6 +1154,8 @@ let _mobileLongPressTimer = null;
 let _mobileLongPressStart = null;
 let _lastStatus = null;
 let _lastPending = null;
+let _activeMobileTab = null;
+let _lastAnalyticsKey = '';
 const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
 const MONITOR_PRIORITIES = ['breaking','high','normal','low','duplicate','unverified'];
 const MONITOR_PRIORITY_LABELS = {
@@ -1160,6 +1173,24 @@ function _monitorSources(queue) {
 
 function _monitorTypes(queue) {
   return Array.from(new Set((queue || []).map(e => e.source_type || 'telegram'))).sort();
+}
+
+function _scrollSnapshot(selectors) {
+  const snap = {};
+  (selectors || []).forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) snap[sel] = el.scrollTop || 0;
+  });
+  return snap;
+}
+
+function _restoreScrollSnapshot(snap) {
+  requestAnimationFrame(() => {
+    Object.entries(snap || {}).forEach(([sel, top]) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = top;
+    });
+  });
 }
 
 function _monitorPriorities(queue) {
@@ -1260,8 +1291,7 @@ async function pollMonitor() {
       const d = await r.json();
       const monitorKey = JSON.stringify(d);
       if (monitorKey !== _lastMonitorKey) {
-        const listEl = document.getElementById('monitor-list');
-        const oldScroll = listEl ? listEl.scrollTop : 0;
+        const snap = _scrollSnapshot(['#monitor-content', '#monitor-list', '.monitor-detail']);
         const incoming = Array.isArray(d) ? d : [];
         const hadKnownIds = _monitorKnownIds.size > 0;
         const incomingIds = new Set(incoming.map(e => e.id));
@@ -1275,8 +1305,7 @@ async function pollMonitor() {
           _monitorDetailDirty = false;
         }
         renderMonitor(_monitorQueue);
-        const newListEl = document.getElementById('monitor-list');
-        if (newListEl) newListEl.scrollTop = oldScroll;
+        _restoreScrollSnapshot(snap);
         const drawer = document.getElementById('monitor-drawer');
         if (hadKnownIds && hasNewIds && drawer && !drawer.classList.contains('open')) {
           drawer.classList.add('open');
@@ -2140,7 +2169,7 @@ function moveMobileAlertHold(ev) {
   if (!_mobileLongPressStart) return;
   const dx = Math.abs((ev.clientX || 0) - _mobileLongPressStart.x);
   const dy = Math.abs((ev.clientY || 0) - _mobileLongPressStart.y);
-  if (dx > 12 || dy > 18) cancelMobileAlertHold();
+  if (dx > 24 || dy > 42) cancelMobileAlertHold();
 }
 
 function cancelMobileAlertHold() {
@@ -2161,7 +2190,7 @@ async function createComboFromAlert(alertId, sourceLabel='dragged alert') {
     const ok = await _showReplaceModal(_pendingComboOriginal || 'Existing pending combo');
     if (!ok) return false;
   }
-  if (isMobileViewport()) activateMobileTab('pending');
+  if (isMobileViewport() && _activeMobileTab !== 'pending') activateMobileTab('pending');
   const resultEl = document.getElementById('publish-result-combo');
   if (resultEl) resultEl.innerHTML = '<span style="color:var(--muted2);font-family:var(--mono);font-size:11px;">Generating COMBINADA…</span>';
   try {
@@ -2175,8 +2204,8 @@ async function createComboFromAlert(alertId, sourceLabel='dragged alert') {
     _monitorChecked.delete(alertId);
     await pollMonitor();
     await pollPending();
-    if (isMobileViewport()) activateMobileTab('pending');
-    setTimeout(() => document.getElementById('pending-combo-dropzone')?.scrollIntoView({block:'center', behavior:'smooth'}), 120);
+    if (isMobileViewport() && _activeMobileTab !== 'pending') activateMobileTab('pending');
+    setTimeout(() => document.getElementById('pending-combo-dropzone')?.scrollIntoView({block:'nearest', behavior:'smooth'}), 120);
     return true;
   } catch(e) {
     addLogLine('err', `[combo] generation failed: ${e.message || e}`);
@@ -2742,15 +2771,29 @@ function _fmtTime(isoStr) {
   }
 
   async function loadAnalytics() {
-    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading...</span>';
-    document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
+    const summaryEl = document.getElementById('analytics-threads-summary');
+    const recentEl = document.getElementById('analytics-threads-recent');
+    const snap = isMobileViewport()
+      ? _scrollSnapshot(['.mobile-system-inner', '#analytics-panel', '#analytics-threads-recent'])
+      : {};
+    const query = analyticsQueryString();
+    if (!_lastAnalyticsKey) {
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--muted2)">loading...</span>';
+      if (recentEl) recentEl.innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
+    } else if (recentEl) {
+      recentEl.classList.add('content-settling');
+    }
     try {
-      const threads = await csrfFetch('/api/threads/analytics?' + analyticsQueryString()).then(r => r.json());
+      const threads = await csrfFetch('/api/threads/analytics?' + query).then(r => r.json());
+      _lastAnalyticsKey = query;
       renderThreadsSummary(threads);
       renderThreadsRecent(threads);
+      if (isMobileViewport()) _restoreScrollSnapshot(snap);
     } catch(e) {
-      document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--danger)">error</span>';
-      document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--danger)">error</span>';
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--danger)">error</span>';
+      if (recentEl) recentEl.innerHTML  = '<span style="color:var(--danger)">error</span>';
+    } finally {
+      if (recentEl) recentEl.classList.remove('content-settling');
     }
   }
 
@@ -2971,6 +3014,11 @@ function renderMobileSystem() {
 
 function activateMobileTab(tabName) {
   if (!isMobileViewport()) return;
+  if (_activeMobileTab === tabName) {
+    syncMobileBadges();
+    return;
+  }
+  _activeMobileTab = tabName;
   setMobileTabClass(tabName);
   document.querySelectorAll('.mob-tab').forEach(function(t) {
     t.classList.toggle('active', t.dataset.tab === tabName);
@@ -3003,7 +3051,7 @@ function activateMobileTab(tabName) {
       const host = document.getElementById('mobile-system-inner');
       if (host && analytics.parentNode !== host) host.prepend(analytics);
     }
-    loadAnalytics();
+    if (!_lastAnalyticsKey) loadAnalytics();
   } else if (tabName === 'system') {
     const col = document.querySelector('.col-system');
     if (col) col.classList.add('mob-active');
@@ -3025,8 +3073,9 @@ function activateMobileTab(tabName) {
   setInterval(syncMobileBadges, 1000);
   window.addEventListener('resize', function() {
     if (isMobileViewport()) {
-      if (!document.body.className.match(/mobile-tab-/)) activateMobileTab('inbox');
+      if (!document.body.className.match(/mobile-tab-/)) activateMobileTab(_activeMobileTab || 'inbox');
     } else {
+      _activeMobileTab = null;
       document.body.classList.remove('mobile-tab-inbox','mobile-tab-pending','mobile-tab-create','mobile-tab-analytics','mobile-tab-system');
       document.querySelectorAll('.col').forEach(c => c.classList.remove('mob-active'));
       const drawer = document.getElementById('monitor-drawer');
