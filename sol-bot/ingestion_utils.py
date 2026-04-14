@@ -19,6 +19,8 @@ MONITOR_QUEUE_LOCK = BASE_DIR / "monitor_queue.lock"
 
 DEFAULT_SCHEMA_VERSION = "1.0"
 DEFAULT_QUEUE_MAX = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
+PRIORITY_ORDER = ("breaking", "high", "normal", "low", "duplicate", "unverified")
+PRIORITY_RANK = {label: idx for idx, label in enumerate(PRIORITY_ORDER)}
 
 _BREAKING_WORDS = (
     "breaking",
@@ -125,47 +127,91 @@ def _priority_label(score: int, *, possible_duplicate: bool = False, unverified:
     return "low"
 
 
-def score_alert(entry: dict[str, Any]) -> tuple[int, str]:
+def priority_rank(label: str | None) -> int:
+    return PRIORITY_RANK.get((label or "normal").strip().lower(), PRIORITY_RANK["normal"])
+
+
+def _add_reason(reasons: list[str], reason: str) -> None:
+    if reason and reason not in reasons:
+        reasons.append(reason)
+
+
+def score_alert_details(entry: dict[str, Any]) -> tuple[int, str, list[str]]:
     source_name = (entry.get("source_name") or "").strip().lower()
     credibility = (entry.get("credibility") or "").strip().lower()
     title = (entry.get("headline") or {}).get("title", "")
     summary = (entry.get("headline") or {}).get("summary", "")
     text = f"{title}\n{summary}".lower()
     score = 0
+    reasons: list[str] = []
 
     if entry.get("is_official"):
         score += 40
+        _add_reason(reasons, "official source")
     if credibility == "high" or source_name in _TIER1_NAMES:
         score += 30
+        _add_reason(reasons, "trusted source")
     elif credibility == "medium":
         score += 10
+        _add_reason(reasons, "known source")
 
     if entry.get("canonical_url"):
         score += 10
+        _add_reason(reasons, "canonical URL")
     else:
         score -= 20
-
-    if entry.get("topic_guess") and entry.get("topic_guess") != "general":
-        score += 15
-    if text.startswith(_BREAKING_WORDS) or any(word in text for word in _BREAKING_WORDS):
-        score += 10
-    if re.search(r"\b\d+(?:[.,]\d+)?\s?(%|bps|million|billion|trillion|k|m|bn|tn)?\b", text):
-        score += 10
+        _add_reason(reasons, "no canonical URL")
 
     related_count = int(entry.get("related_source_count") or 1)
     if related_count > 1:
         score += min(45, (related_count - 1) * 15)
+        _add_reason(reasons, "multiple sources")
+
+    if entry.get("topic_guess") and entry.get("topic_guess") != "general":
+        score += 15
+        _add_reason(reasons, f"topic: {entry.get('topic_guess')}")
+    if text.startswith(_BREAKING_WORDS) or any(word in text for word in _BREAKING_WORDS):
+        score += 10
+        _add_reason(reasons, "breaking keywords")
+    if re.search(r"\b\d+(?:[.,]\d+)?\s?(%|bps|million|billion|trillion|k|m|bn|tn)?\b", text):
+        score += 10
+        _add_reason(reasons, "data/numbers")
 
     unverified = credibility == "unverified" or entry.get("source_type") == "x"
     if unverified:
         score -= 25
+        _add_reason(reasons, "unverified")
+
+    if entry.get("possible_duplicate"):
+        _add_reason(reasons, "possible duplicate")
+    if int(entry.get("duplicate_count") or 0) > 0:
+        _add_reason(reasons, "duplicate reports")
 
     score = max(0, min(100, score))
-    return score, _priority_label(
+    label = _priority_label(
         score,
         possible_duplicate=bool(entry.get("possible_duplicate")),
         unverified=unverified and score < 80,
     )
+    return score, label, reasons[:5]
+
+
+def score_alert(entry: dict[str, Any]) -> tuple[int, str]:
+    score, label, _reasons = score_alert_details(entry)
+    return score, label
+
+
+def _title_tokens(text: str | None) -> set[str]:
+    stop = {"the", "a", "an", "to", "of", "in", "on", "for", "and", "or", "as", "is", "are"}
+    return {t for t in normalize_title(text).split() if len(t) > 3 and t not in stop}
+
+
+def _title_similarity(a: str | None, b: str | None) -> float:
+    left = _title_tokens(a)
+    right = _title_tokens(b)
+    if not left or not right:
+        return 0.0
+    return len(left & right) / max(1, len(left | right))
 
 
 def normalize_ingest_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -230,7 +276,8 @@ def normalize_ingest_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "related_source_count": 1,
     }
     entry["dedup_key"] = payload.get("dedup_key") or build_dedup_key(entry)
-    entry["score"], entry["priority_label"] = score_alert(entry)
+    entry["score"], entry["priority_label"], entry["score_reasons"] = score_alert_details(entry)
+    entry["priority_rank"] = priority_rank(entry["priority_label"])
     return entry
 
 
@@ -265,7 +312,8 @@ def merge_duplicate(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[
         merged["headline"] = incoming.get("headline", merged.get("headline", {}))
         merged["canonical_url"] = incoming.get("canonical_url") or merged.get("canonical_url", "")
 
-    merged["score"], merged["priority_label"] = score_alert(merged)
+    merged["score"], merged["priority_label"], merged["score_reasons"] = score_alert_details(merged)
+    merged["priority_rank"] = priority_rank(merged["priority_label"])
     return merged
 
 
@@ -277,8 +325,17 @@ def append_or_merge_queue(queue: list[dict[str, Any]], entry: dict[str, Any], *,
             queue[idx] = merged
             return queue, merged, "merged"
 
+    incoming_title = (entry.get("headline") or {}).get("title", "")
+    for existing in queue:
+        existing_title = (existing.get("headline") or {}).get("title", "")
+        if _title_similarity(incoming_title, existing_title) >= 0.82:
+            entry["possible_duplicate"] = True
+            entry["duplicate_of"] = existing.get("id")
+            entry["score"], entry["priority_label"], entry["score_reasons"] = score_alert_details(entry)
+            entry["priority_rank"] = priority_rank(entry["priority_label"])
+            break
+
     queue.append(entry)
     if len(queue) > max_items:
         queue = queue[-max_items:]
     return queue, entry, "created"
-

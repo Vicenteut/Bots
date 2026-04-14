@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, score_alert
+from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, priority_rank, score_alert_details
 from topic_utils import classify_topic
 
 try:
@@ -1300,12 +1300,14 @@ def _enrich_monitor_entry(entry: dict) -> dict:
     enriched["age_seconds"] = age_seconds
     enriched["topic_guess"] = classify_topic(text)
     enriched["suggested_format"] = _suggest_monitor_format(enriched)
-    if "score" not in enriched or "priority_label" not in enriched:
-        enriched["score"], enriched["priority_label"] = score_alert(enriched)
     enriched["source_type"] = enriched.get("source_type") or "telegram"
     enriched["credibility"] = enriched.get("credibility") or "medium"
     enriched["priority"] = enriched.get("priority") or "normal"
     enriched["related_source_count"] = int(enriched.get("related_source_count") or 1)
+    enriched["duplicate_count"] = int(enriched.get("duplicate_count") or 0)
+    enriched["possible_duplicate"] = bool(enriched.get("possible_duplicate"))
+    enriched["score"], enriched["priority_label"], enriched["score_reasons"] = score_alert_details(enriched)
+    enriched["priority_rank"] = priority_rank(enriched["priority_label"])
     enriched["related_sources"] = enriched.get("related_sources") or [
         {
             "source_name": enriched["source_name"],
@@ -1318,6 +1320,15 @@ def _enrich_monitor_entry(entry: dict) -> dict:
         for p in paths
     ]
     return enriched
+
+
+def _monitor_sort_key(entry: dict) -> tuple:
+    return (
+        int(entry.get("priority_rank", priority_rank(entry.get("priority_label")))),
+        -int(entry.get("score") or 0),
+        (entry.get("source_name") or "").lower(),
+        entry.get("received_at") or "",
+    )
 
 
 def _headline_from_payload(entry: dict, payload: MonitorActionPayload | MonitorSavePayload) -> dict:
@@ -1344,8 +1355,9 @@ def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
 
 @app.get("/api/monitor/queue")
 async def api_monitor_queue():
-    """Return enriched queue, oldest first."""
-    return JSONResponse([_enrich_monitor_entry(e) for e in _read_queue()])
+    """Return enriched queue ordered by editorial priority bands."""
+    enriched = [_enrich_monitor_entry(e) for e in _read_queue()]
+    return JSONResponse(sorted(enriched, key=_monitor_sort_key))
 
 
 @app.get("/api/monitor/sources")

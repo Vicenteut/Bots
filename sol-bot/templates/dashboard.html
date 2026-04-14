@@ -250,8 +250,12 @@
   .monitor-list-item { width: 100%; text-align: left; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px; margin-bottom: 6px; cursor: pointer; border-radius: 3px; font-family: var(--mono); }
   .monitor-list-item.active { border-color: var(--purple); background: rgba(176,38,255,0.10); box-shadow: 0 0 18px rgba(176,38,255,0.10); }
   .monitor-list-item.dragging { opacity:0.45; border-color:var(--success); }
+  .monitor-band-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:10px 2px 6px; padding:5px 7px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,0.025); font-family:var(--mono); font-size:9px; color:var(--muted2); text-transform:uppercase; letter-spacing:0.08em; }
+  .monitor-band-header:first-child { margin-top:0; }
   .monitor-list-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 9px; color: var(--muted2); }
   .monitor-list-title { font-size: 11px; line-height: 1.35; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .monitor-score-reasons { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+  .monitor-score-reason { border:1px solid var(--border); background:rgba(176,38,255,0.08); color:var(--muted); border-radius:999px; padding:2px 6px; font-size:8px; }
   .monitor-detail { flex: 1; overflow-y: auto; padding: 12px; }
   .monitor-detail textarea { min-height: 96px; margin-bottom: 8px; }
   .monitor-detail-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
@@ -527,6 +531,7 @@
     .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; touch-action: pan-y; position: relative; }
     .monitor-list-item.long-pressing { border-color: var(--success); box-shadow: 0 0 0 1px rgba(34,197,94,0.35), 0 0 20px rgba(34,197,94,0.12); }
     .monitor-list-item.long-pressing::after { content: 'Hold to COMBINADA'; position: absolute; right: 10px; bottom: 8px; font-family: var(--mono); font-size: 9px; color: var(--success); }
+    .monitor-band-header { margin: 14px 2px 8px; padding: 7px 10px; font-size: 10px; }
     .monitor-list-title { font-size: 13px; -webkit-line-clamp: 4; }
     .monitor-list-item-top { gap: 8px; flex-wrap: wrap; font-size: 10px; }
     .monitor-detail { padding: 14px; max-height: none; }
@@ -1122,6 +1127,14 @@ let _lastStatus = null;
 let _lastPending = null;
 const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
 const MONITOR_PRIORITIES = ['breaking','high','normal','low','duplicate','unverified'];
+const MONITOR_PRIORITY_LABELS = {
+  breaking: 'Breaking',
+  high: 'High priority',
+  normal: 'Normal',
+  low: 'Low signal',
+  duplicate: 'Possible duplicates',
+  unverified: 'Unverified'
+};
 
 function _monitorSources(queue) {
   return Array.from(new Set((queue || []).map(e => e.source_name || (e.headline && e.headline.source) || 'Unknown'))).sort();
@@ -1154,6 +1167,30 @@ function _monitorFiltered() {
     if (_monitorFilters.format !== 'all' && e.suggested_format !== _monitorFilters.format) return false;
     return true;
   });
+}
+
+function _monitorPriorityRank(label) {
+  const idx = MONITOR_PRIORITIES.indexOf((label || 'normal').toLowerCase());
+  return idx === -1 ? MONITOR_PRIORITIES.indexOf('normal') : idx;
+}
+
+function _monitorSorted(items) {
+  return (items || []).slice().sort((a, b) => {
+    const ar = Number.isFinite(a.priority_rank) ? a.priority_rank : _monitorPriorityRank(a.priority_label);
+    const br = Number.isFinite(b.priority_rank) ? b.priority_rank : _monitorPriorityRank(b.priority_label);
+    if (ar !== br) return ar - br;
+    const scoreDiff = (b.score || 0) - (a.score || 0);
+    if (scoreDiff) return scoreDiff;
+    const sourceDiff = String(a.source_name || '').localeCompare(String(b.source_name || ''));
+    if (sourceDiff) return sourceDiff;
+    return String(b.received_at || '').localeCompare(String(a.received_at || ''));
+  });
+}
+
+function _scoreReasonsHtml(entry, limit=3) {
+  const reasons = (entry.score_reasons || []).slice(0, limit);
+  if (!reasons.length) return '';
+  return `<div class="monitor-score-reasons">${reasons.map(r => `<span class="monitor-score-reason">${_esc(r)}</span>`).join('')}</div>`;
 }
 
 function _mediaUrl(path) {
@@ -1314,11 +1351,12 @@ function toggleMonitorCheck(id, checked) {
 function renderMonitorList() {
   const el = document.getElementById('monitor-list');
   if (!el) return;
-  const filtered = _monitorFiltered();
+  const filtered = _monitorSorted(_monitorFiltered());
   if (!filtered.length) {
     el.innerHTML = '<div class="monitor-empty" style="padding:18px 0;">No alerts match filters</div>';
     return;
   }
+  let currentBand = null;
   el.innerHTML = filtered.map(e => {
     const h = e.headline || {};
     const source = e.source_name || h.source || 'Unknown';
@@ -1326,17 +1364,25 @@ function renderMonitorList() {
     const score = e.score != null ? e.score : '—';
     const active = e.id === _monitorSelected ? 'active' : '';
     const checked = _monitorChecked.has(e.id) ? 'checked' : '';
-    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onpointerdown="startMobileAlertHold(event,'${_esc(e.id)}')" onpointermove="moveMobileAlertHold(event)" onpointerup="cancelMobileAlertHold(event)" onpointercancel="cancelMobileAlertHold(event)" onpointerleave="cancelMobileAlertHold(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
+    const band = priority || 'normal';
+    const bandHtml = band !== currentBand
+      ? `<div class="monitor-band-header"><span>${_esc(MONITOR_PRIORITY_LABELS[band] || band)}</span><span>${_monitorPriorityRank(band) + 1}/6</span></div>`
+      : '';
+    currentBand = band;
+    return `${bandHtml}<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onpointerdown="startMobileAlertHold(event,'${_esc(e.id)}')" onpointermove="moveMobileAlertHold(event)" onpointerup="cancelMobileAlertHold(event)" onpointercancel="cancelMobileAlertHold(event)" onpointerleave="cancelMobileAlertHold(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
       <div class="monitor-list-item-top">
         <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
         <span style="color:var(--amber);">${_esc(source)}</span>
         <span>${_esc(e.source_type || 'telegram')}</span>
         <span>${_esc(priority)} ${score}</span>
         <span>${_esc(e.suggested_format || 'ANALISIS')}</span>
+        ${e.related_source_count > 1 ? `<span>${e.related_source_count} sources</span>` : ''}
+        ${e.duplicate_count ? `<span>dup ${e.duplicate_count}</span>` : ''}
         <span>${e.has_media ? 'media ' + (e.media_count || 1) : 'text'}</span>
         <span style="margin-left:auto;">${e.received_at ? _timeAgo(e.received_at) : ''}</span>
       </div>
       <div class="monitor-list-title">${_esc(h.title || '[no text]')}</div>
+      ${_scoreReasonsHtml(e)}
     </button>`;
   }).join('');
   const countEl = document.getElementById('monitor-selected-count');
@@ -1371,11 +1417,14 @@ function renderMonitorDetail() {
       ${_pill((entry.priority_label || 'normal') + ' · ' + (entry.score != null ? entry.score : '—'), 'rgba(245,158,11,0.10)')}
       ${_pill(entry.credibility || 'medium', 'rgba(255,255,255,0.04)')}
       ${entry.related_source_count > 1 ? _pill(`${entry.related_source_count} sources`, 'rgba(34,197,94,0.10)') : ''}
+      ${entry.duplicate_count ? _pill(`${entry.duplicate_count} duplicates`, 'rgba(245,158,11,0.10)') : ''}
+      ${entry.possible_duplicate ? _pill('possible duplicate', 'rgba(239,68,68,0.10)') : ''}
       ${_pill(entry.topic_guess || 'general', 'rgba(34,211,238,0.10)')}
       ${_pill('suggested ' + (entry.suggested_format || 'ANALISIS'), 'rgba(34,197,94,0.10)')}
       ${_pill(entry.has_media ? `${entry.media_count || 1} media` : 'text only', 'rgba(255,255,255,0.04)')}
       ${_pill(entry.received_at ? _timeAgo(entry.received_at) : 'unknown age', 'rgba(255,255,255,0.04)')}
     </div>
+    ${_scoreReasonsHtml(entry, 5)}
     ${mediaHtml}
     <div class="field-label">Title / post source</div>
     <textarea id="mon-edit-title" oninput="_monitorDetailDirty=true">${_esc(h.title || '')}</textarea>
