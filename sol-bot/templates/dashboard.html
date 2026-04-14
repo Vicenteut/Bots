@@ -401,9 +401,11 @@
       top: 0;
       height: 100dvh;
       z-index: 400;
+      overflow: hidden;
     }
     /* Close btn in monitor drawer: larger touch target */
     .monitor-drawer .panel-header .btn { min-height: 36px; padding: 4px 14px; }
+    #monitor-content { overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 72px; }
 
     /* ── Reply drawer: full-screen on mobile ── */
     #reply-drawer {
@@ -521,8 +523,10 @@
     .monitor-chip-row { flex: 0 0 auto; width: max-content; border-bottom: none; padding: 0; align-items: center; }
     .monitor-chip { min-height: 34px; padding: 7px 11px; font-size: 10px; }
     .monitor-filters input, .monitor-filters select { flex: 0 0 148px; min-height: 38px; font-size: 11px; }
-    .monitor-list { max-height: 48dvh; padding: 10px; }
-    .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; }
+    .monitor-list { max-height: none; overflow: visible; padding: 10px; }
+    .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; touch-action: pan-y; position: relative; }
+    .monitor-list-item.long-pressing { border-color: var(--success); box-shadow: 0 0 0 1px rgba(34,197,94,0.35), 0 0 20px rgba(34,197,94,0.12); }
+    .monitor-list-item.long-pressing::after { content: 'Hold to COMBINADA'; position: absolute; right: 10px; bottom: 8px; font-family: var(--mono); font-size: 9px; color: var(--success); }
     .monitor-list-title { font-size: 13px; -webkit-line-clamp: 4; }
     .monitor-list-item-top { gap: 8px; flex-wrap: wrap; font-size: 10px; }
     .monitor-detail { padding: 14px; max-height: none; }
@@ -1112,6 +1116,8 @@ let _monitorLastDetailId = null;
 let _pendingComboExists = false;
 let _pendingComboOriginal = '';
 let _pendingComboDirty = false;
+let _mobileLongPressTimer = null;
+let _mobileLongPressStart = null;
 let _lastStatus = null;
 let _lastPending = null;
 const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
@@ -1320,7 +1326,7 @@ function renderMonitorList() {
     const score = e.score != null ? e.score : '—';
     const active = e.id === _monitorSelected ? 'active' : '';
     const checked = _monitorChecked.has(e.id) ? 'checked' : '';
-    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
+    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onpointerdown="startMobileAlertHold(event,'${_esc(e.id)}')" onpointermove="moveMobileAlertHold(event)" onpointerup="cancelMobileAlertHold(event)" onpointercancel="cancelMobileAlertHold(event)" onpointerleave="cancelMobileAlertHold(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
       <div class="monitor-list-item-top">
         <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
         <span style="color:var(--amber);">${_esc(source)}</span>
@@ -2024,20 +2030,48 @@ function allowComboDrop(ev) {
   ev.currentTarget.classList.add('drag-over');
 }
 
-async function dropMonitorToCombo(ev) {
-  ev.preventDefault();
-  document.body.classList.remove('monitor-dragging');
-  document.body.classList.remove('monitor-drag-exit');
-  ev.currentTarget.classList.remove('drag-over');
-  const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
+function startMobileAlertHold(ev, alertId) {
+  if (!isMobileViewport()) return;
+  if (ev.pointerType === 'mouse') return;
+  if (ev.target && ev.target.tagName === 'INPUT') return;
+  cancelMobileAlertHold();
+  _mobileLongPressStart = {x: ev.clientX, y: ev.clientY, id: alertId, el: ev.currentTarget};
+  ev.currentTarget.classList.add('long-pressing');
+  _mobileLongPressTimer = setTimeout(async function() {
+    const hold = _mobileLongPressStart;
+    cancelMobileAlertHold();
+    if (!hold || !hold.id) return;
+    addLogLine('ok', '[mobile] long press → COMBINADA');
+    await createComboFromAlert(hold.id, 'long press');
+  }, 2000);
+}
+
+function moveMobileAlertHold(ev) {
+  if (!_mobileLongPressStart) return;
+  const dx = Math.abs((ev.clientX || 0) - _mobileLongPressStart.x);
+  const dy = Math.abs((ev.clientY || 0) - _mobileLongPressStart.y);
+  if (dx > 12 || dy > 18) cancelMobileAlertHold();
+}
+
+function cancelMobileAlertHold() {
+  if (_mobileLongPressTimer) clearTimeout(_mobileLongPressTimer);
+  _mobileLongPressTimer = null;
+  if (_mobileLongPressStart && _mobileLongPressStart.el) {
+    _mobileLongPressStart.el.classList.remove('long-pressing');
+  }
+  _mobileLongPressStart = null;
+}
+
+async function createComboFromAlert(alertId, sourceLabel='dragged alert') {
   if (!alertId || !_monitorQueue.some(e => e.id === alertId)) {
-    addLogLine('err', '[combo] invalid dragged alert');
-    return;
+    addLogLine('err', '[combo] invalid alert');
+    return false;
   }
   if (_pendingComboExists) {
     const ok = await _showReplaceModal(_pendingComboOriginal || 'Existing pending combo');
-    if (!ok) return;
+    if (!ok) return false;
   }
+  if (isMobileViewport()) activateMobileTab('pending');
   const resultEl = document.getElementById('publish-result-combo');
   if (resultEl) resultEl.innerHTML = '<span style="color:var(--muted2);font-family:var(--mono);font-size:11px;">Generating COMBINADA…</span>';
   try {
@@ -2046,14 +2080,27 @@ async function dropMonitorToCombo(ev) {
       body: JSON.stringify({action:'mixed', tweet_type:'COMBINADA'})
     });
     const d = await r.json();
-    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'drag combo failed');
-    addLogLine('ok', `[monitor] dragged alert → pending_combo (${d.remaining} left)`);
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'combo generation failed');
+    addLogLine('ok', `[monitor] ${sourceLabel} → pending_combo (${d.remaining} left)`);
     _monitorChecked.delete(alertId);
     await pollMonitor();
     await pollPending();
+    if (isMobileViewport()) activateMobileTab('pending');
+    setTimeout(() => document.getElementById('pending-combo-dropzone')?.scrollIntoView({block:'center', behavior:'smooth'}), 120);
+    return true;
   } catch(e) {
-    addLogLine('err', `[combo] drop failed: ${e.message || e}`);
+    addLogLine('err', `[combo] generation failed: ${e.message || e}`);
+    return false;
   }
+}
+
+async function dropMonitorToCombo(ev) {
+  ev.preventDefault();
+  document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
+  ev.currentTarget.classList.remove('drag-over');
+  const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
+  await createComboFromAlert(alertId, 'dragged alert');
 }
 
 window.addEventListener('dragend', function() {
