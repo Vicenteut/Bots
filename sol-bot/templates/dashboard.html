@@ -227,6 +227,10 @@
     z-index: 199; overflow-y: auto;
   }
   .monitor-drawer.open { transform: translateX(0); }
+  body.monitor-dragging .monitor-drawer {
+    transform: translateX(105%) !important;
+    pointer-events: none;
+  }
   .monitor-drawer.has-alert { border-left-color: var(--amber); }
   #monitor-content { padding: 12px; flex: 1; overflow: hidden; min-height: 0; }
   .monitor-empty { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: center; padding: 32px 0; }
@@ -257,6 +261,11 @@
   .monitor-bulk-row { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
   .combo-dropzone { border:1px dashed var(--border2); transition:border-color .15s, background .15s, box-shadow .15s; }
   .combo-dropzone.drag-over { border-color:var(--success); background:rgba(34,197,94,0.08); box-shadow:0 0 18px rgba(34,197,94,0.12); }
+  body.monitor-dragging .combo-dropzone {
+    border-color: var(--success);
+    background: rgba(34,197,94,0.06);
+    box-shadow: 0 0 22px rgba(34,197,94,0.14);
+  }
   .combo-edit-textarea { min-height:140px; resize:vertical; margin-bottom:8px; }
 
   /* ── REPLY DRAWER ───────────────────────────────────────────── */
@@ -519,6 +528,7 @@
     transition: opacity 0.25s ease;
   }
   .drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
+  body.monitor-dragging .drawer-backdrop { opacity: 0 !important; pointer-events: none !important; }
 
   /* ── Global subtle transitions (elements without own transition) ── */
   * { transition: background-color 0.15s ease, border-color 0.15s ease; }
@@ -1227,7 +1237,7 @@ function renderMonitorList() {
     const score = e.score != null ? e.score : '—';
     const active = e.id === _monitorSelected ? 'active' : '';
     const checked = _monitorChecked.has(e.id) ? 'checked' : '';
-    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="this.classList.remove('dragging')" onclick="selectMonitorAlert('${_esc(e.id)}')">
+    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
       <div class="monitor-list-item-top">
         <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
         <span style="color:var(--amber);">${_esc(source)}</span>
@@ -1890,6 +1900,25 @@ function startMonitorDrag(ev, alertId) {
   ev.dataTransfer.effectAllowed = 'copy';
   ev.dataTransfer.setData('application/x-sol-alert-id', alertId);
   ev.dataTransfer.setData('text/plain', alertId);
+  document.body.classList.add('monitor-dragging');
+
+  // Let the browser start the native drag first, then move the drawer away so
+  // the pending combo drop zone behind it can receive the drop.
+  setTimeout(function() {
+    const drawer = document.getElementById('monitor-drawer');
+    if (drawer) drawer.classList.remove('open');
+    _syncBackdrop();
+    const comboZone = document.getElementById('pending-combo-dropzone');
+    if (comboZone) comboZone.scrollIntoView({block:'center', behavior:'smooth'});
+  }, 0);
+}
+
+function endMonitorDrag(ev) {
+  if (ev && ev.currentTarget) ev.currentTarget.classList.remove('dragging');
+  document.body.classList.remove('monitor-dragging');
+  document.querySelectorAll('.combo-dropzone.drag-over').forEach(function(el) {
+    el.classList.remove('drag-over');
+  });
 }
 
 function allowComboDrop(ev) {
@@ -1900,6 +1929,7 @@ function allowComboDrop(ev) {
 
 async function dropMonitorToCombo(ev) {
   ev.preventDefault();
+  document.body.classList.remove('monitor-dragging');
   ev.currentTarget.classList.remove('drag-over');
   const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
   if (!alertId || !_monitorQueue.some(e => e.id === alertId)) {
@@ -1927,6 +1957,13 @@ async function dropMonitorToCombo(ev) {
     addLogLine('err', `[combo] drop failed: ${e.message || e}`);
   }
 }
+
+window.addEventListener('dragend', function() {
+  document.body.classList.remove('monitor-dragging');
+});
+window.addEventListener('drop', function() {
+  document.body.classList.remove('monitor-dragging');
+});
 
 // ─── PUBLISH ─────────────────────────────────────────────────
 function _insertPublishProgress(grid, platform) {
