@@ -262,6 +262,8 @@
   .monitor-detail textarea { min-height: 96px; margin-bottom: 8px; }
   .monitor-detail-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
   .monitor-detail-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .monitor-reco-action { margin-top: 10px; }
+  .monitor-reco-action .btn { width: 100%; border-color: rgba(176,38,255,0.65); box-shadow: 0 0 18px rgba(176,38,255,0.18); }
   .monitor-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 10px; }
   .monitor-media-grid img, .monitor-media-grid video { width: 100%; max-height: 170px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border2); }
   .monitor-bulk-row { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
@@ -1205,6 +1207,13 @@ function _recommendationHtml(entry, compact=false) {
   return `<div class="monitor-reco"><strong>Recommended ${_esc(rec.format || 'ANALISIS')}</strong> · ${_esc(rec.length_range || '260-340 chars')}${media}${confidence}${sample}${reason}</div>`;
 }
 
+function _recommendedButtonLabel(entry) {
+  const rec = entry.editorial_recommendation || entry.recommendation || {};
+  const fmt = (rec.format || entry.suggested_format || 'ANALISIS').toUpperCase();
+  const confidence = rec.confidence ? ` · ${String(rec.confidence).toUpperCase()}` : '';
+  return `USE ${fmt}${confidence}`;
+}
+
 function _mediaUrl(path) {
   return '/media/' + encodeURIComponent((path || '').split('/').pop());
 }
@@ -1451,6 +1460,9 @@ function renderMonitorDetail() {
       <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','original',this,'ORIGINAL')">ORIGINAL</button>
       <button class="btn btn-danger btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','ignore',this)">IGNORE</button>
     </div>
+    <div class="monitor-reco-action">
+      <button class="btn btn-primary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','recommend',this)">${_esc(_recommendedButtonLabel(entry))}</button>
+    </div>
     <div style="display:flex;gap:6px;margin-top:8px;">
       <button class="btn btn-secondary btn-sm" onclick="saveMonitorEdit('${_esc(entry.id)}', this)">SAVE EDIT</button>
       <span id="monitor-action-result" style="font-family:var(--mono);font-size:11px;color:var(--muted);align-self:center;"></span>
@@ -1516,7 +1528,7 @@ async function bulkIgnoreMonitor() {
 
 async function doMonitorAction(alertId, action, btn, tweetType) {
   const detail = document.getElementById('monitor-detail');
-  const btns = detail ? detail.querySelectorAll('.monitor-detail-actions .btn') : [];
+  const btns = detail ? detail.querySelectorAll('.monitor-detail-actions .btn, .monitor-reco-action .btn') : [];
   btns.forEach(b => b.disabled = true);
   const orig = btn ? btn.textContent : '';
   if (btn) btn.textContent = '...';
@@ -1530,8 +1542,9 @@ async function doMonitorAction(alertId, action, btn, tweetType) {
     });
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'action failed');
-    if (resultEl) resultEl.textContent = action === 'ignore' ? '✓ ignored' : `✓ created ${d.pending_target || 'pending'}`;
-    addLogLine('ok', `[monitor] ${action} → ${d.pending_target || 'queue'} (${d.remaining} left)`);
+    const rec = d.recommendation && d.recommendation.format ? ` · ${d.recommendation.format}` : '';
+    if (resultEl) resultEl.textContent = action === 'ignore' ? '✓ ignored' : `✓ created ${d.pending_target || 'pending'}${rec}`;
+    addLogLine('ok', `[monitor] ${action} → ${d.pending_target || 'queue'}${rec} (${d.remaining} left)`);
     _monitorChecked.delete(alertId);
     await pollMonitor();
     if (action !== 'ignore') await pollPending();

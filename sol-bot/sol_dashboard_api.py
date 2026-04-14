@@ -697,7 +697,7 @@ class RegeneratePayload(BaseModel):
 
 
 class MonitorActionPayload(BaseModel):
-    action: str                   # "generate" | "mixed" | "original" | "ignore"
+    action: str                   # "generate" | "mixed" | "recommend" | "original" | "ignore"
     tweet_type: Optional[str] = None
     edited_title: Optional[str] = None
     edited_summary: Optional[str] = None
@@ -1578,6 +1578,17 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
     headline_dict = _headline_from_payload(entry, payload)
     source_name = entry.get("source_name") or headline_dict.get("source", "Unknown")
     media_count = len(_entry_media_paths(entry))
+    recommendation = None
+    if action == "recommend":
+        rec_entry = dict(entry)
+        rec_entry["headline"] = headline_dict
+        recommendation = recommend_for_alert(
+            _enrich_monitor_entry(rec_entry),
+            fallback_format=_suggest_monitor_format(rec_entry),
+        )
+        recommended_format = (recommendation.get("format") or _suggest_monitor_format(entry) or "ANALISIS").upper()
+        action = "mixed" if recommended_format in {"COMBINADA", "MIXED"} else "generate"
+        payload.tweet_type = "COMBINADA" if action == "mixed" else recommended_format
 
     try:
         if action == "generate":
@@ -1649,6 +1660,7 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
         return {
             "success": True,
             "action": action,
+            "recommendation": recommendation,
             "tweet": tweet if action != "ignore" else None,
             "pending_target": pending_target,
             "remaining": len(queue),
