@@ -317,9 +317,30 @@ def _latest_snapshot_cte(days: int) -> tuple[str, str]:
     return cte, since
 
 
-def get_analytics(days: int = 7, limit: int = 20, db_path: Path = DB_PATH) -> dict[str, Any]:
+def get_analytics(
+    days: int = 7,
+    limit: int = 20,
+    db_path: Path = DB_PATH,
+    sort: str = "date",
+    format: str | None = None,
+    topic: str | None = None,
+    media: str | None = None,
+) -> dict[str, Any]:
     days = max(1, min(days, 90))
     limit = max(1, min(limit, 50))
+    sort_key = (sort or "date").strip().lower()
+    sort_sql = {
+        "views": "latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "likes": "latest.likes DESC, latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "replies": "latest.replies DESC, latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "comments": "latest.replies DESC, latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "engagement": "latest.engagement_rate DESC, latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "total_engagement": "(latest.likes + latest.replies + latest.reposts + latest.quotes) DESC, latest.views DESC, COALESCE(p.timestamp, p.last_seen_at) DESC",
+        "date": "COALESCE(p.timestamp, p.last_seen_at) DESC",
+    }.get(sort_key, "COALESCE(p.timestamp, p.last_seen_at) DESC")
+    fmt_filter = (format or "").strip().upper()
+    topic_filter = (topic or "").strip().lower()
+    media_filter = (media or "").strip().lower()
     if not db_path.exists():
         return {
             "error": "threads_analytics.db has no data yet. Run sync first.",
@@ -328,6 +349,20 @@ def get_analytics(days: int = 7, limit: int = 20, db_path: Path = DB_PATH) -> di
         }
 
     cte, since = _latest_snapshot_cte(days)
+    filters = ["COALESCE(p.timestamp, p.first_seen_at) >= ?"]
+    params = [since]
+    if fmt_filter and fmt_filter != "ALL":
+        filters.append("UPPER(COALESCE(p.tweet_type, 'UNKNOWN')) = ?")
+        params.append(fmt_filter)
+    if topic_filter and topic_filter != "all":
+        filters.append("LOWER(COALESCE(p.topic_tag, 'general')) = ?")
+        params.append(topic_filter)
+    if media_filter == "media":
+        filters.append("p.has_media = 1")
+    elif media_filter == "text":
+        filters.append("COALESCE(p.has_media, 0) = 0")
+    where_sql = " AND ".join(filters)
+
     with _connect(db_path) as conn:
         init_db(conn)
         last_sync_row = conn.execute(
@@ -348,9 +383,9 @@ def get_analytics(days: int = 7, limit: int = 20, db_path: Path = DB_PATH) -> di
                 COALESCE(AVG(latest.engagement_rate), 0) AS avg_engagement_rate
             FROM posts p
             JOIN latest ON latest.post_id = p.post_id
-            WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
+            WHERE """ + where_sql + """
             """,
-            (since,),
+            params,
         ).fetchone()
 
         def grouped(field: str) -> list[dict[str, Any]]:
@@ -402,13 +437,15 @@ def get_analytics(days: int = 7, limit: int = 20, db_path: Path = DB_PATH) -> di
                     p.post_id AS id, p.text, p.permalink, p.timestamp, p.media_type,
                     p.tweet_type, p.topic_tag, p.char_count, p.has_media, p.media_count,
                     latest.views, latest.likes, latest.replies, latest.reposts, latest.quotes,
-                    ROUND(latest.engagement_rate, 4) AS engagement_rate
+                    ROUND(latest.engagement_rate, 4) AS engagement_rate,
+                    (latest.likes + latest.replies + latest.reposts + latest.quotes) AS total_engagement
                 FROM posts p
                 JOIN latest ON latest.post_id = p.post_id
-                ORDER BY COALESCE(p.timestamp, p.last_seen_at) DESC
+                WHERE """ + where_sql + f"""
+                ORDER BY {sort_sql}
                 LIMIT ?
                 """,
-                (limit,),
+                [*params, limit],
             )
         ]
 
@@ -421,6 +458,12 @@ def get_analytics(days: int = 7, limit: int = 20, db_path: Path = DB_PATH) -> di
         "by_media": by_media,
         "recent_posts": recent_posts,
         "last_sync": last_sync,
+        "filters": {
+            "sort": sort_key,
+            "format": fmt_filter or "ALL",
+            "topic": topic_filter or "all",
+            "media": media_filter or "all",
+        },
     }
 
 

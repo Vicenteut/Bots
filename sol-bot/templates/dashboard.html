@@ -147,6 +147,12 @@
   .post-row-meta { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted2); }
   .post-row-meta .ts { color: var(--cyan); }
   .post-row-text { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+  .analytics-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; height: min(62vh, 620px); min-height: 360px; overflow: hidden; }
+  #analytics-threads-summary, #analytics-threads-recent { min-height: 0; overflow-y: auto; }
+  .analytics-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .analytics-controls select { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); font-family: var(--mono); font-size: 9px; padding: 5px 7px; border-radius: 3px; }
+  .analytics-table { width: 100%; border-collapse: collapse; }
+  .analytics-table th { position: sticky; top: 0; background: var(--surface1); z-index: 1; }
 
   /* MIXED BUILDER */
   .mixed-inner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg); }
@@ -559,6 +565,9 @@
     #analytics-panel.mobile-inline { display: block !important; position: static !important; inset: auto; z-index: auto; border: 0; padding: 0; max-height: none; overflow: visible; }
     #analytics-panel.mobile-inline > div:first-child { display: none !important; }
     #analytics-panel.mobile-inline > div[style] { display: block !important; max-height: none !important; overflow: visible !important; }
+    #analytics-panel.mobile-inline .analytics-grid { display: block !important; height: auto; min-height: 0; overflow: visible; }
+    #analytics-panel.mobile-inline .analytics-controls { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; -webkit-overflow-scrolling: touch; }
+    #analytics-panel.mobile-inline .analytics-controls select { flex: 0 0 auto; min-height: 34px; }
     #analytics-threads-summary, #analytics-threads-recent { overflow: visible !important; }
     #analytics-threads-recent table, #analytics-threads-recent thead, #analytics-threads-recent tbody, #analytics-threads-recent tr, #analytics-threads-recent td { display: block; width: 100%; }
     #analytics-threads-recent thead { display: none; }
@@ -727,7 +736,7 @@
       </div>
     </div>
     <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">THREADS</div>
-    <div style="display:grid;grid-template-columns:280px 1fr;gap:12px;max-height:300px;overflow:hidden;">
+    <div class="analytics-grid">
       <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
       <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
     </div>
@@ -2682,11 +2691,61 @@ function _fmtTime(isoStr) {
     return n.toString();
   }
 
+  const _analyticsFilters = {
+    days: 1,
+    sort: 'views',
+    format: 'ALL',
+    topic: 'all',
+    media: 'all'
+  };
+
+  function analyticsRangeLabel(days) {
+    if (Number(days) === 1) return '24H';
+    return `${days}D`;
+  }
+
+  function analyticsQueryString() {
+    const params = new URLSearchParams({
+      days: String(_analyticsFilters.days),
+      limit: '50',
+      sort: _analyticsFilters.sort,
+    });
+    if (_analyticsFilters.format !== 'ALL') params.set('format', _analyticsFilters.format);
+    if (_analyticsFilters.topic !== 'all') params.set('topic', _analyticsFilters.topic);
+    if (_analyticsFilters.media !== 'all') params.set('media', _analyticsFilters.media);
+    return params.toString();
+  }
+
+  function setAnalyticsFilter(key, value) {
+    _analyticsFilters[key] = value;
+    loadAnalytics();
+  }
+
+  function renderAnalyticsControls() {
+    const opts = {
+      days: [[1,'24H'],[7,'7D'],[30,'30D']],
+      sort: [['views','views'],['likes','likes'],['replies','comments'],['engagement','engagement'],['total_engagement','total eng'],['date','date']],
+      format: [['ALL','all formats'],['WIRE','WIRE'],['ANALISIS','ANALISIS'],['COMBINADA','COMBINADA'],['CONEXION','CONEXION'],['DEBATE','DEBATE'],['ORIGINAL','ORIGINAL']],
+      topic: [['all','all topics'],['crypto','crypto'],['mercados','mercados'],['geopolitica','geopolitica'],['general','general']],
+      media: [['all','all media'],['media','media'],['text','text']]
+    };
+    const select = (key, values) => `<select onchange="setAnalyticsFilter('${key}', this.value)" aria-label="analytics ${key}">
+      ${values.map(([v, label]) => `<option value="${_esc(String(v))}" ${String(_analyticsFilters[key]) === String(v) ? 'selected' : ''}>${_esc(label)}</option>`).join('')}
+    </select>`;
+    return `<div class="analytics-controls">
+      ${select('days', opts.days)}
+      ${select('sort', opts.sort)}
+      ${select('format', opts.format)}
+      ${select('topic', opts.topic)}
+      ${select('media', opts.media)}
+    </div>`;
+  }
+
   async function loadAnalytics() {
     document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading...</span>';
     document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
     try {
-      const threads = await csrfFetch('/api/threads/analytics?days=7&limit=50').then(r => r.json());
+      const threads = await csrfFetch('/api/threads/analytics?' + analyticsQueryString()).then(r => r.json());
       renderThreadsSummary(threads);
       renderThreadsRecent(threads);
     } catch(e) {
@@ -2762,7 +2821,7 @@ function _fmtTime(isoStr) {
     const syncLine = last ? `${(last.timestamp || '').slice(0,19)} · ${last.status || 'UNKNOWN'} · ${last.count || 0}` : 'never synced';
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
-        <span style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;">7D SUMMARY</span>
+        <span style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;">${analyticsRangeLabel(_analyticsFilters.days)} SUMMARY</span>
         <button onclick="syncThreadsAnalytics()" style="background:none;border:1px solid var(--border2);color:var(--cyan);font-size:8px;padding:1px 6px;border-radius:2px;cursor:pointer;font-family:monospace;">SYNC</button>
       </div>
       <div style="margin-bottom:4px;">POSTS <span style="color:var(--cyan);float:right;">${fmtNum(s.posts || 0)}</span></div>
@@ -2784,26 +2843,34 @@ function _fmtTime(isoStr) {
     const el = document.getElementById('analytics-threads-recent');
     const posts = data && (data.recent_posts || data.posts) || [];
     if (!posts.length) {
-      el.innerHTML = '<span style="color:var(--muted2);font-size:9px;">no persisted analytics yet. click SYNC.</span>';
+      el.innerHTML = renderAnalyticsControls() + '<span style="color:var(--muted2);font-size:9px;">no posts match these analytics filters. try 7D or 30D.</span>';
       return;
     }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT POSTS</div>
-    <table style="width:100%;border-collapse:collapse;">
+    const title = _analyticsFilters.sort === 'date'
+      ? `RECENT POSTS · ${analyticsRangeLabel(_analyticsFilters.days)}`
+      : `TOP POSTS · ${analyticsRangeLabel(_analyticsFilters.days)} · ${_analyticsFilters.sort.toUpperCase().replace('_', ' ')}`;
+    let html = `${renderAnalyticsControls()}<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">${_esc(title)}</div>
+    <table class="analytics-table">
       <thead><tr style="color:var(--muted2);font-size:9px;">
         <th style="text-align:left;padding-bottom:4px;">POST</th>
         <th style="text-align:left;padding-bottom:4px;">FMT</th>
         <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
         <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
         <th style="text-align:right;padding-bottom:4px;">LIKES</th>
-        <th style="text-align:right;padding-bottom:4px;">RPL</th>
+        <th style="text-align:right;padding-bottom:4px;">COM</th>
+        <th style="text-align:right;padding-bottom:4px;">RP</th>
+        <th style="text-align:right;padding-bottom:4px;">QT</th>
+        <th style="text-align:right;padding-bottom:4px;">TOTAL</th>
         <th style="text-align:right;padding-bottom:4px;">ENG</th>
       </tr></thead><tbody>`;
     for (const p of posts) {
       const ts   = p.timestamp ? p.timestamp.slice(0, 10) : '—';
       const link = p.permalink ? `<a href="${p.permalink}" target="_blank" style="color:var(--cyan);text-decoration:none;" title="${_esc(p.text||'')}">↗</a>` : '';
+      const total = Number(p.total_engagement || 0);
+      const media = p.has_media ? `media ${p.media_count || 1}` : 'text';
       html += `<tr style="border-top:1px solid var(--border);">
         <td style="padding:4px 6px 4px 0;font-size:9px;max-width:340px;">
-          <span style="color:var(--muted2);font-size:8px;">${ts}</span> ${link}<br>
+          <span style="color:var(--muted2);font-size:8px;">${ts} · ${_esc(media)} · ${fmtNum(p.char_count || 0)} chars</span> ${link}<br>
           <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,92))}${(p.text||'').length > 92 ? '...' : ''}</span>
         </td>
         <td style="color:var(--amber);font-size:9px;white-space:nowrap;">${_esc(p.tweet_type || 'UNKNOWN')}</td>
@@ -2811,6 +2878,9 @@ function _fmtTime(isoStr) {
         <td style="text-align:right;color:var(--cyan);font-size:9px;white-space:nowrap;">${fmtNum(p.views)}</td>
         <td style="text-align:right;color:var(--text);font-size:9px;white-space:nowrap;">${fmtNum(p.likes)}</td>
         <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.replies)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.reposts)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.quotes)}</td>
+        <td style="text-align:right;color:var(--purple2);font-size:9px;white-space:nowrap;">${fmtNum(total)}</td>
         <td style="text-align:right;color:var(--amber);font-size:9px;white-space:nowrap;">${pct(p.engagement_rate || 0)}</td>
       </tr>`;
     }

@@ -1675,9 +1675,19 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
 # ─── THREADS ANALYTICS ────────────────────────────────────────────────────────
 
 @app.get("/api/threads/analytics")
-async def api_threads_analytics(days: int = 7, limit: int = 20):
+async def api_threads_analytics(
+    days: int = 7,
+    limit: int = 20,
+    sort: str = "date",
+    format: Optional[str] = None,
+    topic: Optional[str] = None,
+    media: Optional[str] = None,
+):
     days = max(1, min(days, 90))
     limit = max(1, min(limit, 50))
+    sort = (sort or "date").strip().lower()
+    if sort not in {"views", "likes", "replies", "comments", "engagement", "date", "total_engagement"}:
+        sort = "date"
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
@@ -1685,7 +1695,7 @@ async def api_threads_analytics(days: int = 7, limit: int = 20):
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        data = mod.get_analytics(days=days, limit=limit)
+        data = mod.get_analytics(days=days, limit=limit, sort=sort, format=format, topic=topic, media=media)
         data["learning_summary"] = get_learning_summary(days=days)
         return JSONResponse(data)
     except Exception as e:
