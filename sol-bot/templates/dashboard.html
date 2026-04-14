@@ -2323,7 +2323,11 @@ async function publishPost(platform, source, btn) {
       const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
       if (tOk && d.cleared_pending) {
-        addLogLine('ok', `[publish] Published and cleared ${d.cleared_file || 'pending file'}`);
+        const mediaMsg = d.cleared_media_count ? ` + ${d.cleared_media_count} temp media` : '';
+        addLogLine('ok', `[publish] Published and cleared ${d.cleared_file || 'pending file'}${mediaMsg}`);
+      }
+      if (tOk && d.media_cleanup_error) {
+        addLogLine('warn', `[publish] temp media cleanup warning: ${d.media_cleanup_error}`);
       }
       if (!tOk && resultEl) {
         resultEl.innerHTML = _publishFailureHtml(d, source);

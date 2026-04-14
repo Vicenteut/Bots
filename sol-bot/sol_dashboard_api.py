@@ -859,6 +859,8 @@ async def api_publish(request: Request, payload: PublishPayload):
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
     cleared_pending = False
     cleared_file = None
+    cleared_media_files: list[str] = []
+    media_cleanup_error = None
     if threads_success and threads_post_id:
         try:
             source_file.unlink(missing_ok=True)
@@ -867,6 +869,9 @@ async def api_publish(request: Request, payload: PublishPayload):
             print(f"[publish/{source}] cleared pending file after Threads confirmation: {cleared_file}", flush=True)
         except Exception as exc:
             print(f"[publish/{source}] failed to clear pending file {source_file.name}: {exc}", flush=True)
+        cleared_media_files, media_cleanup_error = _clear_temporary_media_paths(data, source)
+        if media_cleanup_error:
+            print(f"[publish/{source}] temporary media cleanup warning: {media_cleanup_error}", flush=True)
 
     return {
         "threads_success": threads_success,
@@ -884,6 +889,9 @@ async def api_publish(request: Request, payload: PublishPayload):
         "wire_repost_warning": wire_repost_warning,
         "cleared_pending": cleared_pending,
         "cleared_file": cleared_file,
+        "cleared_media_count": len(cleared_media_files),
+        "cleared_media_files": [Path(p).name for p in cleared_media_files],
+        "media_cleanup_error": media_cleanup_error,
     }
 
 
@@ -1299,7 +1307,7 @@ def _should_download_remote_monitor_media(entry: dict) -> bool:
     return label in {"high", "breaking"} or score >= 60
 
 
-def _download_remote_monitor_image(entry: dict, label: str) -> str | None:
+def _download_remote_monitor_image(entry: dict, label: str) -> tuple[str, str] | None:
     """Download a remote RSS preview image when it is eligible for publishing.
 
     The inbox can preview remote `media_urls`, but Threads publishing needs a
@@ -1344,8 +1352,32 @@ def _download_remote_monitor_image(entry: dict, label: str) -> str | None:
             print(f"[monitor/{label}] remote media write failed path={path}: {exc}", flush=True)
             continue
         print(f"[monitor/{label}] downloaded remote media: {path}", flush=True)
-        return str(path)
+        return str(path), url
     return None
+
+
+def _clear_temporary_media_paths(data: dict, source: str) -> tuple[list[str], str | None]:
+    cleared: list[str] = []
+    errors: list[str] = []
+    media_root = MEDIA_DIR.resolve()
+    paths = data.get("temporary_media_paths") or []
+    if not isinstance(paths, list):
+        return cleared, "temporary_media_paths is not a list"
+    for raw in paths:
+        if not raw:
+            continue
+        try:
+            path = Path(str(raw)).resolve()
+            if not str(path).startswith(str(media_root) + os.sep):
+                errors.append(f"outside media dir: {raw}")
+                continue
+            if path.exists():
+                path.unlink()
+                cleared.append(str(path))
+                print(f"[publish/{source}] cleared temporary media: {path}", flush=True)
+        except Exception as exc:
+            errors.append(f"{raw}: {exc}")
+    return cleared, "; ".join(errors) if errors else None
 
 
 def _suggest_monitor_format(entry: dict) -> str:
@@ -1431,10 +1463,12 @@ def _headline_from_payload(entry: dict, payload: MonitorActionPayload | MonitorS
 
 def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
     media_paths = _valid_media_paths(entry)
+    downloaded_source_url = None
     if not media_paths:
         downloaded = _download_remote_monitor_image(entry, label)
         if downloaded:
-            media_paths = [downloaded]
+            downloaded_path, downloaded_source_url = downloaded
+            media_paths = [downloaded_path]
     if media_paths:
         data["media_paths"] = media_paths
         data["media_path"] = media_paths[0]
@@ -1443,6 +1477,9 @@ def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
             data["media_type"] = "photo"
         if entry.get("media_urls"):
             data["media_source_urls"] = entry.get("media_urls")
+        if downloaded_source_url:
+            data["temporary_media_paths"] = media_paths
+            data["media_origin"] = "remote_rss"
         print(f"[monitor/{label}] attached {len(media_paths)} media file(s)", flush=True)
 
 
