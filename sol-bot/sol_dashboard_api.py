@@ -22,15 +22,16 @@ except ImportError:
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import psutil
 from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, score_alert
 from topic_utils import classify_topic
 
 try:
@@ -67,7 +68,9 @@ PENDING_COMBO   = BOT_DIR / "pending_combo.json"
 MONITOR_PENDING = BOT_DIR / "monitor_pending.json"
 MONITOR_QUEUE      = BOT_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK = BOT_DIR / "monitor_queue.lock"
+MONITOR_QUEUE_MAX  = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
 MEDIA_DIR          = BOT_DIR / "media"
+SOURCE_CONFIG      = BOT_DIR / "source_config.json"
 CONTEXT_JSON    = BOT_DIR / "context.json"
 REPLY_PROMPT    = BOT_DIR / "reply_generator_prompt.txt"
 REPLY_USER_TMPL = BOT_DIR / "reply_gen_user_msg.txt"
@@ -93,6 +96,8 @@ _markets_cache: dict = {"data": None, "ts": 0.0}
 # ─── AUTH ────────────────────────────────────────────────────────────────────
 DASHBOARD_USER = os.getenv("DASHBOARD_USER", "sol")
 DASHBOARD_PASSWORD_HASH = (os.getenv("DASHBOARD_PASSWORD_HASH") or "").strip().lower()
+INGEST_API_TOKEN = (os.getenv("INGEST_API_TOKEN") or "").strip()
+INGEST_RATE_LIMIT_PER_MIN = int(os.getenv("INGEST_RATE_LIMIT_PER_MIN", "60") or "60")
 if not DASHBOARD_PASSWORD_HASH or DASHBOARD_PASSWORD_HASH == "change_me_to_sha256_hash":
     raise RuntimeError("DASHBOARD_PASSWORD_HASH must be set in the environment")
 if not re.fullmatch(r"[0-9a-f]{64}", DASHBOARD_PASSWORD_HASH):
@@ -104,6 +109,7 @@ SESSION_MAX_AGE = 86400 * 7
 SESSION_TOKEN  = secrets.token_hex(32)
 # CSRF token — separate random value, sent to browser and echoed back on state-changing requests
 CSRF_TOKEN     = secrets.token_hex(32)
+_ingest_rate_events: list[float] = []
 
 
 def _check_credentials(user: str, pwd: str) -> bool:
@@ -114,6 +120,33 @@ def _check_credentials(user: str, pwd: str) -> bool:
     )
 
 
+def _check_ingest_auth_header(auth: str) -> bool:
+    if not INGEST_API_TOKEN:
+        return False
+    prefix = "Bearer "
+    if not auth.startswith(prefix):
+        return False
+    token = auth[len(prefix):].strip()
+    return secrets.compare_digest(token, INGEST_API_TOKEN)
+
+
+def _require_ingest_auth(request: Request) -> None:
+    if not INGEST_API_TOKEN:
+        raise HTTPException(503, "INGEST_API_TOKEN is not configured")
+    if not _check_ingest_auth_header(request.headers.get("Authorization", "")):
+        raise HTTPException(401, "Invalid ingest token")
+
+
+def _require_ingest_rate_limit() -> None:
+    now = time.time()
+    window_start = now - 60
+    while _ingest_rate_events and _ingest_rate_events[0] < window_start:
+        _ingest_rate_events.pop(0)
+    if len(_ingest_rate_events) >= INGEST_RATE_LIMIT_PER_MIN:
+        raise HTTPException(429, "Ingest rate limit exceeded")
+    _ingest_rate_events.append(now)
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # 0. Allow login POST, manifest, and static assets through unauthenticated
@@ -122,6 +155,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
            path == "/manifest.json" or path.startswith("/static/") or \
            path.startswith("/media/"):
             return await call_next(request)
+
+        if path == "/api/monitor/ingest" and request.method == "POST":
+            if _check_ingest_auth_header(request.headers.get("Authorization", "")):
+                return await call_next(request)
+            return Response(
+                content="Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Bearer realm="Sol Ingest"'},
+            )
 
         # 1. Valid session cookie → pass through
         if request.cookies.get(SESSION_COOKIE) == SESSION_TOKEN:
@@ -266,7 +308,7 @@ def _monitored_services() -> list[dict]:
     names = [
         item.strip() for item in os.getenv(
             "SOL_MONITORED_SERVICES",
-            "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer",
+            "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer,sol-rss-fetcher.timer",
         ).split(",")
         if item.strip()
     ]
@@ -643,6 +685,30 @@ class MonitorBulkPayload(BaseModel):
 class MonitorSavePayload(BaseModel):
     edited_title: str
     edited_summary: Optional[str] = None
+
+
+class MonitorIngestHeadline(BaseModel):
+    title: str
+    summary: Optional[str] = None
+    source: Optional[str] = None
+    url: Optional[str] = None
+
+
+class MonitorIngestPayload(BaseModel):
+    external_id: Optional[str] = None
+    received_at: Optional[str] = None
+    published_at: Optional[str] = None
+    source_name: str
+    source_type: str = "webhook"
+    canonical_url: Optional[str] = None
+    url: Optional[str] = None
+    headline: MonitorIngestHeadline
+    media_urls: list[str] = Field(default_factory=list)
+    media_paths: list[str] = Field(default_factory=list)
+    media_path: Optional[str] = None
+    media_type: Optional[str] = None
+    language: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 class ReplyPayload(BaseModel):
     input_type: str               # "text"; URL fetch was removed with X support
@@ -1096,6 +1162,29 @@ def _write_queue(queue: list) -> None:
         os.replace(tmp, MONITOR_QUEUE)
 
 
+def _read_source_config() -> dict:
+    try:
+        data = json.loads(SOURCE_CONFIG.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"sources": []}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {"sources": []}
+
+
+def _append_or_merge_monitor_entry(entry: dict) -> tuple[dict, str, int]:
+    """Append an ingested alert or merge it into an existing dedup group."""
+    with FileLock(str(MONITOR_QUEUE_LOCK), timeout=5):
+        try:
+            data = json.loads(MONITOR_QUEUE.read_text(encoding="utf-8")) if MONITOR_QUEUE.exists() else []
+            queue = data if isinstance(data, list) else []
+        except (json.JSONDecodeError, OSError):
+            queue = []
+        queue, stored, status = append_or_merge_queue(queue, entry, max_items=MONITOR_QUEUE_MAX)
+        tmp = MONITOR_QUEUE.parent / f".tmp_{MONITOR_QUEUE.name}"
+        tmp.write_text(json.dumps(queue, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, MONITOR_QUEUE)
+    return stored, status, len(queue)
+
+
 def _entry_media_paths(entry: dict) -> list[str]:
     paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
     return [p for p in paths if p]
@@ -1137,10 +1226,23 @@ def _enrich_monitor_entry(entry: dict) -> dict:
     enriched["headline"] = headline
     enriched["source_name"] = enriched.get("source_name") or headline.get("source") or "Unknown"
     enriched["media_count"] = len(paths)
-    enriched["has_media"] = bool(paths)
+    enriched["has_media"] = bool(paths or enriched.get("media_urls"))
     enriched["age_seconds"] = age_seconds
     enriched["topic_guess"] = classify_topic(text)
     enriched["suggested_format"] = _suggest_monitor_format(enriched)
+    if "score" not in enriched or "priority_label" not in enriched:
+        enriched["score"], enriched["priority_label"] = score_alert(enriched)
+    enriched["source_type"] = enriched.get("source_type") or "telegram"
+    enriched["credibility"] = enriched.get("credibility") or "medium"
+    enriched["priority"] = enriched.get("priority") or "normal"
+    enriched["related_source_count"] = int(enriched.get("related_source_count") or 1)
+    enriched["related_sources"] = enriched.get("related_sources") or [
+        {
+            "source_name": enriched["source_name"],
+            "source_type": enriched["source_type"],
+            "canonical_url": enriched.get("canonical_url") or headline.get("url", ""),
+        }
+    ]
     enriched["media_files"] = [
         {"path": p, "filename": Path(p).name, "exists": Path(p).exists()}
         for p in paths
@@ -1174,6 +1276,58 @@ def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
 async def api_monitor_queue():
     """Return enriched queue, oldest first."""
     return JSONResponse([_enrich_monitor_entry(e) for e in _read_queue()])
+
+
+@app.get("/api/monitor/sources")
+async def api_monitor_sources():
+    """Return configured sources for dashboard filters and operations."""
+    config = _read_source_config()
+    sources = [
+        {
+            "name": s.get("name"),
+            "type": s.get("type"),
+            "enabled": bool(s.get("enabled")),
+            "credibility": s.get("credibility", "medium"),
+            "base_priority": s.get("base_priority", "normal"),
+            "is_official": bool(s.get("is_official", False)),
+            "redistributable": bool(s.get("redistributable", True)),
+        }
+        for s in config.get("sources", [])
+        if isinstance(s, dict)
+    ]
+    return JSONResponse({"sources": sources})
+
+
+@app.post("/api/monitor/ingest")
+async def api_monitor_ingest(request: Request, payload: MonitorIngestPayload):
+    """Private ingestion endpoint for n8n, RSS fetchers, APIs, and future sources."""
+    _require_ingest_auth(request)
+    _require_ingest_rate_limit()
+    try:
+        raw = payload.model_dump(exclude_none=True)
+    except AttributeError:
+        raw = payload.dict(exclude_none=True)
+    entry = normalize_ingest_payload(raw)
+    if not entry.get("headline", {}).get("title"):
+        raise HTTPException(422, "headline.title is required")
+    stored, status, remaining = _append_or_merge_monitor_entry(entry)
+    enriched = _enrich_monitor_entry(stored)
+    print(
+        f"[monitor/ingest] status={status} source={enriched.get('source_name')} "
+        f"type={enriched.get('source_type')} score={enriched.get('score')} "
+        f"priority={enriched.get('priority_label')}",
+        flush=True,
+    )
+    return {
+        "success": True,
+        "status": status,
+        "id": stored.get("id"),
+        "dedup_key": stored.get("dedup_key"),
+        "score": enriched.get("score"),
+        "priority_label": enriched.get("priority_label"),
+        "related_source_count": enriched.get("related_source_count"),
+        "remaining": remaining,
+    }
 
 
 @app.get("/api/monitor/current")

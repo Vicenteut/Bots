@@ -29,7 +29,7 @@ REFRESH_INTERVAL = int(os.getenv("SOL_REFRESH_INTERVAL", "30"))
 
 # ── Services to monitor ───────────────────────────────────────────────
 MONITORED_SERVICES = os.getenv(
-    "SOL_MONITORED_SERVICES", "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer"
+    "SOL_MONITORED_SERVICES", "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer,sol-rss-fetcher.timer"
 ).split(",")
 
 # ── Cron schedule (CST = UTC-6, with 5-45 min random delay) ──────────

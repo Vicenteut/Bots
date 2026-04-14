@@ -960,11 +960,19 @@ let _lastMonitorKey  = '';
 let _lastRecentKey   = '';
 let _monitorQueue    = [];
 let _monitorSelected = null;
-let _monitorFilters  = {q:'', source:'all', media:'all', format:'all'};
+let _monitorFilters  = {q:'', source:'all', type:'all', priority:'all', media:'all', format:'all'};
 let _monitorChecked  = new Set();
 
 function _monitorSources(queue) {
   return Array.from(new Set((queue || []).map(e => e.source_name || (e.headline && e.headline.source) || 'Unknown'))).sort();
+}
+
+function _monitorTypes(queue) {
+  return Array.from(new Set((queue || []).map(e => e.source_type || 'telegram'))).sort();
+}
+
+function _monitorPriorities(queue) {
+  return Array.from(new Set((queue || []).map(e => e.priority_label || 'normal'))).sort();
 }
 
 function _monitorFiltered() {
@@ -972,9 +980,13 @@ function _monitorFiltered() {
   return (_monitorQueue || []).filter(e => {
     const h = e.headline || {};
     const source = e.source_name || h.source || 'Unknown';
-    const hay = `${source} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
+    const type = e.source_type || 'telegram';
+    const priority = e.priority_label || 'normal';
+    const hay = `${source} ${type} ${priority} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
     if (q && !hay.includes(q)) return false;
     if (_monitorFilters.source !== 'all' && source !== _monitorFilters.source) return false;
+    if (_monitorFilters.type !== 'all' && type !== _monitorFilters.type) return false;
+    if (_monitorFilters.priority !== 'all' && priority !== _monitorFilters.priority) return false;
     if (_monitorFilters.media === 'media' && !e.has_media) return false;
     if (_monitorFilters.media === 'text' && e.has_media) return false;
     if (_monitorFilters.format !== 'all' && e.suggested_format !== _monitorFilters.format) return false;
@@ -1030,6 +1042,8 @@ function renderMonitor(queue) {
   countBadge.style.display = 'inline';
   countBadge.textContent = _monitorCount;
   const sources = _monitorSources(queue);
+  const types = _monitorTypes(queue);
+  const priorities = _monitorPriorities(queue);
   headerCount.textContent = `(${_monitorCount} pending · ${sources.length} sources)`;
   toggle.classList.add('has-alert');
   drawer.classList.add('has-alert');
@@ -1042,6 +1056,14 @@ function renderMonitor(queue) {
           <select id="mon-filter-source" onchange="setMonitorFilter('source', this.value)">
             <option value="all">all sources</option>
             ${sources.map(s => `<option value="${_esc(s)}" ${_monitorFilters.source === s ? 'selected' : ''}>${_esc(s)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('type', this.value)">
+            <option value="all" ${_monitorFilters.type === 'all' ? 'selected' : ''}>all types</option>
+            ${types.map(t => `<option value="${_esc(t)}" ${_monitorFilters.type === t ? 'selected' : ''}>${_esc(t)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('priority', this.value)">
+            <option value="all" ${_monitorFilters.priority === 'all' ? 'selected' : ''}>all priority</option>
+            ${priorities.map(p => `<option value="${_esc(p)}" ${_monitorFilters.priority === p ? 'selected' : ''}>${_esc(p)}</option>`).join('')}
           </select>
           <select onchange="setMonitorFilter('media', this.value)">
             <option value="all" ${_monitorFilters.media === 'all' ? 'selected' : ''}>all media</option>
@@ -1097,12 +1119,16 @@ function renderMonitorList() {
   el.innerHTML = filtered.map(e => {
     const h = e.headline || {};
     const source = e.source_name || h.source || 'Unknown';
+    const priority = e.priority_label || 'normal';
+    const score = e.score != null ? e.score : '—';
     const active = e.id === _monitorSelected ? 'active' : '';
     const checked = _monitorChecked.has(e.id) ? 'checked' : '';
     return `<button class="monitor-list-item ${active}" onclick="selectMonitorAlert('${_esc(e.id)}')">
       <div class="monitor-list-item-top">
         <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
         <span style="color:var(--amber);">${_esc(source)}</span>
+        <span>${_esc(e.source_type || 'telegram')}</span>
+        <span>${_esc(priority)} ${score}</span>
         <span>${_esc(e.suggested_format || 'ANALISIS')}</span>
         <span>${e.has_media ? 'media ' + (e.media_count || 1) : 'text'}</span>
         <span style="margin-left:auto;">${e.received_at ? _timeAgo(e.received_at) : ''}</span>
@@ -1141,6 +1167,10 @@ function renderMonitorDetail() {
   el.innerHTML = `
     <div class="monitor-detail-meta">
       ${_pill(source, 'rgba(245,158,11,0.12)')}
+      ${_pill(entry.source_type || 'telegram', 'rgba(255,255,255,0.04)')}
+      ${_pill((entry.priority_label || 'normal') + ' · ' + (entry.score != null ? entry.score : '—'), 'rgba(245,158,11,0.10)')}
+      ${_pill(entry.credibility || 'medium', 'rgba(255,255,255,0.04)')}
+      ${entry.related_source_count > 1 ? _pill(`${entry.related_source_count} sources`, 'rgba(34,197,94,0.10)') : ''}
       ${_pill(entry.topic_guess || 'general', 'rgba(34,211,238,0.10)')}
       ${_pill('suggested ' + (entry.suggested_format || 'ANALISIS'), 'rgba(34,197,94,0.10)')}
       ${_pill(entry.has_media ? `${entry.media_count || 1} media` : 'text only', 'rgba(255,255,255,0.04)')}

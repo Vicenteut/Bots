@@ -9,6 +9,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from config import BASE_DIR, get_list_env, get_required_env
+from ingestion_utils import append_or_merge_queue, normalize_ingest_payload
 from telegram_client import send_message, send_photo, send_video, send_media_group
 
 API_ID = get_required_env("TELEGRAM_API_ID", cast=int)
@@ -27,6 +28,7 @@ MONITOR_QUEUE_FILE   = BASE_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK   = BASE_DIR / "monitor_queue.lock"
 MEDIA_DIR = BASE_DIR / "media"
 MEDIA_DIR.mkdir(exist_ok=True)
+MONITOR_QUEUE_MAX = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
 
 # Videos longer than this will be skipped
 MAX_VIDEO_DURATION_SEC = 60
@@ -133,6 +135,7 @@ async def _forward_to_bot(mensaje: str, canal: str, media_paths: list, media_typ
         "headline": headline,
         "received_at": datetime.now().isoformat(),
         "source_name": source_name,
+        "source_type": "telegram",
     }
 
     if media_paths:
@@ -151,10 +154,21 @@ async def _forward_to_bot(mensaje: str, canal: str, media_paths: list, media_typ
             print(f"[monitor] Corrupt queue file, resetting: {e}")
             queue = []
 
-        entry = {"id": str(uuid.uuid4()), **pending_data}
-        queue.append(entry)
-        if len(queue) > 20:
-            queue = queue[-20:]          # drop oldest, keep newest 20
+        entry = normalize_ingest_payload(
+            {
+                "id": str(uuid.uuid4()),
+                "source_name": source_name,
+                "source_type": "telegram",
+                "received_at": pending_data["received_at"],
+                "headline": headline,
+                "media_paths": media_paths,
+                "media_path": media_paths[0] if media_paths else "",
+                "media_type": media_type or "",
+                "metadata": {"credibility": "medium", "priority": "normal"},
+            }
+        )
+        queue, _stored, status = append_or_merge_queue(queue, entry, max_items=MONITOR_QUEUE_MAX)
+        print(f"[monitor] queued status={status} source={source_name} score={_stored.get('score')}", flush=True)
 
         _atomic_write_json(MONITOR_QUEUE_FILE, queue)
 
