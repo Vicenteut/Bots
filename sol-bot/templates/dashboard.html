@@ -177,8 +177,8 @@
   .pub-bar-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 28px; text-align: right; flex-shrink: 0; }
 
   /* REPLACE PENDING MODAL */
-  #replace-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
-  #replace-modal.visible { display: flex; }
+  #replace-modal, #publish-confirm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+  #replace-modal.visible, #publish-confirm-modal.visible { display: flex; }
   .replace-modal-box { background: var(--surface2); border: 1px solid var(--amber-dim); border-radius: 4px; padding: 20px 24px; max-width: 420px; width: 90%; display: flex; flex-direction: column; gap: 12px; }
   .replace-modal-icon { font-size: 22px; color: var(--amber); }
   .replace-modal-title { font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: 0.05em; color: var(--amber); text-transform: uppercase; }
@@ -329,6 +329,8 @@
      Desktop layout is 100% unchanged above this block.
   ═══════════════════════════════════════════════════════════════ */
   #mobile-tabs { display: none; }
+  .mobile-only { display: none !important; }
+
 
   @media (max-width: 768px) {
     /* ── Globals ── */
@@ -493,7 +495,68 @@
       display: none;
       line-height: 1.3;
     }
+    .mob-tab.active { color: var(--purple2); border-top-color: var(--purple); background: rgba(176,38,255,0.08); }
+    .mob-tab-badge { background: var(--purple); color: #fff; }
     .mob-tab-badge.visible { display: inline; }
+
+    /* ── Mobile editorial screens ── */
+    .mobile-only { display: none !important; }
+    .col.mobile-only.mob-active { display: flex !important; }
+    body.mobile-tab-create #columns { overflow-y: auto; display: block; -webkit-overflow-scrolling: touch; }
+    body.mobile-tab-create .col { position: relative; inset: auto; width: 100%; min-height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    body.mobile-tab-create .col-chat.mob-active,
+    body.mobile-tab-create .col-mixed.mob-active { display: flex; }
+    body.mobile-tab-create .col-chat { min-height: 58dvh; }
+    body.mobile-tab-create .col-mixed { min-height: 42dvh; }
+    body.mobile-tab-pending .col-manager-inner,
+    body.mobile-tab-system .mobile-system-inner { padding-bottom: 18px; }
+
+    /* ── Mobile inbox: fullscreen, one-column, no desktop drawer feeling ── */
+    body.mobile-tab-inbox .monitor-drawer { transform: translateX(0); border-left: none; }
+    body.mobile-tab-inbox .drawer-backdrop { display: none !important; }
+    .monitor-drawer { border-left: none; background: var(--bg); }
+    .monitor-inbox { display: flex; flex-direction: column; gap: 10px; height: auto; min-height: 0; overflow-y: auto; padding-bottom: 72px; }
+    .monitor-list-pane, .monitor-detail-pane { flex: 0 0 auto; overflow: visible; border-color: var(--border2); border-radius: 12px; background: var(--surface1); }
+    .monitor-filters { display: flex; gap: 8px; overflow-x: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
+    .monitor-chip-row { flex: 0 0 auto; width: max-content; border-bottom: none; padding: 0; align-items: center; }
+    .monitor-chip { min-height: 34px; padding: 7px 11px; font-size: 10px; }
+    .monitor-filters input, .monitor-filters select { flex: 0 0 148px; min-height: 38px; font-size: 11px; }
+    .monitor-list { max-height: 48dvh; padding: 10px; }
+    .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; }
+    .monitor-list-title { font-size: 13px; -webkit-line-clamp: 4; }
+    .monitor-list-item-top { gap: 8px; flex-wrap: wrap; font-size: 10px; }
+    .monitor-detail { padding: 14px; max-height: none; }
+    .monitor-detail textarea, .combo-edit-textarea { min-height: 150px; font-size: 13px; resize: vertical; }
+    .monitor-detail-actions { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .monitor-detail-actions .btn-combo { grid-column: 1 / -1; }
+    .monitor-bulk-row { padding: 10px; }
+
+    /* ── Pending/Create cards ── */
+    .pending-section { margin: 10px; border: 1px solid var(--border2); border-left: 4px solid var(--purple); border-radius: 14px; background: rgba(255,255,255,0.035); box-shadow: none; }
+    .combo-dropzone { border-left-color: var(--success) !important; }
+    .pending-tweet-text { font-size: 13px; border-radius: 10px; }
+    .action-grid, .regen-row, .btn-row { gap: 8px; }
+    .regen-row { flex-direction: column; }
+    .regen-row input { min-height: 44px; font-size: 12px; }
+    .mixed-inner { padding: 12px; gap: 12px; padding-bottom: 82px; }
+
+    /* ── Mobile analytics/system cards ── */
+    #analytics-panel.mobile-inline { display: block !important; position: static !important; inset: auto; z-index: auto; border: 0; padding: 0; max-height: none; overflow: visible; }
+    #analytics-panel.mobile-inline > div:first-child { display: none !important; }
+    #analytics-panel.mobile-inline > div[style] { display: block !important; max-height: none !important; overflow: visible !important; }
+    #analytics-threads-summary, #analytics-threads-recent { overflow: visible !important; }
+    #analytics-threads-recent table, #analytics-threads-recent thead, #analytics-threads-recent tbody, #analytics-threads-recent tr, #analytics-threads-recent td { display: block; width: 100%; }
+    #analytics-threads-recent thead { display: none; }
+    #analytics-threads-recent tr { border: 1px solid var(--border2); border-radius: 12px; padding: 10px; margin: 8px 0; background: var(--surface1); }
+    #analytics-threads-recent td { text-align: left !important; padding: 2px 0 !important; white-space: normal !important; }
+    .mobile-system-inner { flex: 1; overflow-y: auto; padding: 12px; background: var(--bg); }
+    .mobile-card { border: 1px solid var(--border2); border-radius: 14px; background: var(--surface1); padding: 14px; margin-bottom: 12px; }
+    .mobile-card-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--purple2); text-transform: uppercase; margin-bottom: 8px; }
+    .mobile-metric-row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding: 8px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .mobile-metric-row:first-of-type { border-top: 0; }
+    .mobile-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    #publish-confirm-modal .replace-modal-box { width: min(92vw, 420px); }
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -636,6 +699,7 @@
   </div>
 
   <!-- ANALYTICS PANEL -->
+  <div id="analytics-panel-home"></div>
   <div id="analytics-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <span style="color:var(--amber);font-weight:700;letter-spacing:0.08em;">📊 ANALYTICS</span>
@@ -794,6 +858,18 @@
       </div>
     </div>
 
+    <!-- MOBILE ONLY: SYSTEM -->
+    <div class="col col-system mobile-only">
+      <div class="panel-header">
+        <div class="panel-title">SYSTEM</div>
+      </div>
+      <div class="mobile-system-inner" id="mobile-system-inner">
+        <div class="mobile-card">
+          <div class="mobile-card-title">Loading system…</div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /columns -->
 
   <!-- MONITOR FEED DRAWER -->
@@ -838,22 +914,27 @@
 
   <!-- MOBILE TAB BAR — hidden on desktop via CSS, shown at ≤768px -->
   <div id="mobile-tabs">
-    <button class="mob-tab active" data-tab="status" onclick="activateMobileTab('status')">
-      <span class="mob-tab-icon">📊</span>
-      <span>STATUS</span>
+    <button class="mob-tab active" data-tab="inbox" onclick="activateMobileTab('inbox')">
+      <span class="mob-tab-icon">⌁</span>
+      <span>INBOX</span>
+      <span class="mob-tab-badge" id="mob-inbox-badge"></span>
     </button>
-    <button class="mob-tab" data-tab="post" onclick="activateMobileTab('post')">
-      <span class="mob-tab-icon">📝</span>
-      <span>POST</span>
+    <button class="mob-tab" data-tab="pending" onclick="activateMobileTab('pending')">
+      <span class="mob-tab-icon">◉</span>
+      <span>PENDING</span>
+      <span class="mob-tab-badge" id="mob-pending-badge"></span>
     </button>
-    <button class="mob-tab" data-tab="mixed" onclick="activateMobileTab('mixed')">
-      <span class="mob-tab-icon">🧩</span>
-      <span>MIXED</span>
+    <button class="mob-tab" data-tab="create" onclick="activateMobileTab('create')">
+      <span class="mob-tab-icon">✎</span>
+      <span>CREATE</span>
     </button>
-    <button class="mob-tab" data-tab="monitor" onclick="activateMobileTab('monitor')">
-      <span class="mob-tab-icon">📡</span>
-      <span>MONITOR</span>
-      <span class="mob-tab-badge" id="mob-monitor-badge"></span>
+    <button class="mob-tab" data-tab="analytics" onclick="activateMobileTab('analytics')">
+      <span class="mob-tab-icon">◌</span>
+      <span>DATA</span>
+    </button>
+    <button class="mob-tab" data-tab="system" onclick="activateMobileTab('system')">
+      <span class="mob-tab-icon">⚙</span>
+      <span>SYSTEM</span>
     </button>
   </div>
 
@@ -1031,6 +1112,8 @@ let _monitorLastDetailId = null;
 let _pendingComboExists = false;
 let _pendingComboOriginal = '';
 let _pendingComboDirty = false;
+let _lastStatus = null;
+let _lastPending = null;
 const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
 const MONITOR_PRIORITIES = ['breaking','high','normal','low','duplicate','unverified'];
 
@@ -1442,6 +1525,7 @@ setInterval(pollBrainHistory, 30000);
 
 // ─── STATUS RENDERER ─────────────────────────────────────────
 function renderStatus(d) {
+  _lastStatus = d;
   const sol = d.sol_commands || {};
   const mon = d.monitor      || {};
   const solDot = `<span class="proc-dot${sol.alive ? '' : ' dead'}"></span>`;
@@ -1489,6 +1573,7 @@ function renderStatus(d) {
     </div>
     ${genBadge ? '<div class="sb-divider"></div><div class="sb-item">' + genBadge + '</div>' : ''}
   `;
+  renderMobileSystem();
 }
 
 // ─── RECENT POSTS RENDERER ───────────────────────────────────
@@ -1523,6 +1608,8 @@ function renderRecentPosts(posts) {
 
 // ─── PENDING RENDERER ────────────────────────────────────────
 function renderPending(d) {
+  _lastPending = d || {};
+  syncMobileBadges();
   const container = document.getElementById('pending-container');
   if (!container) return;
   let html = '';
@@ -2032,6 +2119,16 @@ function _publishFailureHtml(d, source) {
 
 async function publishPost(platform, source, btn) {
   platform = 'threads';
+  if (isMobileViewport() && !(btn && btn.dataset.mobileConfirmed === '1')) {
+    const ok = await showMobilePublishConfirm(source);
+    if (!ok) return;
+    if (btn) btn.dataset.mobileConfirmed = '1';
+    try {
+      return await publishPost(platform, source, btn);
+    } finally {
+      if (btn) delete btn.dataset.mobileConfirmed;
+    }
+  }
   if (source === 'combo' && _pendingComboDirty) {
     const saved = await saveComboEdit(null, true);
     if (!saved) {
@@ -2574,64 +2671,184 @@ function _fmtTime(isoStr) {
   }
 
 // ─── MOBILE TAB NAVIGATION ───────────────────────────────────────
-(function() {
-  const TAB_COL = {
-    status:  '.col-manager',
-    post:    '.col-chat',
-    mixed:   '.col-mixed',
-    monitor: null,
-  };
+function isMobileViewport() {
+  return window.innerWidth <= 768;
+}
 
-  window.activateMobileTab = function(tabName) {
-    if (window.innerWidth > 768) return;
+function setMobileTabClass(tabName) {
+  document.body.classList.remove('mobile-tab-inbox','mobile-tab-pending','mobile-tab-create','mobile-tab-analytics','mobile-tab-system');
+  document.body.classList.add('mobile-tab-' + tabName);
+}
 
-    document.querySelectorAll('.mob-tab').forEach(function(t) {
-      t.classList.toggle('active', t.dataset.tab === tabName);
-    });
-    document.querySelectorAll('.col').forEach(function(c) {
-      c.classList.remove('mob-active');
-    });
+function closeMobileOverlays() {
+  const analytics = document.getElementById('analytics-panel');
+  const analyticsHome = document.getElementById('analytics-panel-home');
+  const brain = document.getElementById('brain-panel');
+  const signals = document.getElementById('signals-panel');
+  if (analytics) analytics.classList.remove('mobile-inline');
+  if (analytics && analyticsHome && analytics.parentNode !== analyticsHome.parentNode) analyticsHome.after(analytics);
+  if (analytics && !document.body.classList.contains('mobile-tab-analytics')) analytics.style.display = 'none';
+  if (brain) brain.style.display = 'none';
+  if (signals) signals.style.display = 'none';
+  const reply = document.getElementById('reply-drawer');
+  if (reply) reply.classList.remove('open');
+}
 
-    if (tabName === 'monitor') {
-      document.getElementById('monitor-drawer').classList.add('open');
-    } else {
-      document.getElementById('monitor-drawer').classList.remove('open');
-      var sel = TAB_COL[tabName];
-      if (sel) document.querySelector(sel).classList.add('mob-active');
-    }
-  };
-
-  // When monitor drawer closes on mobile, return tab bar to status
-  var _origToggle = window.toggleMonitorDrawer;
-  window.toggleMonitorDrawer = function() {
-    var wasOpen = document.getElementById('monitor-drawer').classList.contains('open');
-    _origToggle();
-    if (wasOpen && window.innerWidth <= 768) {
-      document.querySelectorAll('.mob-tab').forEach(function(t) {
-        t.classList.toggle('active', t.dataset.tab === 'status');
-      });
-      var mgr = document.querySelector('.col-manager');
-      if (mgr) mgr.classList.add('mob-active');
-    }
-  };
-
-  // Keep mobile monitor badge in sync with _monitorCount
-  setInterval(function() {
-    var badge = document.getElementById('mob-monitor-badge');
-    if (!badge) return;
+function syncMobileBadges() {
+  const inboxBadge = document.getElementById('mob-inbox-badge');
+  const pendingBadge = document.getElementById('mob-pending-badge');
+  if (inboxBadge) {
     if (typeof _monitorCount !== 'undefined' && _monitorCount > 0) {
-      badge.textContent = _monitorCount;
-      badge.classList.add('visible');
+      inboxBadge.textContent = _monitorCount;
+      inboxBadge.classList.add('visible');
     } else {
-      badge.classList.remove('visible');
+      inboxBadge.classList.remove('visible');
     }
-  }, 1000);
-
-  // Init on mobile
-  if (window.innerWidth <= 768) {
-    window.activateMobileTab('status');
   }
+  if (pendingBadge) {
+    const count = (_lastPending && _lastPending.tweet ? 1 : 0) + (_lastPending && _lastPending.combo ? 1 : 0);
+    if (count > 0) {
+      pendingBadge.textContent = count;
+      pendingBadge.classList.add('visible');
+    } else {
+      pendingBadge.classList.remove('visible');
+    }
+  }
+}
+
+function renderMobileSystem() {
+  const el = document.getElementById('mobile-system-inner');
+  const d = _lastStatus;
+  if (!el || !d) return;
+  if (document.body.classList.contains('mobile-tab-analytics')) return;
+  const sol = d.sol_commands || {};
+  const mon = d.monitor || {};
+  const services = d.system_services || [];
+  const bad = services.filter(s => !s.ok);
+  const last = d.last_publish ? `${_timeAgo(d.last_publish.published_at)} · ${(d.last_publish.tweet_type || 'post')} · ${(d.last_publish.status || (d.last_publish.success === false ? 'FAILED' : 'OK'))}` : '—';
+  el.innerHTML = `
+    <div class="mobile-card">
+      <div class="mobile-card-title">Runtime</div>
+      <div class="mobile-metric-row"><span>sol commands</span><strong style="color:${sol.alive ? 'var(--success)' : 'var(--danger)'}">${sol.alive ? 'active' : 'down'}</strong></div>
+      <div class="mobile-metric-row"><span>monitor</span><strong style="color:${mon.alive ? 'var(--success)' : 'var(--danger)'}">${mon.alive ? 'active' : 'down'}</strong></div>
+      <div class="mobile-metric-row"><span>brain</span><strong style="color:${d.brain_enabled ? 'var(--success)' : 'var(--danger)'}">${d.brain_enabled ? 'enabled' : 'disabled'}</strong></div>
+      <div class="mobile-metric-row"><span>services</span><strong style="color:${bad.length ? 'var(--danger)' : 'var(--success)'}">${bad.length ? bad.length + ' issue' : 'ok'}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Editorial</div>
+      <div class="mobile-metric-row"><span>monitor inbox</span><strong>${_monitorCount || 0}</strong></div>
+      <div class="mobile-metric-row"><span>posts today</span><strong>${d.posts_today || 0}</strong></div>
+      <div class="mobile-metric-row"><span>last publish</span><strong style="text-align:right;max-width:58%;">${_esc(last)}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Actions</div>
+      <div class="mobile-action-grid">
+        <button class="btn btn-secondary" onclick="pollStatus(); loadSignals();">REFRESH</button>
+        <button class="btn btn-primary" onclick="toggleBrainPanel()">BRAIN</button>
+        <button class="btn btn-combo" onclick="toggleReplyDrawer()">REPLY</button>
+        <button class="btn btn-secondary" onclick="toggleSignalsPanel(); loadSignals();">SIGNALS</button>
+      </div>
+    </div>`;
+}
+
+function activateMobileTab(tabName) {
+  if (!isMobileViewport()) return;
+  setMobileTabClass(tabName);
+  document.querySelectorAll('.mob-tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.col').forEach(function(c) {
+    c.classList.remove('mob-active');
+  });
+  closeMobileOverlays();
+
+  const drawer = document.getElementById('monitor-drawer');
+  if (drawer) drawer.classList.remove('open');
+
+  if (tabName === 'inbox') {
+    if (drawer) drawer.classList.add('open');
+  } else if (tabName === 'pending') {
+    const col = document.querySelector('.col-manager');
+    if (col) col.classList.add('mob-active');
+  } else if (tabName === 'create') {
+    const chat = document.querySelector('.col-chat');
+    const mixed = document.querySelector('.col-mixed');
+    if (chat) chat.classList.add('mob-active');
+    if (mixed) mixed.classList.add('mob-active');
+  } else if (tabName === 'analytics') {
+    const col = document.querySelector('.col-system');
+    const analytics = document.getElementById('analytics-panel');
+    if (col) col.classList.add('mob-active');
+    if (analytics) {
+      analytics.classList.add('mobile-inline');
+      analytics.style.display = 'block';
+      const host = document.getElementById('mobile-system-inner');
+      if (host && analytics.parentNode !== host) host.prepend(analytics);
+    }
+    loadAnalytics();
+  } else if (tabName === 'system') {
+    const col = document.querySelector('.col-system');
+    if (col) col.classList.add('mob-active');
+    renderMobileSystem();
+  }
+  _syncBackdrop();
+  syncMobileBadges();
+}
+
+// Keep desktop drawer behavior, but on mobile closing Inbox returns to Pending.
+(function() {
+  const _origToggle = window.toggleMonitorDrawer;
+  window.toggleMonitorDrawer = function() {
+    const wasOpen = document.getElementById('monitor-drawer').classList.contains('open');
+    _origToggle();
+    if (wasOpen && isMobileViewport()) activateMobileTab('pending');
+  };
+
+  setInterval(syncMobileBadges, 1000);
+  window.addEventListener('resize', function() {
+    if (isMobileViewport()) {
+      if (!document.body.className.match(/mobile-tab-/)) activateMobileTab('inbox');
+    } else {
+      document.body.classList.remove('mobile-tab-inbox','mobile-tab-pending','mobile-tab-create','mobile-tab-analytics','mobile-tab-system');
+      document.querySelectorAll('.col').forEach(c => c.classList.remove('mob-active'));
+      const drawer = document.getElementById('monitor-drawer');
+      if (drawer) drawer.classList.remove('open');
+    }
+  });
+  if (isMobileViewport()) activateMobileTab('inbox');
 })();
+
+function pendingPreviewText(source) {
+  if (source === 'combo') {
+    const ta = document.getElementById('combo-edit-text');
+    if (ta && ta.value) return ta.value;
+    return (_lastPending && _lastPending.combo && (_lastPending.combo.tweet || _lastPending.combo.wire)) || '';
+  }
+  return (_lastPending && _lastPending.tweet && (_lastPending.tweet.tweet || _lastPending.tweet.text)) || '';
+}
+
+function showMobilePublishConfirm(source) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('publish-confirm-modal');
+    const preview = document.getElementById('publish-confirm-preview');
+    const label = document.getElementById('publish-confirm-label');
+    const ok = document.getElementById('publish-confirm-ok');
+    const cancel = document.getElementById('publish-confirm-cancel');
+    if (!modal || !preview || !ok || !cancel) return resolve(window.confirm('Publish to Threads?'));
+    const text = pendingPreviewText(source);
+    label.textContent = `This will publish the ${source === 'combo' ? 'pending combo' : 'pending post'} to Threads.`;
+    preview.textContent = text ? text.slice(0, 420) + (text.length > 420 ? '…' : '') : '[empty preview]';
+    const cleanup = (value) => {
+      modal.classList.remove('visible');
+      ok.onclick = null;
+      cancel.onclick = null;
+      resolve(value);
+    };
+    ok.onclick = () => cleanup(true);
+    cancel.onclick = () => cleanup(false);
+    modal.classList.add('visible');
+  });
+}
 </script>
 <script>
   if ('serviceWorker' in navigator) {
@@ -2639,6 +2856,19 @@ function _fmtTime(isoStr) {
   }
 </script>
 <!-- DRAWER BACKDROP -->
+<div id="publish-confirm-modal">
+  <div class="replace-modal-box">
+    <div class="replace-modal-icon">⊙</div>
+    <div class="replace-modal-title">Confirm Threads publish</div>
+    <div class="replace-modal-body" id="publish-confirm-label">This will publish from mobile.</div>
+    <div class="replace-modal-preview" id="publish-confirm-preview"></div>
+    <div class="replace-modal-actions">
+      <button class="btn btn-secondary" id="publish-confirm-cancel">CANCEL</button>
+      <button class="btn btn-success" id="publish-confirm-ok">PUBLISH</button>
+    </div>
+  </div>
+</div>
+
 <div id="drawer-backdrop" class="drawer-backdrop" onclick="closeAllDrawers()"></div>
 </body>
 </html>
