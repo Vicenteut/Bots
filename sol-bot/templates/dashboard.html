@@ -10,19 +10,22 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #080808;
-    --surface1:  #111111;
-    --surface2:  #1a1a1a;
-    --surface3:  #222222;
-    --border:    #2a2a2a;
-    --border2:   #333333;
-    --amber:     #f59e0b;
-    --amber-dim: #92600a;
-    --cyan:      #22d3ee;
-    --cyan-dim:  #0e7490;
-    --text:      #e5e5e5;
-    --muted:     #6b7280;
-    --muted2:    #4b5563;
+    --bg:        #050505;
+    --surface1:  #0d0d10;
+    --surface2:  #17171c;
+    --surface3:  #24242b;
+    --border:    #2f2f37;
+    --border2:   #454550;
+    --purple:    #b026ff;
+    --purple2:   #d86cff;
+    --purple-dim:#6f18a8;
+    --amber:     #a3a3a3;
+    --amber-dim: #666666;
+    --cyan:      #d86cff;
+    --cyan-dim:  #8b2bd6;
+    --text:      #f4f4f5;
+    --muted:     #a1a1aa;
+    --muted2:    #71717a;
     --danger:    #ef4444;
     --success:   #22c55e;
     --mono:      'IBM Plex Mono', monospace;
@@ -90,7 +93,7 @@
   .chat-input-area { flex: 0 0 auto; padding: 10px 14px; background: var(--surface1); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
 
   textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 8px 10px; resize: none; outline: none; transition: border-color 0.15s; }
-  textarea:focus { border-color: var(--cyan-dim); }
+  textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 1px rgba(176,38,255,0.35); }
   textarea::placeholder { color: var(--muted2); }
   .btn-row { display: flex; gap: 6px; }
 
@@ -98,7 +101,7 @@
   .btn { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 7px 14px; border-radius: 3px; border: 1px solid transparent; cursor: pointer; outline: none; transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease, background-color 0.15s ease; white-space: nowrap; position: relative; overflow: hidden; }
   .btn:hover { transform: translateY(-1px); }
   .btn:active { transform: scale(0.97) translateY(0); }
-  .btn-primary   { background: var(--amber); color: #000; border-color: var(--amber); }
+  .btn-primary   { background: var(--purple); color: #fff; border-color: var(--purple); box-shadow: 0 0 16px rgba(176,38,255,0.18); }
   .btn-primary:hover { filter: brightness(1.1); }
   .btn-secondary { background: transparent; color: var(--muted); border-color: var(--border2); }
   .btn-secondary:hover { background: var(--surface2); color: var(--text); border-color: var(--muted2); }
@@ -108,6 +111,8 @@
   .btn-danger:hover { background: rgba(239,68,68,0.08); }
   .btn-success   { background: rgba(34,197,94,0.12); color: var(--success); border-color: rgba(34,197,94,0.4); }
   .btn-success:hover { background: rgba(34,197,94,0.2); }
+  .btn-combo     { background: rgba(34,197,94,0.18); color: var(--success); border-color: rgba(34,197,94,0.62); }
+  .btn-combo:hover { background: rgba(34,197,94,0.28); }
   .btn:disabled  { opacity: 0.35; cursor: not-allowed; transform: none !important; filter: none !important; }
   .btn-sm   { padding: 5px 10px; font-size: 11px; }
   .btn-full { flex: 1; }
@@ -234,9 +239,13 @@
   .monitor-list-pane, .monitor-detail-pane { min-height: 0; overflow: hidden; display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--surface1); }
   .monitor-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; border-bottom: 1px solid var(--border); }
   .monitor-filters input, .monitor-filters select { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px; border-radius: 2px; min-width: 0; }
+  .monitor-chip-row { display:flex; flex-wrap:wrap; gap:5px; padding:8px; border-bottom:1px solid var(--border); }
+  .monitor-chip { background:transparent; border:1px solid var(--border2); color:var(--muted); border-radius:999px; padding:4px 8px; font-family:var(--mono); font-size:9px; cursor:pointer; }
+  .monitor-chip.active, .monitor-chip:hover { border-color:var(--purple); color:var(--purple2); background:rgba(176,38,255,0.11); }
   .monitor-list { flex: 1; overflow-y: auto; padding: 6px; }
   .monitor-list-item { width: 100%; text-align: left; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px; margin-bottom: 6px; cursor: pointer; border-radius: 3px; font-family: var(--mono); }
-  .monitor-list-item.active { border-color: var(--amber); background: rgba(245,158,11,0.08); }
+  .monitor-list-item.active { border-color: var(--purple); background: rgba(176,38,255,0.10); box-shadow: 0 0 18px rgba(176,38,255,0.10); }
+  .monitor-list-item.dragging { opacity:0.45; border-color:var(--success); }
   .monitor-list-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 9px; color: var(--muted2); }
   .monitor-list-title { font-size: 11px; line-height: 1.35; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .monitor-detail { flex: 1; overflow-y: auto; padding: 12px; }
@@ -246,6 +255,9 @@
   .monitor-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 10px; }
   .monitor-media-grid img, .monitor-media-grid video { width: 100%; max-height: 170px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border2); }
   .monitor-bulk-row { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
+  .combo-dropzone { border:1px dashed var(--border2); transition:border-color .15s, background .15s, box-shadow .15s; }
+  .combo-dropzone.drag-over { border-color:var(--success); background:rgba(34,197,94,0.08); box-shadow:0 0 18px rgba(34,197,94,0.12); }
+  .combo-edit-textarea { min-height:140px; resize:vertical; margin-bottom:8px; }
 
   /* ── REPLY DRAWER ───────────────────────────────────────────── */
   #reply-drawer {
@@ -747,7 +759,7 @@
           <textarea id="mixed-input" rows="4" placeholder="Paste raw headlines, data points, or wire copy…"></textarea>
         </div>
 
-        <button class="btn btn-primary" id="btn-mixed" onclick="doMixed(this)" style="width:100%;">GENERATE MIXED</button>
+        <button class="btn btn-combo" id="btn-mixed" onclick="doMixed(this)" style="width:100%;">GENERATE MIXED</button>
 
         <div id="mixed-preview-container" style="display:none;">
           <div class="field-label">Preview</div>
@@ -857,14 +869,54 @@ const THREADS_CHAR_WARN  = 460;
 
 // ─── CSRF TOKEN ───────────────────────────────────────────────
 let _csrfToken = '';
-(async function initCsrf() {
+async function fetchCsrfToken(force = false) {
+  if (_csrfToken && !force) return _csrfToken;
   try {
-    const r = await fetch('/api/csrf-token');
-    if (r.ok) { const d = await r.json(); _csrfToken = d.csrf_token || ''; }
-  } catch(e) {}
-})();
+    const r = await fetch('/api/csrf-token', {credentials:'same-origin', cache:'no-store'});
+    if (!r.ok) throw new Error(`CSRF fetch status ${r.status}`);
+    const d = await r.json();
+    _csrfToken = d.csrf_token || d.token || '';
+    if (!_csrfToken) throw new Error('empty CSRF token');
+    return _csrfToken;
+  } catch(e) {
+    if (typeof addLogLine === 'function') addLogLine('err', `[csrf] token fetch failed: ${e.message || e}`);
+    throw e;
+  }
+}
+(async function initCsrf() { try { await fetchCsrfToken(true); } catch(e) {} })();
 function _csrfHeaders(extra) {
   return Object.assign({'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken}, extra || {});
+}
+
+function _isMutating(method) {
+  return ['POST','PUT','PATCH','DELETE'].includes((method || 'GET').toUpperCase());
+}
+
+async function csrfFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  if (!_isMutating(method)) return fetch(url, {...options, credentials:'same-origin'});
+  try { await fetchCsrfToken(); }
+  catch(e) { throw new Error('Unable to acquire security token. Reload the page.'); }
+  const headers = new Headers(options.headers || {});
+  headers.set('X-CSRF-Token', _csrfToken);
+  if (!headers.has('Content-Type') && typeof options.body === 'string') headers.set('Content-Type', 'application/json');
+  let res = await fetch(url, {...options, method, headers, credentials:'same-origin'});
+  if (res.status === 403) {
+    let text = '';
+    try { text = await res.clone().text(); } catch(e) {}
+    if (/csrf/i.test(text)) {
+      _csrfToken = '';
+      try {
+        await fetchCsrfToken(true);
+        headers.set('X-CSRF-Token', _csrfToken);
+        res = await fetch(url, {...options, method, headers, credentials:'same-origin'});
+        if (res.status === 403 && typeof addLogLine === 'function') addLogLine('err', '[csrf] recovery failed; reload dashboard');
+      } catch(e) {
+        if (typeof addLogLine === 'function') addLogLine('err', '[csrf] recovery failed; reload dashboard');
+      }
+    }
+  }
+  return res;
 }
 
 // ─── CLOCK ───────────────────────────────────────────────────
@@ -921,7 +973,7 @@ function fadeSwap(el, renderFn) {
 // ─── POLLING ─────────────────────────────────────────────────
 async function pollStatus() {
   try {
-    const r = await fetch('/api/status');
+    const r = await csrfFetch('/api/status');
     if (r.ok) {
       const d = await r.json();
       renderStatus(d);
@@ -936,12 +988,13 @@ async function pollStatus() {
 }
 async function pollPending() {
   try {
-    const r = await fetch('/api/pending');
+    const r = await csrfFetch('/api/pending');
     if (r.ok) {
       const d = await r.json();
       const el         = document.getElementById('pending-container');
       const pendingKey = JSON.stringify(d);
       if (pendingKey !== _lastPendingKey) {
+        if (_pendingComboDirty) return;
         _lastPendingKey = pendingKey;
         fadeSwap(el, () => renderPending(d));
       }
@@ -960,8 +1013,16 @@ let _lastMonitorKey  = '';
 let _lastRecentKey   = '';
 let _monitorQueue    = [];
 let _monitorSelected = null;
-let _monitorFilters  = {q:'', source:'all', type:'all', priority:'all', media:'all', format:'all'};
+let _monitorFilters  = {q:'', source:'all', type:'all', topic:'all', priority:'all', media:'all', format:'all'};
 let _monitorChecked  = new Set();
+let _monitorKnownIds = new Set();
+let _monitorDetailDirty = false;
+let _monitorLastDetailId = null;
+let _pendingComboExists = false;
+let _pendingComboOriginal = '';
+let _pendingComboDirty = false;
+const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
+const MONITOR_PRIORITIES = ['breaking','high','normal','low','duplicate','unverified'];
 
 function _monitorSources(queue) {
   return Array.from(new Set((queue || []).map(e => e.source_name || (e.headline && e.headline.source) || 'Unknown'))).sort();
@@ -981,11 +1042,13 @@ function _monitorFiltered() {
     const h = e.headline || {};
     const source = e.source_name || h.source || 'Unknown';
     const type = e.source_type || 'telegram';
+    const topic = e.topic_guess || 'general';
     const priority = e.priority_label || 'normal';
-    const hay = `${source} ${type} ${priority} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
+    const hay = `${source} ${type} ${topic} ${priority} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
     if (q && !hay.includes(q)) return false;
     if (_monitorFilters.source !== 'all' && source !== _monitorFilters.source) return false;
     if (_monitorFilters.type !== 'all' && type !== _monitorFilters.type) return false;
+    if (_monitorFilters.topic !== 'all' && topic !== _monitorFilters.topic) return false;
     if (_monitorFilters.priority !== 'all' && priority !== _monitorFilters.priority) return false;
     if (_monitorFilters.media === 'media' && !e.has_media) return false;
     if (_monitorFilters.media === 'text' && e.has_media) return false;
@@ -1021,15 +1084,33 @@ function _pill(text, color) {
 
 async function pollMonitor() {
   try {
-    const r = await fetch('/api/monitor/queue');
+    const r = await csrfFetch('/api/monitor/queue');
     if (r.ok) {
       const d = await r.json();
       const monitorKey = JSON.stringify(d);
       if (monitorKey !== _lastMonitorKey) {
+        const listEl = document.getElementById('monitor-list');
+        const oldScroll = listEl ? listEl.scrollTop : 0;
+        const incoming = Array.isArray(d) ? d : [];
+        const hadKnownIds = _monitorKnownIds.size > 0;
+        const incomingIds = new Set(incoming.map(e => e.id));
+        const hasNewIds = incoming.some(e => !_monitorKnownIds.has(e.id));
         _lastMonitorKey = monitorKey;
-        _monitorQueue = Array.isArray(d) ? d : [];
-        if (!_monitorQueue.some(e => e.id === _monitorSelected)) _monitorSelected = _monitorQueue[0] ? _monitorQueue[0].id : null;
+        _monitorQueue = incoming;
+        _monitorKnownIds = incomingIds;
+        const filtered = _monitorFiltered();
+        if (!_monitorQueue.some(e => e.id === _monitorSelected)) {
+          _monitorSelected = filtered[0] ? filtered[0].id : (_monitorQueue[0] ? _monitorQueue[0].id : null);
+          _monitorDetailDirty = false;
+        }
         renderMonitor(_monitorQueue);
+        const newListEl = document.getElementById('monitor-list');
+        if (newListEl) newListEl.scrollTop = oldScroll;
+        const drawer = document.getElementById('monitor-drawer');
+        if (hadKnownIds && hasNewIds && drawer && !drawer.classList.contains('open')) {
+          drawer.classList.add('open');
+          _syncBackdrop();
+        }
       }
     }
   } catch(e) {}
@@ -1060,7 +1141,7 @@ function renderMonitor(queue) {
   countBadge.textContent = _monitorCount;
   const sources = _monitorSources(queue);
   const types = _monitorTypes(queue);
-  const priorities = _monitorPriorities(queue);
+  const priorities = MONITOR_PRIORITIES;
   headerCount.textContent = `(${_monitorCount} pending · ${sources.length} sources)`;
   toggle.classList.add('has-alert');
   drawer.classList.add('has-alert');
@@ -1069,6 +1150,11 @@ function renderMonitor(queue) {
     <div class="monitor-inbox">
       <div class="monitor-list-pane">
         <div class="monitor-filters">
+          <div class="monitor-chip-row" style="grid-column:1/-1;">
+            <button class="monitor-chip ${_monitorFilters.topic === 'all' && _monitorFilters.priority === 'all' ? 'active' : ''}" onclick="resetMonitorFilters()">HOME</button>
+            ${MONITOR_TOPICS.map(t => `<button class="monitor-chip ${_monitorFilters.topic === t ? 'active' : ''}" onclick="setMonitorFilter('topic','${t}')">${t}</button>`).join('')}
+            ${MONITOR_PRIORITIES.map(p => `<button class="monitor-chip ${_monitorFilters.priority === p ? 'active' : ''}" onclick="setMonitorFilter('priority','${p}')">${p}</button>`).join('')}
+          </div>
           <input id="mon-filter-q" placeholder="search" value="${_esc(_monitorFilters.q)}" oninput="setMonitorFilter('q', this.value)">
           <select id="mon-filter-source" onchange="setMonitorFilter('source', this.value)">
             <option value="all">all sources</option>
@@ -1104,19 +1190,20 @@ function renderMonitor(queue) {
     </div>`;
   renderMonitorList();
   renderMonitorDetail();
-
-  if (prevCount === 0 && _monitorCount > 0) {
-    drawer.classList.add('open');
-    _syncBackdrop();
-  }
 }
 
 function setMonitorFilter(key, value) {
-  _monitorFilters[key] = value;
+  _monitorFilters[key] = (_monitorFilters[key] === value && ['topic','priority'].includes(key)) ? 'all' : value;
   renderMonitorList();
   const filtered = _monitorFiltered();
   if (!_monitorSelected || !filtered.some(e => e.id === _monitorSelected)) _monitorSelected = filtered[0] ? filtered[0].id : null;
   renderMonitorDetail();
+}
+
+function resetMonitorFilters() {
+  _monitorFilters = {q:'', source:'all', type:'all', topic:'all', priority:'all', media:'all', format:'all'};
+  _monitorDetailDirty = false;
+  renderMonitor(_monitorQueue);
 }
 
 function toggleMonitorCheck(id, checked) {
@@ -1140,7 +1227,7 @@ function renderMonitorList() {
     const score = e.score != null ? e.score : '—';
     const active = e.id === _monitorSelected ? 'active' : '';
     const checked = _monitorChecked.has(e.id) ? 'checked' : '';
-    return `<button class="monitor-list-item ${active}" onclick="selectMonitorAlert('${_esc(e.id)}')">
+    return `<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="this.classList.remove('dragging')" onclick="selectMonitorAlert('${_esc(e.id)}')">
       <div class="monitor-list-item-top">
         <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
         <span style="color:var(--amber);">${_esc(source)}</span>
@@ -1159,6 +1246,7 @@ function renderMonitorList() {
 
 function selectMonitorAlert(id) {
   _monitorSelected = id;
+  _monitorDetailDirty = false;
   renderMonitorList();
   renderMonitorDetail();
 }
@@ -1172,6 +1260,8 @@ function renderMonitorDetail() {
     return;
   }
   _monitorSelected = entry.id;
+  if (_monitorDetailDirty && _monitorLastDetailId === entry.id) return;
+  _monitorLastDetailId = entry.id;
   const h = entry.headline || {};
   const source = entry.source_name || h.source || 'Unknown';
   const mediaHtml = _monitorMediaPreview(entry);
@@ -1189,13 +1279,13 @@ function renderMonitorDetail() {
     </div>
     ${mediaHtml}
     <div class="field-label">Title / post source</div>
-    <textarea id="mon-edit-title">${_esc(h.title || '')}</textarea>
+    <textarea id="mon-edit-title" oninput="_monitorDetailDirty=true">${_esc(h.title || '')}</textarea>
     <div class="field-label">Context / summary</div>
-    <textarea id="mon-edit-summary">${_esc(h.summary || h.title || '')}</textarea>
+    <textarea id="mon-edit-summary" oninput="_monitorDetailDirty=true">${_esc(h.summary || h.title || '')}</textarea>
     <div class="monitor-detail-actions">
       <button class="btn btn-primary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'WIRE')">WIRE</button>
       <button class="btn btn-cyan btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'ANALISIS')">ANALISIS</button>
-      <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','mixed',this,'COMBINADA')">COMBINADA</button>
+      <button class="btn btn-combo btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','mixed',this,'COMBINADA')">COMBINADA</button>
       <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','original',this,'ORIGINAL')">ORIGINAL</button>
       <button class="btn btn-danger btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','ignore',this)">IGNORE</button>
     </div>
@@ -1224,7 +1314,7 @@ async function saveMonitorEdit(alertId, btn) {
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'SAVING...'; }
   try {
-    const r = await fetch(`/api/monitor/save/${encodeURIComponent(alertId)}`, {
+    const r = await csrfFetch(`/api/monitor/save/${encodeURIComponent(alertId)}`, {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({
@@ -1234,6 +1324,7 @@ async function saveMonitorEdit(alertId, btn) {
     });
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || d.error || 'save failed');
+    _monitorDetailDirty = false;
     if (resultEl) resultEl.textContent = '✓ saved';
     await pollMonitor();
   } catch(e) {
@@ -1246,7 +1337,7 @@ async function bulkIgnoreMonitor() {
   if (!_monitorChecked.size) return;
   const ids = Array.from(_monitorChecked);
   try {
-    const r = await fetch('/api/monitor/bulk-ignore', {
+    const r = await csrfFetch('/api/monitor/bulk-ignore', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({ids})
@@ -1270,7 +1361,7 @@ async function doMonitorAction(alertId, action, btn, tweetType) {
   const resultEl = document.getElementById('monitor-action-result');
 
   try {
-    const r = await fetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+    const r = await csrfFetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify(_monitorPayload(action, tweetType))
@@ -1308,7 +1399,7 @@ async function pollBrainHistory() {
   const p = document.getElementById('brain-panel');
   if (!p || p.style.display === 'none') return;
   try {
-    const r = await fetch('/api/brain/history');
+    const r = await csrfFetch('/api/brain/history');
     if (r.ok) renderBrainHistory(await r.json());
   } catch(e) {}
 }
@@ -1425,6 +1516,7 @@ function renderPending(d) {
   const container = document.getElementById('pending-container');
   if (!container) return;
   let html = '';
+  _pendingComboExists = !!d.combo;
 
   if (d.tweet) {
     const t = d.tweet;
@@ -1464,16 +1556,18 @@ function renderPending(d) {
   if (d.combo) {
     const c = d.combo;
     const tweet = c.tweet || c.wire || '';
+    _pendingComboOriginal = tweet;
+    _pendingComboDirty = false;
     const len = tweet.length;
     const pct = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1);
     const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
     html += `
-    <div class="pending-section" style="border-left-color:var(--cyan-dim);">
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
       <div class="section-label"><span class="dot" style="background:var(--cyan);"></span>PENDING COMBO</div>
       ${tweet ? `<div style="margin-bottom:6px;">
-        <div class="pending-tweet-text" style="white-space:pre-wrap;">${_esc(tweet)}</div>
+        <textarea id="combo-edit-text" class="combo-edit-textarea" oninput="onComboEditInput()">${_esc(tweet)}</textarea>
         <div class="char-counter">
-          <span class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
+          <span id="combo-char-count" class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
           <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
         </div>
       </div>` : ''}
@@ -1482,6 +1576,9 @@ function renderPending(d) {
         <button class="btn btn-danger btn-sm" onclick="discardPending(this)">✕ DISCARD</button>
       </div>
       <div class="regen-row">
+        <input type="text" id="combo-regen-instruction" placeholder="Optional combo regeneration instruction…">
+        <button class="btn btn-secondary btn-sm" id="combo-save-btn" onclick="saveComboEdit(this)" disabled>SAVE</button>
+        <button class="btn btn-combo btn-sm" onclick="regenerateCombo(this)">↻ REGEN</button>
         <button class="btn btn-cyan btn-sm" id="validate-btn-combo" onclick="doValidate(this)" style="margin-left:0;">✓ VALIDATE</button>
       </div>
       <div id="validate-result" style="margin-top:5px;"></div>
@@ -1494,6 +1591,18 @@ function renderPending(d) {
     <div class="pending-section" style="opacity:0.5;">
       <div class="section-label">PENDING POST</div>
       <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">No pending post.</div>
+    </div>`;
+    html += `
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);opacity:0.85;" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
+      <div class="section-label"><span class="dot" style="background:var(--success);"></span>PENDING COMBO</div>
+      <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">Drop a monitor card here to generate COMBINADA.</div>
+    </div>`;
+  }
+  if (d.tweet && !d.combo) {
+    html += `
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);opacity:0.85;" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
+      <div class="section-label"><span class="dot" style="background:var(--success);"></span>PENDING COMBO</div>
+      <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">Drop a monitor card here to generate COMBINADA.</div>
     </div>`;
   }
 
@@ -1527,7 +1636,7 @@ function renderScheduled(list) {
 // ─── PENDING REPLACE GUARD ───────────────────────────────────
 async function confirmReplaceIfPending() {
   try {
-    const r = await fetch('/api/pending');
+    const r = await csrfFetch('/api/pending');
     if (!r.ok) return true;
     const d = await r.json();
     const pendingText = (d.tweet && d.tweet.tweet) || (d.combo && (d.combo.tweet || d.combo.wire)) || null;
@@ -1566,7 +1675,7 @@ async function doGenerate(btn) {
   addChatMsg('user', headline);
 
   try {
-    const r = await fetch('/api/generate', {
+    const r = await csrfFetch('/api/generate', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
@@ -1598,7 +1707,7 @@ async function doGenerateAndPublish(btn) {
   addChatMsg('user', headline);
 
   try {
-    const r = await fetch('/api/generate', {
+    const r = await csrfFetch('/api/generate', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
@@ -1624,7 +1733,7 @@ async function doRegenerate(btn) {
   btn.innerHTML = '<span class="spin">⟳</span>';
 
   try {
-    const r = await fetch('/api/generate/regenerate', {
+    const r = await csrfFetch('/api/generate/regenerate', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({instruction: instr || null, tweet_type: _activeFmt !== 'ANALISIS' ? _activeFmt : null}),
@@ -1649,7 +1758,7 @@ async function doValidate(btn) {
   const orig = btn.textContent;
   btn.textContent = '⟳ CHECKING…';
   try {
-    const r = await fetch('/api/validate');
+    const r = await csrfFetch('/api/validate');
     const d = await r.json();
     renderValidate(d);
   } catch(e) {
@@ -1688,7 +1797,7 @@ async function doMixed(btn) {
   btn.innerHTML = '<span class="spin">⟳</span> GENERATING…';
 
   try {
-    const r = await fetch('/api/mixed', {
+    const r = await csrfFetch('/api/mixed', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline}),
@@ -1708,6 +1817,115 @@ async function doMixed(btn) {
   }
   btn.textContent = orig;
   btn.disabled = false;
+}
+
+function onComboEditInput() {
+  const ta = document.getElementById('combo-edit-text');
+  if (!ta) return;
+  const len = ta.value.length;
+  const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
+  const counter = document.getElementById('combo-char-count');
+  if (counter) {
+    counter.textContent = `${len}/${THREADS_CHAR_LIMIT}`;
+    counter.className = `char-count-num ${cls}`;
+  }
+  const fill = ta.closest('.pending-section')?.querySelector('.char-bar-fill');
+  if (fill) {
+    fill.className = `char-bar-fill ${cls}`;
+    fill.style.width = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1) + '%';
+  }
+  _pendingComboDirty = ta.value !== _pendingComboOriginal;
+  const saveBtn = document.getElementById('combo-save-btn');
+  if (saveBtn) saveBtn.disabled = !_pendingComboDirty;
+}
+
+async function saveComboEdit(btn, silent=false) {
+  const ta = document.getElementById('combo-edit-text');
+  if (!ta) return false;
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'SAVING…'; }
+  try {
+    const r = await csrfFetch('/api/pending/combo/save', {
+      method: 'POST',
+      body: JSON.stringify({tweet: ta.value})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || 'save failed');
+    _pendingComboOriginal = d.pending_combo?.tweet || ta.value;
+    _pendingComboDirty = false;
+    onComboEditInput();
+    if (!silent) addLogLine('ok', `[combo] saved ${d.char_count} chars`);
+    setTimeout(() => pollPending(), 300);
+    return true;
+  } catch(e) {
+    if (!silent) addLogLine('err', `[combo] save failed: ${e.message || e}`);
+    return false;
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = !_pendingComboDirty; }
+  }
+}
+
+async function regenerateCombo(btn) {
+  const instruction = (document.getElementById('combo-regen-instruction') || {}).value || '';
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'GENERATING…'; }
+  try {
+    const r = await csrfFetch('/api/pending/combo/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({instruction: instruction || null})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || 'regenerate failed');
+    addLogLine('ok', `[combo] regenerated ${d.char_count} chars`);
+    await pollPending();
+  } catch(e) {
+    addLogLine('err', `[combo] regenerate failed: ${e.message || e}`);
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
+function startMonitorDrag(ev, alertId) {
+  ev.currentTarget.classList.add('dragging');
+  ev.dataTransfer.effectAllowed = 'copy';
+  ev.dataTransfer.setData('application/x-sol-alert-id', alertId);
+  ev.dataTransfer.setData('text/plain', alertId);
+}
+
+function allowComboDrop(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'copy';
+  ev.currentTarget.classList.add('drag-over');
+}
+
+async function dropMonitorToCombo(ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
+  if (!alertId || !_monitorQueue.some(e => e.id === alertId)) {
+    addLogLine('err', '[combo] invalid dragged alert');
+    return;
+  }
+  if (_pendingComboExists) {
+    const ok = await _showReplaceModal(_pendingComboOriginal || 'Existing pending combo');
+    if (!ok) return;
+  }
+  const resultEl = document.getElementById('publish-result-combo');
+  if (resultEl) resultEl.innerHTML = '<span style="color:var(--muted2);font-family:var(--mono);font-size:11px;">Generating COMBINADA…</span>';
+  try {
+    const r = await csrfFetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      body: JSON.stringify({action:'mixed', tweet_type:'COMBINADA'})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'drag combo failed');
+    addLogLine('ok', `[monitor] dragged alert → pending_combo (${d.remaining} left)`);
+    _monitorChecked.delete(alertId);
+    await pollMonitor();
+    await pollPending();
+  } catch(e) {
+    addLogLine('err', `[combo] drop failed: ${e.message || e}`);
+  }
 }
 
 // ─── PUBLISH ─────────────────────────────────────────────────
@@ -1763,6 +1981,13 @@ function _publishFailureHtml(d, source) {
 
 async function publishPost(platform, source, btn) {
   platform = 'threads';
+  if (source === 'combo' && _pendingComboDirty) {
+    const saved = await saveComboEdit(null, true);
+    if (!saved) {
+      addLogLine('err', '[combo] publish blocked: save edited combo first');
+      return;
+    }
+  }
   const resultId = source === 'combo' ? 'publish-result-combo' : 'publish-result';
   const resultEl = document.getElementById(resultId);
   if (resultEl) resultEl.innerHTML = '';
@@ -1773,7 +1998,7 @@ async function publishPost(platform, source, btn) {
 
   let tOk = false, d = null;
   try {
-    const r = await fetch('/api/publish', {
+    const r = await csrfFetch('/api/publish', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({platform, source}),
@@ -1817,7 +2042,7 @@ async function publishPost(platform, source, btn) {
 async function _publishNow(platform, source, btn, resultEl) {
   platform = 'threads';
   try {
-    const r = await fetch('/api/publish', {
+    const r = await csrfFetch('/api/publish', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({platform, source}),
@@ -1852,7 +2077,7 @@ async function discardPending(btn) {
   if (!confirm('Clear all pending_*.json files?')) return;
   btn.disabled = true;
   try {
-    const r = await fetch('/api/reset', {method: 'POST', headers: {'X-CSRF-Token': _csrfToken}});
+    const r = await csrfFetch('/api/reset', {method: 'POST', headers: {'X-CSRF-Token': _csrfToken}});
     const d = await r.json();
     addLogLine('warn', `[reset] Cleared: ${(d.cleared || []).join(', ') || 'none'}`);
     setTimeout(() => pollPending(), 500);
@@ -1866,7 +2091,7 @@ async function cancelSched(n, btn) {
   if (!confirm(`Cancel scheduled post #${n}?`)) return;
   btn.disabled = true;
   try {
-    const r = await fetch(`/api/scheduler/${n}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken}});
+    const r = await csrfFetch(`/api/scheduler/${n}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken}});
     const d = await r.json();
     addLogLine('warn', `[scheduler] Deleted pending_sched_${n}.json: ${d.deleted}`);
     setTimeout(() => pollPending(), 500);
@@ -1947,7 +2172,7 @@ function _fmtTime(isoStr) {
     document.getElementById('reply-results').innerHTML = '<div class="reply-meta">Calling Sol...</div>';
 
     try {
-      const r = await fetch('/api/replies/generate', {
+      const r = await csrfFetch('/api/replies/generate', {
         method: 'POST',
         headers: _csrfHeaders(),
         body: JSON.stringify({input_type: _replyMode, content, model_override: _replyModel}),
@@ -2022,7 +2247,7 @@ function _fmtTime(isoStr) {
     btn.disabled = true;
     btn.textContent = '⟳';
     try {
-      const r = await fetch('/api/replies/regenerate-one', {
+      const r = await csrfFetch('/api/replies/regenerate-one', {
         method: 'POST',
         headers: _csrfHeaders(),
         body: JSON.stringify({move, original_tweet: _replyLastTweet, model_override: _replyModel}),
@@ -2058,7 +2283,7 @@ function _fmtTime(isoStr) {
     pEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
     mEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
     try {
-      const r = await fetch('/api/signals');
+      const r = await csrfFetch('/api/signals');
       if (!r.ok) throw new Error(r.status);
       const d = await r.json();
       renderGdelt(d.gdelt);
@@ -2185,7 +2410,7 @@ function _fmtTime(isoStr) {
     document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading...</span>';
     document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
     try {
-      const threads = await fetch('/api/threads/analytics?days=7&limit=20').then(r => r.json());
+      const threads = await csrfFetch('/api/threads/analytics?days=7&limit=20').then(r => r.json());
       renderThreadsSummary(threads);
       renderThreadsRecent(threads);
     } catch(e) {
@@ -2197,7 +2422,7 @@ function _fmtTime(isoStr) {
   async function syncThreadsAnalytics() {
     document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">syncing...</span>';
     try {
-      const result = await fetch('/api/threads/analytics/sync?limit=50', {
+      const result = await csrfFetch('/api/threads/analytics/sync?limit=50', {
         method: 'POST',
         headers: {'X-CSRF-Token': _csrfToken}
       }).then(r => r.json());

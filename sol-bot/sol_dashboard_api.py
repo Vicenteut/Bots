@@ -365,7 +365,20 @@ def _read_json_safe(path: Path):
 
 
 def _save_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = path.parent / f".tmp_{path.name}"
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+_PRESERVE_PENDING_KEYS = {
+    "media_paths", "media_path", "media_type", "headline", "source_alert_id", "source_name",
+    "tweet_type", "metadata", "canonical_url", "source_type", "topic_tag", "topic_guess",
+    "score", "priority_label", "credibility", "related_sources", "related_source_count",
+}
+
+
+def _preserve_pending_fields(existing: dict) -> dict:
+    return {k: existing[k] for k in _PRESERVE_PENDING_KEYS if k in existing}
 
 
 def _attach_media_to_pending(data: dict) -> dict:
@@ -664,6 +677,10 @@ class GeneratePayload(BaseModel):
 
 class MixedPayload(BaseModel):
     headline: str
+
+
+class ComboSavePayload(BaseModel):
+    tweet: str
 
 
 class RegeneratePayload(BaseModel):
@@ -971,6 +988,59 @@ async def api_regenerate(request: Request, payload: RegeneratePayload):
         "char_count": len(tweet_text),
         "model_used": None,
     }
+
+
+@app.post("/api/pending/combo/save")
+async def api_pending_combo_save(request: Request, payload: ComboSavePayload):
+    _require_csrf(request)
+    existing = _read_json_safe(PENDING_COMBO)
+    if not existing:
+        raise HTTPException(404, "No pending_combo.json to save")
+
+    tweet = (payload.tweet or "").strip()
+    if not tweet:
+        raise HTTPException(422, "Combo text is empty")
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Threads post is {len(tweet)} chars; max is {THREADS_POST_MAX_CHARS}")
+
+    data = {**existing, "tweet": tweet, "edited_at": datetime.now().isoformat()}
+    _save_json(PENDING_COMBO, data)
+    return {"ok": True, "pending_combo": data, "char_count": len(tweet)}
+
+
+@app.post("/api/pending/combo/regenerate")
+async def api_pending_combo_regenerate(request: Request, payload: RegeneratePayload):
+    _require_csrf(request)
+    if not _GENERATOR_AVAILABLE:
+        raise HTTPException(503, f"generator.py unavailable: {_GENERATOR_ERROR}")
+
+    existing = _read_json_safe(PENDING_COMBO)
+    if not existing:
+        raise HTTPException(404, "No pending_combo.json to regenerate")
+
+    headline_dict = existing.get("headline") or {
+        "title": existing.get("tweet", ""), "summary": existing.get("tweet", ""), "source": "manual"
+    }
+    if payload.instruction:
+        headline_dict = dict(headline_dict, instruction=payload.instruction)
+
+    loop = asyncio.get_event_loop()
+    tweet = await loop.run_in_executor(
+        None, lambda: _generate_combinada_tweet(headline_dict, manual=True)
+    )
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Generated combo is {len(tweet)} chars; max is {THREADS_POST_MAX_CHARS}")
+
+    preserved = _preserve_pending_fields(existing)
+    data = {
+        **preserved,
+        "tweet": tweet,
+        "headline": headline_dict,
+        "generated_at": datetime.now().isoformat(),
+        "tweet_type": "COMBINADA",
+    }
+    _save_json(PENDING_COMBO, data)
+    return {"ok": True, "pending_combo": data, "char_count": len(tweet)}
 
 
 @app.get("/api/validate")
