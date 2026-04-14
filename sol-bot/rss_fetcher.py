@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from filelock import FileLock
 
@@ -23,6 +26,15 @@ MONITOR_QUEUE = BASE_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK = BASE_DIR / "monitor_queue.lock"
 RSS_STATE = BASE_DIR / "rss_fetcher_state.json"
 RSS_STATE_LOCK = BASE_DIR / "rss_fetcher_state.lock"
+MEDIA_DIR = BASE_DIR / "media"
+MEDIA_DIR.mkdir(exist_ok=True)
+MAX_RSS_IMAGE_BYTES = int(os.getenv("RSS_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)) or str(5 * 1024 * 1024))
+IMAGE_CONTENT_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
 
 def _read_json(path: Path, default):
@@ -45,11 +57,67 @@ def _entry_time(entry) -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _rss_media_urls(entry) -> list[str]:
+    urls: list[str] = []
+    for item in getattr(entry, "media_thumbnail", None) or []:
+        url = item.get("url") if isinstance(item, dict) else None
+        if url:
+            urls.append(url)
+    for item in getattr(entry, "media_content", None) or []:
+        url = item.get("url") if isinstance(item, dict) else None
+        medium = (item.get("medium") if isinstance(item, dict) else "") or ""
+        typ = (item.get("type") if isinstance(item, dict) else "") or ""
+        if url and (medium == "image" or typ.startswith("image/")):
+            urls.append(url)
+    for item in getattr(entry, "links", None) or []:
+        href = item.get("href") if isinstance(item, dict) else None
+        typ = (item.get("type") if isinstance(item, dict) else "") or ""
+        rel = (item.get("rel") if isinstance(item, dict) else "") or ""
+        if href and (typ.startswith("image/") or rel == "enclosure"):
+            urls.append(href)
+    deduped = []
+    for url in urls:
+        if url not in deduped:
+            deduped.append(url)
+    return deduped
+
+
+def _safe_image_ext(url: str, content_type: str) -> str | None:
+    content_type = (content_type or "").split(";", 1)[0].strip().lower()
+    if content_type in IMAGE_CONTENT_TYPES:
+        return IMAGE_CONTENT_TYPES[content_type]
+    suffix = Path(urlparse(url).path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+        return ".jpg" if suffix == ".jpeg" else suffix
+    return None
+
+
+def _download_rss_image(url: str, source_name: str, external_id: str) -> str | None:
+    req = Request(url, headers={"User-Agent": "sol-rss-fetcher/1.0"})
+    with urlopen(req, timeout=20) as resp:
+        content_type = resp.headers.get("Content-Type", "")
+        ext = _safe_image_ext(url, content_type)
+        if not ext:
+            return None
+        declared_size = resp.headers.get("Content-Length")
+        if declared_size and int(declared_size) > MAX_RSS_IMAGE_BYTES:
+            return None
+        data = resp.read(MAX_RSS_IMAGE_BYTES + 1)
+        if len(data) > MAX_RSS_IMAGE_BYTES:
+            return None
+    slug = "".join(c.lower() if c.isalnum() else "_" for c in source_name)[:32].strip("_") or "rss"
+    digest = hashlib.sha1(f"{source_name}:{external_id}:{url}".encode("utf-8")).hexdigest()[:16]
+    path = MEDIA_DIR / f"rss_{slug}_{digest}{ext}"
+    path.write_bytes(data)
+    return str(path)
+
+
 def _entry_payload(source: dict[str, Any], entry) -> dict[str, Any]:
     title = (getattr(entry, "title", "") or "").strip()
     summary = (getattr(entry, "summary", "") or getattr(entry, "description", "") or title).strip()
     link = (getattr(entry, "link", "") or "").strip()
     external_id = (getattr(entry, "id", "") or getattr(entry, "guid", "") or link or title).strip()
+    media_urls = _rss_media_urls(entry)
     return {
         "external_id": external_id,
         "received_at": _entry_time(entry),
@@ -62,6 +130,7 @@ def _entry_payload(source: dict[str, Any], entry) -> dict[str, Any]:
             "source": source.get("name") or "RSS",
             "url": link,
         },
+        "media_urls": media_urls,
         "metadata": {
             "credibility": source.get("credibility", "medium"),
             "priority": source.get("base_priority", "normal"),
@@ -71,6 +140,25 @@ def _entry_payload(source: dict[str, Any], entry) -> dict[str, Any]:
             "redistributable": bool(source.get("redistributable", True)),
         },
     }
+
+
+def _maybe_download_high_priority_media(source: dict[str, Any], entry: dict[str, Any]) -> None:
+    should_download = source.get("download_media") or (
+        source.get("download_media_high_only") and entry.get("priority_label") in {"high", "breaking"}
+    )
+    if not should_download or entry.get("media_paths") or not entry.get("media_urls"):
+        return
+    for url in entry.get("media_urls") or []:
+        try:
+            path = _download_rss_image(url, entry.get("source_name", "RSS"), entry.get("external_id", ""))
+        except Exception as exc:
+            print(f"[rss/media] download failed source={entry.get('source_name')} url={url}: {exc}", flush=True)
+            continue
+        if path:
+            entry["media_paths"] = [path]
+            entry["media_path"] = path
+            entry["media_type"] = "photo"
+            return
 
 
 def _load_queue() -> list[dict[str, Any]]:
@@ -130,6 +218,7 @@ def sync_sources(*, limit_per_source: int = 10, dry_run: bool = False) -> dict[s
                     skipped += 1
                     continue
                 entry = normalize_ingest_payload(payload)
+                _maybe_download_high_priority_media(source, entry)
                 queue, stored, status = append_or_merge_queue(queue, entry)
                 if status == "created":
                     created += 1

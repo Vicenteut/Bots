@@ -95,6 +95,7 @@
       "is_official": false,
       "redistributable": true,
       "fetch_interval_minutes": 30,
+      "download_media_high_only": true,
       "language": "en"
     },
     {
@@ -111,6 +112,7 @@
       "is_official": false,
       "redistributable": true,
       "fetch_interval_minutes": 30,
+      "download_media_high_only": true,
       "language": "en"
     }
   ]

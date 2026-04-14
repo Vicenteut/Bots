@@ -998,6 +998,23 @@ function _mediaUrl(path) {
   return '/media/' + encodeURIComponent((path || '').split('/').pop());
 }
 
+function _monitorMediaPreview(entry) {
+  const files = entry.media_files || [];
+  const remoteUrls = entry.media_urls || [];
+  const localHtml = files.map(m => {
+    const url = _mediaUrl(m.path || m.filename);
+    return (entry.media_type === 'video' || (m.filename || '').endsWith('.mp4'))
+      ? `<video src="${url}" controls muted playsinline></video>`
+      : `<img src="${url}" loading="lazy" alt="media">`;
+  });
+  const remoteHtml = !localHtml.length ? remoteUrls.slice(0, 4).map(url => {
+    const safeUrl = _esc(url);
+    return `<img src="${safeUrl}" loading="lazy" alt="remote media" referrerpolicy="no-referrer">`;
+  }) : [];
+  const all = localHtml.concat(remoteHtml);
+  return all.length ? `<div class="monitor-media-grid">${all.join('')}</div>` : '';
+}
+
 function _pill(text, color) {
   return `<span class="badge" style="background:${color || 'var(--surface2)'};border-color:var(--border2);color:var(--text);padding:2px 6px;font-size:9px;">${_esc(text)}</span>`;
 }
@@ -1157,13 +1174,7 @@ function renderMonitorDetail() {
   _monitorSelected = entry.id;
   const h = entry.headline || {};
   const source = entry.source_name || h.source || 'Unknown';
-  const media = entry.media_files || [];
-  const mediaHtml = media.length ? `<div class="monitor-media-grid">${media.map(m => {
-    const url = _mediaUrl(m.path || m.filename);
-    return (entry.media_type === 'video' || (m.filename || '').endsWith('.mp4'))
-      ? `<video src="${url}" controls muted playsinline></video>`
-      : `<img src="${url}" loading="lazy" alt="media">`;
-  }).join('')}</div>` : '';
+  const mediaHtml = _monitorMediaPreview(entry);
   el.innerHTML = `
     <div class="monitor-detail-meta">
       ${_pill(source, 'rgba(245,158,11,0.12)')}
