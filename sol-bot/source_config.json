@@ -41,7 +41,9 @@
       "feed_url": "",
       "base_priority": "normal",
       "credibility": "medium",
-      "category_defaults": ["crypto"],
+      "category_defaults": [
+        "crypto"
+      ],
       "is_official": false,
       "redistributable": true,
       "fetch_interval_minutes": 15,
@@ -54,7 +56,10 @@
       "feed_url": "",
       "base_priority": "high",
       "credibility": "high",
-      "category_defaults": ["regulation", "markets"],
+      "category_defaults": [
+        "regulation",
+        "markets"
+      ],
       "is_official": true,
       "redistributable": true,
       "fetch_interval_minutes": 30,
@@ -67,8 +72,43 @@
       "feed_url": "",
       "base_priority": "high",
       "credibility": "high",
-      "category_defaults": ["macro", "markets"],
+      "category_defaults": [
+        "macro",
+        "markets"
+      ],
       "is_official": true,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "language": "en"
+    },
+    {
+      "name": "BBC World",
+      "type": "rss",
+      "enabled": true,
+      "feed_url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "base_priority": "normal",
+      "credibility": "high",
+      "category_defaults": [
+        "geopolitica",
+        "general"
+      ],
+      "is_official": false,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "language": "en"
+    },
+    {
+      "name": "BBC Business",
+      "type": "rss",
+      "enabled": true,
+      "feed_url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "base_priority": "normal",
+      "credibility": "high",
+      "category_defaults": [
+        "markets",
+        "macro"
+      ],
+      "is_official": false,
       "redistributable": true,
       "fetch_interval_minutes": 30,
       "language": "en"
