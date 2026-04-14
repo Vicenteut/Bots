@@ -88,6 +88,13 @@ LOG_ALLOWLIST = {"sol_commands", "monitor", "scheduler", "analytics", "trending"
 
 THREADS_POST_MAX_CHARS = 500
 THREADS_POST_WARN_CHARS = 460
+REMOTE_MONITOR_IMAGE_MAX_BYTES = int(os.getenv("REMOTE_MONITOR_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)) or str(5 * 1024 * 1024))
+REMOTE_MONITOR_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
 # ─── SIGNALS CACHE ───────────────────────────────────────────────────────────
 _gdelt_cache: dict = {"data": None, "ts": 0.0}
@@ -1265,6 +1272,70 @@ def _valid_media_paths(entry: dict) -> list[str]:
     return [p for p in _entry_media_paths(entry) if Path(p).exists()]
 
 
+def _remote_image_ext(url: str, content_type: str) -> str | None:
+    content_type = (content_type or "").split(";", 1)[0].strip().lower()
+    if content_type in REMOTE_MONITOR_IMAGE_TYPES:
+        return REMOTE_MONITOR_IMAGE_TYPES[content_type]
+    suffix = Path(urllib.parse.urlparse(url).path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+        return ".jpg" if suffix == ".jpeg" else suffix
+    return None
+
+
+def _should_download_remote_monitor_media(entry: dict) -> bool:
+    score, label, _reasons = score_alert_details(entry)
+    return label in {"high", "breaking"} or score >= 60
+
+
+def _download_remote_monitor_image(entry: dict, label: str) -> str | None:
+    """Download a remote RSS preview image when it is eligible for publishing.
+
+    The inbox can preview remote `media_urls`, but Threads publishing needs a
+    local file path. Keep this fallback conservative: high/breaking alerts only.
+    """
+    if not _should_download_remote_monitor_media(entry):
+        return None
+    urls = entry.get("media_urls") or []
+    if not isinstance(urls, list) or not urls:
+        return None
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    source_name = entry.get("source_name") or "monitor"
+    external_id = entry.get("external_id") or entry.get("id") or ""
+    for url in [u for u in urls if isinstance(u, str) and u.startswith(("http://", "https://"))]:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "sol-dashboard/1.0"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                ext = _remote_image_ext(url, content_type)
+                if not ext:
+                    print(f"[monitor/{label}] skipped remote media unsupported type={content_type} url={url}", flush=True)
+                    continue
+                declared_size = resp.headers.get("Content-Length")
+                if declared_size and int(declared_size) > REMOTE_MONITOR_IMAGE_MAX_BYTES:
+                    print(f"[monitor/{label}] skipped remote media too large size={declared_size} url={url}", flush=True)
+                    continue
+                data = resp.read(REMOTE_MONITOR_IMAGE_MAX_BYTES + 1)
+                if len(data) > REMOTE_MONITOR_IMAGE_MAX_BYTES:
+                    print(f"[monitor/{label}] skipped remote media over limit url={url}", flush=True)
+                    continue
+        except Exception as exc:
+            print(f"[monitor/{label}] remote media download failed url={url}: {exc}", flush=True)
+            continue
+
+        slug = "".join(c.lower() if c.isalnum() else "_" for c in source_name)[:32].strip("_") or "monitor"
+        digest = hashlib.sha1(f"{source_name}:{external_id}:{url}".encode("utf-8")).hexdigest()[:16]
+        path = MEDIA_DIR / f"monitor_{slug}_{digest}{ext}"
+        try:
+            path.write_bytes(data)
+        except Exception as exc:
+            print(f"[monitor/{label}] remote media write failed path={path}: {exc}", flush=True)
+            continue
+        print(f"[monitor/{label}] downloaded remote media: {path}", flush=True)
+        return str(path)
+    return None
+
+
 def _suggest_monitor_format(entry: dict) -> str:
     headline = entry.get("headline", {}) or {}
     text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
@@ -1348,10 +1419,18 @@ def _headline_from_payload(entry: dict, payload: MonitorActionPayload | MonitorS
 
 def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
     media_paths = _valid_media_paths(entry)
+    if not media_paths:
+        downloaded = _download_remote_monitor_image(entry, label)
+        if downloaded:
+            media_paths = [downloaded]
     if media_paths:
         data["media_paths"] = media_paths
         data["media_path"] = media_paths[0]
         data["media_type"] = entry.get("media_type", "photo")
+        if not entry.get("media_type"):
+            data["media_type"] = "photo"
+        if entry.get("media_urls"):
+            data["media_source_urls"] = entry.get("media_urls")
         print(f"[monitor/{label}] attached {len(media_paths)} media file(s)", flush=True)
 
 
