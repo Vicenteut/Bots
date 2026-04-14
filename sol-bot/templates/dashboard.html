@@ -227,7 +227,7 @@
     z-index: 199; overflow-y: auto;
   }
   .monitor-drawer.open { transform: translateX(0); }
-  body.monitor-dragging .monitor-drawer {
+  body.monitor-drag-exit .monitor-drawer {
     transform: translateX(105%) !important;
     pointer-events: none;
   }
@@ -528,7 +528,7 @@
     transition: opacity 0.25s ease;
   }
   .drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
-  body.monitor-dragging .drawer-backdrop { opacity: 0 !important; pointer-events: none !important; }
+  body.monitor-drag-exit .drawer-backdrop { opacity: 0 !important; pointer-events: none !important; }
 
   /* ── Global subtle transitions (elements without own transition) ── */
   * { transition: background-color 0.15s ease, border-color 0.15s ease; }
@@ -1901,24 +1901,34 @@ function startMonitorDrag(ev, alertId) {
   ev.dataTransfer.setData('application/x-sol-alert-id', alertId);
   ev.dataTransfer.setData('text/plain', alertId);
   document.body.classList.add('monitor-dragging');
-
-  // Let the browser start the native drag first, then move the drawer away so
-  // the pending combo drop zone behind it can receive the drop.
-  setTimeout(function() {
-    const drawer = document.getElementById('monitor-drawer');
-    if (drawer) drawer.classList.remove('open');
-    _syncBackdrop();
-    const comboZone = document.getElementById('pending-combo-dropzone');
-    if (comboZone) comboZone.scrollIntoView({block:'center', behavior:'smooth'});
-  }, 0);
 }
 
 function endMonitorDrag(ev) {
   if (ev && ev.currentTarget) ev.currentTarget.classList.remove('dragging');
   document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
   document.querySelectorAll('.combo-dropzone.drag-over').forEach(function(el) {
     el.classList.remove('drag-over');
   });
+}
+
+function maybeCloseMonitorForDrag(ev) {
+  if (!document.body.classList.contains('monitor-dragging')) return;
+  if (document.body.classList.contains('monitor-drag-exit')) return;
+  const drawer = document.getElementById('monitor-drawer');
+  if (!drawer || !drawer.classList.contains('open')) return;
+  const rect = drawer.getBoundingClientRect();
+  const x = ev.clientX || 0;
+
+  // Close only after the cursor has actually left the drawer toward the page.
+  // Closing immediately on dragstart makes some browsers drop the native drag.
+  if (x > 0 && x < rect.left - 8) {
+    document.body.classList.add('monitor-drag-exit');
+    drawer.classList.remove('open');
+    _syncBackdrop();
+    const comboZone = document.getElementById('pending-combo-dropzone');
+    if (comboZone) comboZone.scrollIntoView({block:'center', behavior:'smooth'});
+  }
 }
 
 function allowComboDrop(ev) {
@@ -1930,6 +1940,7 @@ function allowComboDrop(ev) {
 async function dropMonitorToCombo(ev) {
   ev.preventDefault();
   document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
   ev.currentTarget.classList.remove('drag-over');
   const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
   if (!alertId || !_monitorQueue.some(e => e.id === alertId)) {
@@ -1960,10 +1971,13 @@ async function dropMonitorToCombo(ev) {
 
 window.addEventListener('dragend', function() {
   document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
 });
 window.addEventListener('drop', function() {
   document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
 });
+window.addEventListener('dragover', maybeCloseMonitorForDrag);
 
 // ─── PUBLISH ─────────────────────────────────────────────────
 function _insertPublishProgress(grid, platform) {
