@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, priority_rank, score_alert_details
+from recommendation_engine import get_learning_summary, recommend_for_alert
 from topic_utils import classify_topic
 
 try:
@@ -1300,6 +1301,7 @@ def _enrich_monitor_entry(entry: dict) -> dict:
     enriched["age_seconds"] = age_seconds
     enriched["topic_guess"] = classify_topic(text)
     enriched["suggested_format"] = _suggest_monitor_format(enriched)
+    enriched["editorial_recommendation"] = recommend_for_alert(enriched, fallback_format=enriched["suggested_format"])
     enriched["source_type"] = enriched.get("source_type") or "telegram"
     enriched["credibility"] = enriched.get("credibility") or "medium"
     enriched["priority"] = enriched.get("priority") or "normal"
@@ -1358,6 +1360,16 @@ async def api_monitor_queue():
     """Return enriched queue ordered by editorial priority bands."""
     enriched = [_enrich_monitor_entry(e) for e in _read_queue()]
     return JSONResponse(sorted(enriched, key=_monitor_sort_key))
+
+
+@app.get("/api/recommendation/alert/{alert_id}")
+async def api_alert_recommendation(alert_id: str):
+    """Return the analytics-backed editorial recommendation for one alert."""
+    entry = next((e for e in _read_queue() if e.get("id") == alert_id), None)
+    if entry is None:
+        raise HTTPException(404, f"Alert {alert_id} not found in queue")
+    enriched = _enrich_monitor_entry(entry)
+    return JSONResponse(enriched.get("editorial_recommendation") or {})
 
 
 @app.get("/api/monitor/sources")
@@ -1582,7 +1594,9 @@ async def api_threads_analytics(days: int = 7, limit: int = 20):
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return JSONResponse(mod.get_analytics(days=days, limit=limit))
+        data = mod.get_analytics(days=days, limit=limit)
+        data["learning_summary"] = get_learning_summary(days=days)
+        return JSONResponse(data)
     except Exception as e:
         return JSONResponse({"error": str(e), "summary": {}, "recent_posts": []})
 
