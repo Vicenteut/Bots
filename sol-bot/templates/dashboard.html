@@ -2322,6 +2322,9 @@ async function publishPost(platform, source, btn) {
       tOk = !!d.threads_success;
       const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
+      if (tOk && d.cleared_pending) {
+        addLogLine('ok', `[publish] Published and cleared ${d.cleared_file || 'pending file'}`);
+      }
       if (!tOk && resultEl) {
         resultEl.innerHTML = _publishFailureHtml(d, source);
       } else if (tOk && resultEl) {
@@ -2331,6 +2334,7 @@ async function publishPost(platform, source, btn) {
         resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
+        pollPending();
       }
     } else {
       if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;

@@ -857,6 +857,16 @@ async def api_publish(request: Request, payload: PublishPayload):
                         public_media_urls=parsed_result["public_media_urls"])
 
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
+    cleared_pending = False
+    cleared_file = None
+    if threads_success and threads_post_id:
+        try:
+            source_file.unlink(missing_ok=True)
+            cleared_pending = True
+            cleared_file = source_file.name
+            print(f"[publish/{source}] cleared pending file after Threads confirmation: {cleared_file}", flush=True)
+        except Exception as exc:
+            print(f"[publish/{source}] failed to clear pending file {source_file.name}: {exc}", flush=True)
 
     return {
         "threads_success": threads_success,
@@ -872,6 +882,8 @@ async def api_publish(request: Request, payload: PublishPayload):
         "public_media_urls": parsed_result["public_media_urls"],
         "stdout": stdout[-2000:],  # last 2000 chars for debugging
         "wire_repost_warning": wire_repost_warning,
+        "cleared_pending": cleared_pending,
+        "cleared_file": cleared_file,
     }
 
 
