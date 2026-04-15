@@ -5,15 +5,15 @@ This guide keeps Sol visually coherent as we iterate. It is intentionally lightw
 
 ## Core Palette
 
-- `--bg`: `#050505`
-- `--surface1`: `#0d0d10`
-- `--surface2`: `#17171c`
-- `--surface3`: `#24242b`
-- `--border`: `#2f2f37`
-- `--border2`: `#454550`
+- `--bg`: `#0b0b10`
+- `--surface1`: `#15151b`
+- `--surface2`: `#1d1d25`
+- `--surface3`: `#2a2a34`
+- `--border`: `#434351`
+- `--border2`: `#626272`
 - `--text`: `#f4f4f5`
-- `--muted`: `#a1a1aa`
-- `--muted2`: `#71717a`
+- `--muted`: `#ccccd6`
+- `--muted2`: `#9a9aa8`
 - `--purple`: `#b026ff`
 - `--purple2`: `#d86cff`
 - `--purple-dim`: `#6f18a8`
@@ -23,6 +23,7 @@ This guide keeps Sol visually coherent as we iterate. It is intentionally lightw
 
 ## Usage Rules
 
+- Sol dark mode should be **high legibility dark**, not cinematic black.
 - Purple is the identity color: active states, focus, selected cards, analytics accents, and editorial emphasis.
 - Green is reserved for healthy states, publish success, `COMBINADA`, and other positive actions.
 - Red is only for real failures or destructive actions.
@@ -54,7 +55,7 @@ Prefer the shared scale over one-off spacing.
 
 - Cards should feel editorial and operational, not glossy.
 - Use subtle gradients or tonal lifts instead of flat black rectangles.
-- Borders should be visible but restrained.
+- Borders should be visible at rest, not only on hover.
 - Hover states should be deliberate: small lift, clearer border, or soft glow.
 - Left accent borders are acceptable for semantically important cards.
 
