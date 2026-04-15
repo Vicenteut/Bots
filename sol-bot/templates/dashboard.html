@@ -10,59 +10,71 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #080808;
-    --surface1:  #111111;
-    --surface2:  #1a1a1a;
-    --surface3:  #222222;
-    --border:    #2a2a2a;
-    --border2:   #333333;
-    --amber:     #f59e0b;
-    --amber-dim: #92600a;
-    --cyan:      #22d3ee;
-    --cyan-dim:  #0e7490;
-    --text:      #e5e5e5;
-    --muted:     #6b7280;
-    --muted2:    #4b5563;
+    --bg:        #0b0b10;
+    --surface1:  #15151b;
+    --surface2:  #1d1d25;
+    --surface3:  #2a2a34;
+    --border:    #434351;
+    --border2:   #626272;
+    --purple:    #b026ff;
+    --purple2:   #d86cff;
+    --purple-dim:#6f18a8;
+    --amber:     #a3a3a3;
+    --amber-dim: #666666;
+    --cyan:      #d86cff;
+    --cyan-dim:  #8b2bd6;
+    --text:      #f4f4f5;
+    --muted:     #ccccd6;
+    --muted2:    #9a9aa8;
     --danger:    #ef4444;
     --success:   #22c55e;
+    --warning:   #a3a3a3;
+    --card-radius: 14px;
+    --panel-radius: 16px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
     --mono:      'IBM Plex Mono', monospace;
     --sans:      'Barlow Condensed', sans-serif;
   }
 
-  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; height: 100%; overflow: hidden; }
+  html, body { background: radial-gradient(circle at top, rgba(216,108,255,0.045), transparent 30%), var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; height: 100%; overflow: hidden; }
   #app { display: flex; flex-direction: column; height: 100vh; gap: 0; }
 
   /* STATUS BAR */
-  #statusbar { flex: 0 0 48px; background: var(--surface1); border-bottom: 1px solid rgba(245,158,11,0.3); display: flex; align-items: center; padding: 0 16px; gap: 24px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.02em; user-select: none; position: relative; overflow: hidden; }
+  #statusbar { flex: 0 0 52px; background: linear-gradient(180deg, rgba(216,108,255,0.09), rgba(255,255,255,0.02) 80%), var(--surface1); border-bottom: 1px solid rgba(176,38,255,0.3); box-shadow: inset 0 -1px 0 rgba(255,255,255,0.04); display: flex; align-items: center; padding: 0 112px 0 16px; gap: 18px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.02em; user-select: none; position: relative; overflow: hidden; }
   .sb-brand { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: var(--text); white-space: nowrap; margin-right: 8px; }
-  .sb-brand span { color: var(--amber); }
-  .sb-divider { width: 1px; height: 20px; background: var(--border2); flex-shrink: 0; }
-  .sb-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); }
+  .sb-brand span { color: var(--purple2); }
+  .sb-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.13); flex-shrink: 0; }
+  .sb-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted); min-width: 0; }
   .sb-item .label { color: var(--muted2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-  .sb-item .value { color: var(--text); }
+  .sb-item .value { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
   .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex-shrink: 0; animation: livepulse 1.5s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(245,158,11,0); } }
-  .status-live { color: var(--amber); font-weight: 700; letter-spacing: 0.08em; }
+  .status-live { color: var(--text); font-weight: 700; letter-spacing: 0.08em; }
   .proc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--success); margin-right: 3px; }
   .proc-dot.dead { background: var(--danger); }
   .sb-spacer { flex: 1; }
   .brain-ok { color: var(--success); font-weight: 600; }
   .brain-fail { color: var(--amber); font-weight: 600; }
+  #sb-clock { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 10px; color: var(--muted2); white-space: nowrap; }
 
   /* COLUMNS */
-  #columns { flex: 1; display: grid; grid-template-columns: 35% 35% 30%; min-height: 0; overflow: hidden; }
-  .col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; min-height: 0; min-width: 0; }
+  #columns { flex: 1; display: grid; grid-template-columns: 35% 35% 30%; min-height: 0; overflow: hidden; background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent 20%); }
+  .col { display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(255,255,255,0.018), transparent 28%), var(--bg); overflow: hidden; min-height: 0; min-width: 0; }
   .col:last-child { border-right: none; }
   /* col widths set by grid-template-columns above */
 
   /* PANEL HEADER */
-  .panel-header { flex: 0 0 auto; padding: 10px 14px 9px; border-bottom: 1px solid var(--border); background: var(--surface1); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .panel-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-  .panel-title span { color: var(--cyan); }
-  .panel-badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 3px; background: rgba(245,158,11,0.15); border: 1px solid var(--amber-dim); color: var(--amber); animation: pulse 2s ease-in-out infinite; }
+  .panel-header { flex: 0 0 auto; padding: 12px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(216,108,255,0.06), rgba(255,255,255,0.02) 90%), var(--surface1); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text); }
+  .panel-title span { color: var(--purple2); }
+  .panel-badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 999px; background: rgba(176,38,255,0.13); border: 1px solid rgba(176,38,255,0.38); color: var(--purple2); animation: pulse 2s ease-in-out infinite; }
 
   /* SOL CHAT */
-  #chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 0; background: var(--bg); }
+  #chat-messages { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.015), transparent 22%), var(--bg); }
   #chat-messages::-webkit-scrollbar { width: 4px; }
   #chat-messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
   .msg { display: flex; flex-direction: column; gap: 2px; max-width: 92%; }
@@ -71,26 +83,27 @@
   .msg-sender { font-family: var(--mono); font-size: 10px; color: var(--muted2); letter-spacing: 0.05em; text-transform: uppercase; padding: 0 4px; }
   .msg.sol .msg-sender { color: var(--cyan-dim); }
   .msg-bubble { font-family: var(--mono); font-size: 12px; line-height: 1.55; padding: 8px 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
-  .msg.user .msg-bubble { background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); }
-  .msg.sol  .msg-bubble { background: var(--surface1); border: 1px solid var(--border); color: var(--text); border-left: 2px solid var(--cyan-dim); }
+  .msg.user .msg-bubble { background: var(--surface2); border: 1px solid rgba(255,255,255,0.08); color: var(--text); }
+  .msg.sol  .msg-bubble { background: linear-gradient(180deg, rgba(216,108,255,0.045), rgba(255,255,255,0.02)), var(--surface1); border: 1px solid rgba(255,255,255,0.08); color: var(--text); border-left: 2px solid var(--cyan-dim); }
   .msg-meta { font-family: var(--mono); font-size: 9px; color: var(--muted2); padding: 0 4px; }
 
   .chat-format-bar { flex: 0 0 auto; display: flex; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface1); }
   .fmt-tab { flex: 1; padding: 7px 4px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-align: center; color: var(--muted2); cursor: pointer; border: none; background: transparent; border-right: 1px solid var(--border); transition: color 0.15s, background 0.15s; }
   .fmt-tab:last-child { border-right: none; }
-  .fmt-tab:hover { background: var(--surface2); color: var(--muted); }
-  .fmt-tab.active { color: var(--cyan); background: rgba(34,211,238,0.06); border-bottom: 2px solid var(--cyan); }
+  .fmt-tab:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .fmt-tab.active { color: var(--purple2); background: rgba(176,38,255,0.12); border-bottom: 2px solid var(--purple2); }
 
   .chat-model-bar { flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--border); background: var(--surface0); }
   .model-tab { flex: 1; padding: 4px 4px; font-family: var(--sans); font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-align: center; color: var(--muted2); cursor: pointer; border: none; background: transparent; border-right: 1px solid var(--border); transition: color 0.15s, background 0.15s; }
   .model-tab:last-child { border-right: none; }
-  .model-tab:hover { background: var(--surface2); color: var(--muted); }
-  .model-tab.active { color: var(--cyan); background: rgba(34,211,238,0.04); }
+  .model-tab:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .model-tab.active { color: var(--purple2); background: rgba(176,38,255,0.08); }
 
   .chat-input-area { flex: 0 0 auto; padding: 10px 14px; background: var(--surface1); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
 
-  textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 8px 10px; resize: none; outline: none; transition: border-color 0.15s; }
-  textarea:focus { border-color: var(--cyan-dim); }
+  textarea { width: 100%; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 8px 10px; resize: none; outline: none; transition: border-color 0.15s, background-color 0.15s; }
+  textarea:hover { background: rgba(255,255,255,0.045); }
+  textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 1px rgba(176,38,255,0.35); }
   textarea::placeholder { color: var(--muted2); }
   .btn-row { display: flex; gap: 6px; }
 
@@ -98,7 +111,7 @@
   .btn { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 7px 14px; border-radius: 3px; border: 1px solid transparent; cursor: pointer; outline: none; transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease, background-color 0.15s ease; white-space: nowrap; position: relative; overflow: hidden; }
   .btn:hover { transform: translateY(-1px); }
   .btn:active { transform: scale(0.97) translateY(0); }
-  .btn-primary   { background: var(--amber); color: #000; border-color: var(--amber); }
+  .btn-primary   { background: var(--purple); color: #fff; border-color: var(--purple); box-shadow: 0 0 16px rgba(176,38,255,0.18); }
   .btn-primary:hover { filter: brightness(1.1); }
   .btn-secondary { background: transparent; color: var(--muted); border-color: var(--border2); }
   .btn-secondary:hover { background: var(--surface2); color: var(--text); border-color: var(--muted2); }
@@ -108,48 +121,92 @@
   .btn-danger:hover { background: rgba(239,68,68,0.08); }
   .btn-success   { background: rgba(34,197,94,0.12); color: var(--success); border-color: rgba(34,197,94,0.4); }
   .btn-success:hover { background: rgba(34,197,94,0.2); }
+  .btn-combo     { background: rgba(34,197,94,0.18); color: var(--success); border-color: rgba(34,197,94,0.62); }
+  .btn-combo:hover { background: rgba(34,197,94,0.28); }
   .btn:disabled  { opacity: 0.35; cursor: not-allowed; transform: none !important; filter: none !important; }
   .btn-sm   { padding: 5px 10px; font-size: 11px; }
   .btn-full { flex: 1; }
+  .top-action-btn { background: rgba(255,255,255,0.03) !important; border: 1px solid rgba(255,255,255,0.14) !important; color: var(--muted) !important; font-size: 9px !important; padding: 4px 8px !important; border-radius: 999px !important; cursor: pointer; font-family: var(--mono) !important; margin-right: 6px !important; letter-spacing: 0.08em !important; min-height: 28px; }
+  .top-action-btn:hover { color: var(--text) !important; border-color: rgba(176,38,255,0.46) !important; background: rgba(176,38,255,0.12) !important; box-shadow: 0 0 0 1px rgba(176,38,255,0.16), 0 6px 18px rgba(0,0,0,0.14); }
+  #analytics-toggle-btn.top-action-btn,
+  #system-toggle-btn.top-action-btn { color: var(--purple2) !important; }
+  #reply-toggle-btn.top-action-btn { color: var(--success) !important; border-color: rgba(34,197,94,0.24) !important; }
 
   /* POST MANAGER */
   .col-manager-inner { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
   .col-manager-inner::-webkit-scrollbar { width: 4px; }
   .col-manager-inner::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-  .pending-section { flex: 0 0 auto; padding: 14px; border-bottom: 1px solid var(--border); border-left: 3px solid var(--amber); background: rgba(245,158,11,0.04); box-shadow: inset 3px 0 12px rgba(245,158,11,0.05); }
-  .section-label { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted2); margin-bottom: 10px; }
-  .section-label .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin-right: 5px; animation: pulse 2s ease-in-out infinite; }
-  .pending-tweet-text { font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; padding: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 3px; }
+  .pending-section { flex: 0 0 auto; padding: 16px; margin: 10px; border: 1px solid rgba(255,255,255,0.12); border-left: 4px solid var(--purple); background: linear-gradient(180deg, rgba(216,108,255,0.09), rgba(255,255,255,0.045)); box-shadow: 0 10px 28px rgba(0,0,0,0.18); border-radius: var(--card-radius); }
+  .section-label { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text); margin-bottom: 10px; }
+  .section-label .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--purple2); margin-right: 5px; animation: pulse 2s ease-in-out infinite; }
+  .pending-tweet-text { font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.11); border-radius: 6px; }
   .char-counter { font-family: var(--mono); font-size: 11px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
   .char-count-num { font-weight: 500; }
   .char-count-num.ok   { color: var(--muted); }
   .char-count-num.warn { color: var(--amber); }
   .char-count-num.over { color: var(--danger); }
-  .char-bar { flex: 1; height: 3px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .char-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.09); border-radius: 2px; overflow: hidden; }
   .char-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s cubic-bezier(0.4,0,0.2,1), background-color 0.3s ease; }
   .char-bar-fill.ok   { background: var(--muted2); }
   .char-bar-fill.warn { background: var(--amber); }
   .char-bar-fill.over { background: var(--danger); }
-  .platform-badges { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; }
+  .platform-badges { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
   .badge { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 3px; border: 1px solid; }
-  .badge-x       { background: rgba(229,229,229,0.07); border-color: var(--border2); color: var(--text); }
-  .badge-threads { background: rgba(34,211,238,0.07); border-color: var(--cyan-dim); color: var(--cyan); }
-  .badge-type    { background: rgba(245,158,11,0.08); border-color: var(--amber-dim); color: var(--amber); }
-  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
-  .recent-posts-section { flex: 1; padding: 14px; }
-  .post-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 6px; border-bottom: 1px solid var(--border); cursor: default; transition: background 0.12s; border-radius: 3px; margin: 0 -6px; }
+  .badge-threads { background: rgba(176,38,255,0.08); border-color: rgba(176,38,255,0.26); color: var(--purple2); }
+  .badge-type    { background: rgba(176,38,255,0.08); border-color: rgba(176,38,255,0.35); color: var(--purple2); }
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .pending-action-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .pending-subactions { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px; align-items: center; }
+  .recent-posts-section { flex: 1; min-height: 220px; padding: 14px; display: flex; flex-direction: column; min-width: 0; background: linear-gradient(180deg, rgba(255,255,255,0.018), transparent 24%); border-top: 1px solid rgba(255,255,255,0.06); }
+  #recent-posts-list { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
+  #recent-posts-list::-webkit-scrollbar { width: 4px; }
+  #recent-posts-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .post-row { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09); cursor: default; transition: background 0.12s, border-color 0.12s, transform 0.12s; border-radius: 10px; margin: 0 0 6px; background: rgba(255,255,255,0.045); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
   .post-row:last-child { border-bottom: none; }
-  .post-row:hover { background: var(--surface2); }
-  .post-row-meta { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted2); }
-  .post-row-meta .ts { color: var(--cyan); }
-  .post-row-text { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+  .post-row:hover { background: rgba(216,108,255,0.06); border-color: rgba(176,38,255,0.2); transform: translateY(-1px); }
+  .post-row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--muted2); }
+  .post-row-meta .ts { color: var(--purple2); }
+  .post-row-text { font-family: var(--mono); font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.45; }
+  .analytics-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; height: min(62vh, 620px); min-height: 360px; overflow: hidden; }
+  #analytics-threads-summary, #analytics-threads-recent { min-height: 0; overflow-y: auto; }
+  .analytics-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .analytics-controls select { background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.13); color: var(--text); font-family: var(--mono); font-size: 9px; padding: 5px 7px; border-radius: 5px; }
+  .analytics-table { width: 100%; border-collapse: collapse; }
+  .analytics-table th { position: sticky; top: 0; background: linear-gradient(180deg, rgba(216,108,255,0.06), rgba(13,13,16,0.98)); z-index: 1; color: var(--muted2); border-bottom: 1px solid rgba(176,38,255,0.18); }
+  .analytics-table td, .analytics-table th { padding: 8px 8px 8px 0; }
+  .analytics-table tbody tr { border-top: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.018); }
+  .analytics-table tbody tr:hover { background: rgba(216,108,255,0.065); }
+  .system-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
+  .system-card { border:1px solid rgba(255,255,255,0.12); border-radius:var(--card-radius); background:linear-gradient(180deg, rgba(216,108,255,0.055), rgba(255,255,255,0.03)); padding:14px; min-height:0; box-shadow: 0 8px 20px rgba(0,0,0,0.14); }
+  .system-card-title { font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.12em; color:var(--purple2); text-transform:uppercase; margin-bottom:10px; }
+  .system-metric-row { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-top:1px solid rgba(255,255,255,0.09); font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .system-metric-row:first-of-type { border-top:0; padding-top:0; }
+  .system-metric-row strong { color:var(--text); font-weight:500; text-align:right; }
+  .system-event-list { display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
+  .system-event { border:1px solid rgba(255,255,255,0.11); border-left-width:3px; border-radius:10px; padding:9px 11px; background:rgba(255,255,255,0.045); }
+  .system-event.critical { border-left-color:var(--danger); }
+  .system-event.warning { border-left-color:var(--amber); }
+  .system-event.info { border-left-color:var(--purple); }
+  .system-event-meta { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted2); }
+  .system-event-text { font-family:var(--mono); font-size:11px; line-height:1.45; color:var(--text); }
+  .system-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border2); border-radius:999px; padding:3px 7px; font-family:var(--mono); font-size:9px; color:var(--muted); }
+  .system-pill.critical { color:var(--danger); border-color:rgba(239,68,68,.4); }
+  .system-pill.warning { color:var(--amber); border-color:rgba(163,163,163,.4); }
+  .system-pill.ok { color:var(--success); border-color:rgba(34,197,94,.35); }
+  .system-service-list { display:flex; flex-direction:column; gap:6px; }
+  .system-service-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 8px; border:1px solid rgba(255,255,255,0.11); border-radius:7px; background:rgba(255,255,255,0.04); font-family:var(--mono); font-size:11px; }
+  .system-mini { color:var(--muted2); font-size:10px; }
+  #system-panel { max-height: calc(100vh - 48px); overflow: hidden; }
+  #system-panel-body { max-height: calc(100vh - 110px); overflow-y: auto; padding-right: 4px; }
+  #system-panel-body::-webkit-scrollbar { width: 4px; }
+  #system-panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
   /* MIXED BUILDER */
-  .mixed-inner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg); }
+  .mixed-inner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.015), transparent 20%), var(--bg); }
   .mixed-inner::-webkit-scrollbar { width: 4px; }
   .mixed-inner::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
   .field-label { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 5px; }
-  .mixed-preview { background: var(--surface1); border: 1px solid var(--border2); border-radius: 3px; overflow: hidden; }
+  .mixed-preview { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden; }
   .mixed-preview-section { padding: 10px 12px; border-bottom: 1px solid var(--border); }
   .mixed-preview-section:last-child { border-bottom: none; }
   .mixed-preview-tag { font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-bottom: 5px; }
@@ -173,9 +230,9 @@
   .pub-bar-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 28px; text-align: right; flex-shrink: 0; }
 
   /* REPLACE PENDING MODAL */
-  #replace-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
-  #replace-modal.visible { display: flex; }
-  .replace-modal-box { background: var(--surface2); border: 1px solid var(--amber-dim); border-radius: 4px; padding: 20px 24px; max-width: 420px; width: 90%; display: flex; flex-direction: column; gap: 12px; }
+  #replace-modal, #publish-confirm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+  #replace-modal.visible, #publish-confirm-modal.visible { display: flex; }
+  .replace-modal-box { background: linear-gradient(180deg, rgba(216,108,255,0.08), rgba(255,255,255,0.03)), var(--surface2); border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; padding: 20px 24px; max-width: 420px; width: 90%; display: flex; flex-direction: column; gap: 12px; }
   .replace-modal-icon { font-size: 22px; color: var(--amber); }
   .replace-modal-title { font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: 0.05em; color: var(--amber); text-transform: uppercase; }
   .replace-modal-body { font-family: var(--sans); font-size: 12px; color: var(--muted); }
@@ -215,22 +272,64 @@
     animation: pulse 1.2s ease-in-out infinite;
   }
   .monitor-drawer {
-    position: fixed; top: 0; right: 0; width: 360px; height: 100vh;
-    background: var(--surface1); border-left: 3px solid var(--border2);
+    position: fixed; top: 0; right: 0; width: min(920px, 92vw); height: 100vh;
+    background: linear-gradient(180deg, rgba(216,108,255,0.05), rgba(255,255,255,0.02)), var(--surface1); border-left: 3px solid rgba(176,38,255,0.26);
     transform: translateX(100%);
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
     display: flex; flex-direction: column;
     z-index: 199; overflow-y: auto;
   }
   .monitor-drawer.open { transform: translateX(0); }
+  body.monitor-drag-exit .monitor-drawer {
+    transform: translateX(105%) !important;
+    pointer-events: none;
+  }
   .monitor-drawer.has-alert { border-left-color: var(--amber); }
-  #monitor-content { padding: 12px; flex: 1; overflow-y: auto; }
+  #monitor-content { padding: 12px; flex: 1; overflow: hidden; min-height: 0; }
   .monitor-empty { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: center; padding: 32px 0; }
   .monitor-card { background: rgba(245,158,11,0.04); border-left: 3px solid var(--amber); border-radius: 0 4px 4px 0; padding: 10px 12px; }
   .monitor-img { width: 100%; border-radius: 4px; margin: 8px 0; display: block; }
   .monitor-title { font-family: var(--mono); font-size: 14px; font-weight: 500; margin: 10px 0 6px; line-height: 1.4; }
   .monitor-summary { font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; }
   .monitor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .monitor-inbox { height: 100%; display: grid; grid-template-columns: 320px 1fr; gap: 10px; min-height: 0; }
+  .monitor-list-pane, .monitor-detail-pane { min-height: 0; overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.11); background: rgba(255,255,255,0.025); }
+  .monitor-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .monitor-filters input, .monitor-filters select { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.13); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px; border-radius: 5px; min-width: 0; }
+  .monitor-chip-row { display:flex; flex-wrap:wrap; gap:5px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.08); }
+  .monitor-chip { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.13); color:var(--muted); border-radius:999px; padding:4px 8px; font-family:var(--mono); font-size:9px; cursor:pointer; }
+  .monitor-chip.active, .monitor-chip:hover { border-color:var(--purple); color:var(--text); background:rgba(176,38,255,0.15); }
+  .monitor-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .monitor-list-item { width: 100%; text-align: left; background: linear-gradient(180deg, rgba(216,108,255,0.05), rgba(255,255,255,0.045)); border: 1px solid rgba(255,255,255,0.12); color: var(--text); padding: 10px; margin-bottom: 8px; cursor: pointer; border-radius: 12px; font-family: var(--mono); box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+  .monitor-list-item:hover { border-color: rgba(176,38,255,0.32); background: rgba(216,108,255,0.085); transform: translateY(-1px); }
+  .monitor-list-item.active { border-color: var(--purple); background: rgba(176,38,255,0.10); box-shadow: 0 0 0 1px rgba(176,38,255,0.16), 0 10px 22px rgba(0,0,0,0.18); }
+  .monitor-list-item.dragging { opacity:0.45; border-color:var(--success); }
+  .monitor-band-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:12px 2px 8px; padding:7px 10px; border:1px solid rgba(176,38,255,0.26); border-radius:999px; background:linear-gradient(90deg, rgba(176,38,255,0.16), rgba(255,255,255,0.05)); font-family:var(--mono); font-size:9px; color:var(--text); text-transform:uppercase; letter-spacing:0.1em; }
+  .monitor-band-header:first-child { margin-top:0; }
+  .monitor-list-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; font-size: 9px; color: var(--muted2); flex-wrap: wrap; }
+  .monitor-list-title { font-size: 11px; line-height: 1.45; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+  .monitor-score-reasons { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+  .monitor-score-reason { border:1px solid rgba(176,38,255,0.2); background:rgba(176,38,255,0.11); color:var(--text); border-radius:999px; padding:2px 6px; font-size:8px; }
+  .monitor-reco { margin-top:7px; padding:7px 8px; border:1px solid rgba(176,38,255,0.42); border-left:3px solid var(--purple); border-radius:7px; background:rgba(176,38,255,0.11); font-family:var(--mono); font-size:9px; color:var(--text); line-height:1.35; }
+  .monitor-reco strong { color:var(--purple2); }
+  .monitor-detail { flex: 1; overflow-y: auto; padding: 12px; }
+  .monitor-detail textarea { min-height: 96px; margin-bottom: 8px; }
+  .monitor-detail-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .monitor-detail-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .monitor-reco-action { margin-top: 10px; }
+  .monitor-reco-action .btn { width: 100%; border-color: rgba(176,38,255,0.65); box-shadow: 0 0 18px rgba(176,38,255,0.18); }
+  .monitor-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 10px; }
+  .monitor-media-grid img, .monitor-media-grid video { width: 100%; max-height: 170px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); }
+  .monitor-bulk-row { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
+  .combo-dropzone { border:1px dashed var(--border2); transition:border-color .15s, background .15s, box-shadow .15s; }
+  .combo-dropzone.drag-over { border-color:var(--success); background:rgba(34,197,94,0.08); box-shadow:0 0 18px rgba(34,197,94,0.12); }
+  body.monitor-dragging .combo-dropzone {
+    border-color: var(--success);
+    background: rgba(34,197,94,0.06);
+    box-shadow: 0 0 22px rgba(34,197,94,0.14);
+  }
+  .combo-edit-textarea { min-height:140px; resize:vertical; margin-bottom:8px; }
+  .detail-meta-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; border:1px solid rgba(176,38,255,0.18); background:rgba(255,255,255,0.025); color:var(--muted); font-family:var(--mono); font-size:10px; }
 
   /* ── REPLY DRAWER ───────────────────────────────────────────── */
   #reply-drawer {
@@ -293,6 +392,8 @@
      Desktop layout is 100% unchanged above this block.
   ═══════════════════════════════════════════════════════════════ */
   #mobile-tabs { display: none; }
+  .mobile-only { display: none !important; }
+
 
   @media (max-width: 768px) {
     /* ── Globals ── */
@@ -315,7 +416,7 @@
       padding: 2px 5px !important;
       margin-right: 2px !important;
     }
-    #sb-clock { font-size: 9px !important; }
+    #sb-clock { position: static; transform: none; font-size: 9px !important; }
 
     /* ── Columns: single-pane ── */
     #columns {
@@ -363,9 +464,11 @@
       top: 0;
       height: 100dvh;
       z-index: 400;
+      overflow: hidden;
     }
     /* Close btn in monitor drawer: larger touch target */
     .monitor-drawer .panel-header .btn { min-height: 36px; padding: 4px 14px; }
+    #monitor-content { overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 72px; }
 
     /* ── Reply drawer: full-screen on mobile ── */
     #reply-drawer {
@@ -388,6 +491,8 @@
       z-index: 390;
       max-height: 100dvh;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 84px !important;
     }
     /* Analytics grid: single column stack */
     #analytics-panel > div > div[style] {
@@ -457,7 +562,80 @@
       display: none;
       line-height: 1.3;
     }
+    .mob-tab.active { color: var(--purple2); border-top-color: var(--purple); background: rgba(176,38,255,0.08); }
+    .mob-tab-badge { background: var(--purple); color: #fff; }
     .mob-tab-badge.visible { display: inline; }
+
+    /* ── Mobile editorial screens ── */
+    .mobile-only { display: none !important; }
+    .col.mobile-only.mob-active { display: flex !important; }
+    body.mobile-tab-create #columns { overflow-y: auto; display: block; -webkit-overflow-scrolling: touch; }
+    body.mobile-tab-create .col { position: relative; inset: auto; width: 100%; min-height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    body.mobile-tab-create .col-chat.mob-active,
+    body.mobile-tab-create .col-mixed.mob-active { display: flex; }
+    body.mobile-tab-create .col-chat { min-height: 58dvh; }
+    body.mobile-tab-create .col-mixed { min-height: 42dvh; }
+    body.mobile-tab-pending .col-manager-inner,
+    body.mobile-tab-system .mobile-system-inner { padding-bottom: 18px; }
+
+    /* ── Mobile inbox: fullscreen, one-column, no desktop drawer feeling ── */
+    body.mobile-tab-inbox .monitor-drawer { transform: translateX(0); border-left: none; }
+    body.mobile-tab-inbox .drawer-backdrop { display: none !important; }
+    .monitor-drawer { border-left: none; background: var(--bg); }
+    .monitor-inbox { display: flex; flex-direction: column; gap: 10px; height: auto; min-height: 0; overflow-y: auto; padding-bottom: 72px; }
+    .monitor-list-pane, .monitor-detail-pane { flex: 0 0 auto; overflow: visible; border-color: var(--border2); border-radius: 12px; background: var(--surface1); }
+    .monitor-filters { display: flex; gap: 8px; overflow-x: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
+    .monitor-chip-row { flex: 0 0 auto; width: max-content; border-bottom: none; padding: 0; align-items: center; }
+    .monitor-chip { min-height: 34px; padding: 7px 11px; font-size: 10px; }
+    .monitor-filters input, .monitor-filters select { flex: 0 0 148px; min-height: 38px; font-size: 11px; }
+    .monitor-list { max-height: none; overflow: visible; padding: 10px; }
+    .monitor-list-item { padding: 12px; margin-bottom: 10px; border-radius: 10px; touch-action: pan-y; position: relative; }
+    .monitor-list-item.long-pressing { border-color: var(--success); box-shadow: 0 0 0 1px rgba(34,197,94,0.45), 0 0 24px rgba(34,197,94,0.16); transform: scale(0.995); }
+    .monitor-list-item.long-pressing::after { content: 'Keep holding → COMBINADA'; position: absolute; right: 10px; bottom: 8px; font-family: var(--mono); font-size: 9px; color: var(--success); }
+    .monitor-band-header { margin: 14px 2px 8px; padding: 7px 10px; font-size: 10px; }
+    .monitor-list-title { font-size: 13px; -webkit-line-clamp: 4; }
+    .monitor-list-item-top { gap: 8px; flex-wrap: wrap; font-size: 10px; }
+    .monitor-detail { padding: 14px; max-height: none; }
+    .monitor-detail textarea, .combo-edit-textarea { min-height: 150px; font-size: 13px; resize: vertical; }
+    .monitor-detail-actions { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .monitor-detail-actions .btn-combo { grid-column: 1 / -1; }
+    .monitor-bulk-row { padding: 10px; }
+
+    /* ── Pending/Create cards ── */
+    .pending-section { margin: 10px; border: 1px solid var(--border2); border-left: 4px solid var(--purple); border-radius: 14px; background: rgba(255,255,255,0.035); box-shadow: none; }
+    .combo-dropzone { border-left-color: var(--success) !important; }
+    .pending-tweet-text { font-size: 13px; border-radius: 10px; }
+    .action-grid, .regen-row, .btn-row { gap: 8px; }
+    .regen-row { flex-direction: column; }
+    .regen-row input { min-height: 44px; font-size: 12px; }
+    .mixed-inner { padding: 12px; gap: 12px; padding-bottom: 82px; }
+
+    /* ── Mobile analytics/system cards ── */
+    #analytics-panel.mobile-inline { display: block !important; position: static !important; inset: auto; z-index: auto; border: 0; padding: 0; max-height: none; overflow: visible; }
+    #analytics-panel.mobile-inline > div:first-child { display: none !important; }
+    #analytics-panel.mobile-inline > div[style] { display: block !important; max-height: none !important; overflow: visible !important; }
+    #analytics-panel.mobile-inline .analytics-grid { display: block !important; height: auto; min-height: 0; overflow: visible; }
+    #analytics-panel.mobile-inline .analytics-controls { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; -webkit-overflow-scrolling: touch; }
+    #analytics-panel.mobile-inline .analytics-controls select { flex: 0 0 auto; min-height: 34px; }
+    #analytics-threads-summary, #analytics-threads-recent { overflow: visible !important; }
+    #analytics-threads-recent table, #analytics-threads-recent thead, #analytics-threads-recent tbody, #analytics-threads-recent tr, #analytics-threads-recent td { display: block; width: 100%; }
+    #analytics-threads-recent thead { display: none; }
+    #analytics-threads-recent tr { border: 1px solid var(--border2); border-radius: 12px; padding: 10px; margin: 8px 0; background: var(--surface1); }
+    #analytics-threads-recent td { text-align: left !important; padding: 2px 0 !important; white-space: normal !important; }
+    body.mobile-tab-analytics .col-system.mob-active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    body.mobile-tab-analytics .mobile-system-inner { min-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 92px; }
+    body.mobile-tab-analytics #analytics-panel.mobile-inline { min-height: calc(100dvh - 60px); }
+    body.mobile-tab-pending .col-manager-inner,
+    body.mobile-tab-inbox #monitor-content,
+    body.mobile-tab-analytics .mobile-system-inner { overscroll-behavior: contain; }
+    .mobile-system-inner { flex: 1; overflow-y: auto; padding: 12px; background: var(--bg); }
+    .mobile-card { border: 1px solid var(--border2); border-radius: 14px; background: var(--surface1); padding: 14px; margin-bottom: 12px; }
+    .mobile-card-title { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--purple2); text-transform: uppercase; margin-bottom: 8px; }
+    .mobile-metric-row { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding: 8px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .mobile-metric-row:first-of-type { border-top: 0; }
+    .mobile-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    #publish-confirm-modal .replace-modal-box { width: min(92vw, 420px); }
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -492,14 +670,15 @@
     transition: opacity 0.25s ease;
   }
   .drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
+  body.monitor-drag-exit .drawer-backdrop { opacity: 0 !important; pointer-events: none !important; }
 
   /* ── Global subtle transitions (elements without own transition) ── */
   * { transition: background-color 0.15s ease, border-color 0.15s ease; }
 
   /* ── Button glow + ripple ─────────────────────────────────────── */
-  .btn-primary:hover { box-shadow: 0 0 16px rgba(245,158,11,0.4); }
+  .btn-primary:hover { box-shadow: 0 0 16px rgba(176,38,255,0.28); }
   .btn-success:hover { box-shadow: 0 0 16px rgba(34,197,94,0.3); }
-  .btn-cyan:hover    { box-shadow: 0 0 16px rgba(34,211,238,0.3); }
+  .btn-cyan:hover    { box-shadow: 0 0 16px rgba(176,38,255,0.22); }
   .btn-danger:hover  { box-shadow: 0 0 12px rgba(239,68,68,0.3); }
   .btn::after {
     content: ''; position: absolute; inset: 0;
@@ -514,7 +693,7 @@
   .panel-header::before {
     content: ''; position: absolute;
     top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(34,211,238,0.3), transparent);
+    background: linear-gradient(90deg, transparent, rgba(176,38,255,0.38), transparent);
   }
 
   /* ── Column inner depth ───────────────────────────────────────── */
@@ -552,13 +731,17 @@
     #columns { grid-template-columns: 50% 50% !important; }
     .col-mixed { grid-column: 1 / -1; }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
 </style>
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="SOL">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
-<meta name="theme-color" content="#f59e0b">
+<meta name="theme-color" content="#0b0b10">
 </head>
 <body>
 <div id="app">
@@ -573,10 +756,11 @@
       <div class="sb-item"><span class="label">PROCS</span><span class="value">loading…</span></div>
     </div>
     <div class="sb-spacer"></div>
-    <button id="brain-toggle-btn" onclick="toggleBrainPanel()" style="background:none;border:1px solid #22d3ee33;color:#22d3ee;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">🧠 BRAIN</button>
-    <button id="analytics-toggle-btn" onclick="toggleAnalyticsPanel()" style="background:none;border:1px solid #f59e0b33;color:#f59e0b;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📊 ANALYTICS</button>
-    <button id="reply-toggle-btn" onclick="toggleReplyDrawer()" style="background:none;border:1px solid #22c55e33;color:#22c55e;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">💬 REPLY</button>
-    <button id="signals-toggle-btn" onclick="toggleSignalsPanel()" style="background:none;border:1px solid #818cf833;color:#818cf8;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📡 SIGNALS</button>
+    <button id="brain-toggle-btn" class="top-action-btn" onclick="toggleBrainPanel()">🧠 BRAIN</button>
+    <button id="analytics-toggle-btn" class="top-action-btn" onclick="toggleAnalyticsPanel()">📊 ANALYTICS</button>
+    <button id="system-toggle-btn" class="top-action-btn" onclick="toggleSystemPanel()">🛠 SYSTEM</button>
+    <button id="reply-toggle-btn" class="top-action-btn" onclick="toggleReplyDrawer()">💬 REPLY</button>
+    <button id="signals-toggle-btn" class="top-action-btn" onclick="toggleSignalsPanel()">📡 SIGNALS</button>
     <div class="sb-item" style="font-family:var(--mono);font-size:10px;color:var(--muted2);" id="sb-clock"></div>
   </div>
 
@@ -599,6 +783,17 @@
   </div>
 
   <!-- ANALYTICS PANEL -->
+  <div id="analytics-panel-home"></div>
+  <div id="system-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="color:var(--purple2);font-weight:700;letter-spacing:0.08em;">🛠 SYSTEM</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="pollStatus()" style="background:none;border:1px solid var(--border2);color:var(--muted);font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;">↺ REFRESH</button>
+        <button onclick="toggleSystemPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
+      </div>
+    </div>
+    <div id="system-panel-body"></div>
+  </div>
   <div id="analytics-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <span style="color:var(--amber);font-weight:700;letter-spacing:0.08em;">📊 ANALYTICS</span>
@@ -607,19 +802,10 @@
         <button onclick="toggleAnalyticsPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
       </div>
     </div>
-    <div style="color:var(--muted2);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">𝕏 TWITTER</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;max-height:220px;overflow:hidden;margin-bottom:12px;">
-      <div id="analytics-summary" style="overflow-y:auto;"></div>
-      <div id="analytics-topic" style="overflow-y:auto;"></div>
-      <div id="analytics-media" style="overflow-y:auto;"></div>
-      <div id="analytics-recent" style="overflow-y:auto;"></div>
-    </div>
-    <div style="border-top:1px solid var(--border);padding-top:10px;">
-      <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">⊙ THREADS</div>
-      <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;max-height:200px;overflow:hidden;">
-        <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
-        <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
-      </div>
+    <div style="color:var(--cyan);font-size:8px;letter-spacing:0.1em;margin-bottom:6px;">THREADS</div>
+    <div class="analytics-grid">
+      <div id="analytics-threads-summary" style="overflow-y:auto;"></div>
+      <div id="analytics-threads-recent" style="overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -741,7 +927,7 @@
           <textarea id="mixed-input" rows="4" placeholder="Paste raw headlines, data points, or wire copy…"></textarea>
         </div>
 
-        <button class="btn btn-primary" id="btn-mixed" onclick="doMixed(this)" style="width:100%;">GENERATE MIXED</button>
+        <button class="btn btn-combo" id="btn-mixed" onclick="doMixed(this)" style="width:100%;">GENERATE MIXED</button>
 
         <div id="mixed-preview-container" style="display:none;">
           <div class="field-label">Preview</div>
@@ -762,6 +948,18 @@
           <div id="scheduled-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
             <div style="font-family:var(--mono);font-size:11px;color:var(--muted2);">Loading…</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOBILE ONLY: SYSTEM -->
+    <div class="col col-system mobile-only">
+      <div class="panel-header">
+        <div class="panel-title">SYSTEM</div>
+      </div>
+      <div class="mobile-system-inner" id="mobile-system-inner">
+        <div class="mobile-card">
+          <div class="mobile-card-title">Loading system…</div>
         </div>
       </div>
     </div>
@@ -791,11 +989,11 @@
     </div>
     <div class="reply-mode-bar">
       <button class="reply-mode-btn active" id="mode-text" onclick="setReplyMode('text')">📋 PASTE TEXT</button>
-      <button class="reply-mode-btn" id="mode-url" onclick="setReplyMode('url')">🔗 USE LINK</button>
+      <button class="reply-mode-btn" id="mode-url" onclick="setReplyMode('url')" style="display:none;">🔗 USE LINK</button>
     </div>
     <div id="reply-input-area">
-      <textarea id="reply-textarea" placeholder="Paste tweet or full thread..."></textarea>
-      <input type="text" id="reply-url-input" placeholder="https://x.com/user/status/..." style="display:none;">
+      <textarea id="reply-textarea" placeholder="Paste the post or full thread text..."></textarea>
+      <input type="text" id="reply-url-input" placeholder="URL fetch disabled. Paste text instead." style="display:none;">
     </div>
     <div class="reply-model-bar">
       <button class="reply-model-tab active" onclick="setReplyModel(this,'auto')">AUTO</button>
@@ -810,22 +1008,27 @@
 
   <!-- MOBILE TAB BAR — hidden on desktop via CSS, shown at ≤768px -->
   <div id="mobile-tabs">
-    <button class="mob-tab active" data-tab="status" onclick="activateMobileTab('status')">
-      <span class="mob-tab-icon">📊</span>
-      <span>STATUS</span>
+    <button class="mob-tab active" data-tab="inbox" onclick="activateMobileTab('inbox')">
+      <span class="mob-tab-icon">⌁</span>
+      <span>INBOX</span>
+      <span class="mob-tab-badge" id="mob-inbox-badge"></span>
     </button>
-    <button class="mob-tab" data-tab="post" onclick="activateMobileTab('post')">
-      <span class="mob-tab-icon">📝</span>
-      <span>POST</span>
+    <button class="mob-tab" data-tab="pending" onclick="activateMobileTab('pending')">
+      <span class="mob-tab-icon">◉</span>
+      <span>PENDING</span>
+      <span class="mob-tab-badge" id="mob-pending-badge"></span>
     </button>
-    <button class="mob-tab" data-tab="mixed" onclick="activateMobileTab('mixed')">
-      <span class="mob-tab-icon">🧩</span>
-      <span>MIXED</span>
+    <button class="mob-tab" data-tab="create" onclick="activateMobileTab('create')">
+      <span class="mob-tab-icon">✎</span>
+      <span>CREATE</span>
     </button>
-    <button class="mob-tab" data-tab="monitor" onclick="activateMobileTab('monitor')">
-      <span class="mob-tab-icon">📡</span>
-      <span>MONITOR</span>
-      <span class="mob-tab-badge" id="mob-monitor-badge"></span>
+    <button class="mob-tab" data-tab="analytics" onclick="activateMobileTab('analytics')">
+      <span class="mob-tab-icon">◌</span>
+      <span>DATA</span>
+    </button>
+    <button class="mob-tab" data-tab="system" onclick="activateMobileTab('system')">
+      <span class="mob-tab-icon">⚙</span>
+      <span>SYSTEM</span>
     </button>
   </div>
 
@@ -846,16 +1049,59 @@
 </div>
 
 <script>
+const THREADS_CHAR_LIMIT = 500;
+const THREADS_CHAR_WARN  = 460;
+
 // ─── CSRF TOKEN ───────────────────────────────────────────────
 let _csrfToken = '';
-(async function initCsrf() {
+async function fetchCsrfToken(force = false) {
+  if (_csrfToken && !force) return _csrfToken;
   try {
-    const r = await fetch('/api/csrf-token');
-    if (r.ok) { const d = await r.json(); _csrfToken = d.csrf_token || ''; }
-  } catch(e) {}
-})();
+    const r = await fetch('/api/csrf-token', {credentials:'same-origin', cache:'no-store'});
+    if (!r.ok) throw new Error(`CSRF fetch status ${r.status}`);
+    const d = await r.json();
+    _csrfToken = d.csrf_token || d.token || '';
+    if (!_csrfToken) throw new Error('empty CSRF token');
+    return _csrfToken;
+  } catch(e) {
+    if (typeof addLogLine === 'function') addLogLine('err', `[csrf] token fetch failed: ${e.message || e}`);
+    throw e;
+  }
+}
+(async function initCsrf() { try { await fetchCsrfToken(true); } catch(e) {} })();
 function _csrfHeaders(extra) {
   return Object.assign({'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken}, extra || {});
+}
+
+function _isMutating(method) {
+  return ['POST','PUT','PATCH','DELETE'].includes((method || 'GET').toUpperCase());
+}
+
+async function csrfFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  if (!_isMutating(method)) return fetch(url, {...options, credentials:'same-origin'});
+  try { await fetchCsrfToken(); }
+  catch(e) { throw new Error('Unable to acquire security token. Reload the page.'); }
+  const headers = new Headers(options.headers || {});
+  headers.set('X-CSRF-Token', _csrfToken);
+  if (!headers.has('Content-Type') && typeof options.body === 'string') headers.set('Content-Type', 'application/json');
+  let res = await fetch(url, {...options, method, headers, credentials:'same-origin'});
+  if (res.status === 403) {
+    let text = '';
+    try { text = await res.clone().text(); } catch(e) {}
+    if (/csrf/i.test(text)) {
+      _csrfToken = '';
+      try {
+        await fetchCsrfToken(true);
+        headers.set('X-CSRF-Token', _csrfToken);
+        res = await fetch(url, {...options, method, headers, credentials:'same-origin'});
+        if (res.status === 403 && typeof addLogLine === 'function') addLogLine('err', '[csrf] recovery failed; reload dashboard');
+      } catch(e) {
+        if (typeof addLogLine === 'function') addLogLine('err', '[csrf] recovery failed; reload dashboard');
+      }
+    }
+  }
+  return res;
 }
 
 // ─── CLOCK ───────────────────────────────────────────────────
@@ -900,19 +1146,13 @@ function closeAllDrawers() {
 
 function fadeSwap(el, renderFn) {
   if (!el) { renderFn(); return; }
-  el.classList.add('content-fading');
-  setTimeout(function() {
-    renderFn();
-    el.classList.remove('content-fading');
-    el.classList.add('content-settling');
-    setTimeout(function() { el.classList.remove('content-settling'); }, 200);
-  }, 60);
+  renderFn();
 }
 
 // ─── POLLING ─────────────────────────────────────────────────
 async function pollStatus() {
   try {
-    const r = await fetch('/api/status');
+    const r = await csrfFetch('/api/status');
     if (r.ok) {
       const d = await r.json();
       renderStatus(d);
@@ -922,19 +1162,28 @@ async function pollStatus() {
         _lastRecentKey = recentKey;
         fadeSwap(recentEl, () => renderRecentPosts(d.recent_posts || []));
       }
+    } else {
+      if (typeof addLogLine === 'function') addLogLine('err', `[status] /api/status returned ${r.status}`);
     }
-  } catch(e) {}
+  } catch(e) {
+    if (typeof addLogLine === 'function') addLogLine('err', `[status] poll failed: ${e.message || e}`);
+  }
 }
 async function pollPending() {
   try {
-    const r = await fetch('/api/pending');
+    const r = await csrfFetch('/api/pending');
     if (r.ok) {
       const d = await r.json();
       const el         = document.getElementById('pending-container');
       const pendingKey = JSON.stringify(d);
       if (pendingKey !== _lastPendingKey) {
+        if (_pendingComboDirty) return;
+        const snap = isMobileViewport()
+          ? _scrollSnapshot(['.col-manager-inner', '#pending-container'])
+          : {};
         _lastPendingKey = pendingKey;
         fadeSwap(el, () => renderPending(d));
+        if (isMobileViewport()) _restoreScrollSnapshot(snap);
       }
     }
   } catch(e) {}
@@ -944,64 +1193,209 @@ pollStatus(); pollPending();
 setInterval(pollStatus,  5000);
 setInterval(pollPending, 5000);
 
-// ─── MONITOR FEED ────────────────────────────────────────────
+// ─── MONITOR INBOX ────────────────────────────────────────────
 let _monitorCount    = 0;
 let _lastPendingKey  = '';
 let _lastMonitorKey  = '';
 let _lastRecentKey   = '';
+let _monitorQueue    = [];
+let _monitorSelected = null;
+let _monitorFilters  = {q:'', source:'all', type:'all', topic:'all', priority:'all', media:'all', format:'all'};
+let _monitorChecked  = new Set();
+let _monitorKnownIds = new Set();
+let _monitorDetailDirty = false;
+let _monitorLastDetailId = null;
+let _pendingComboExists = false;
+function _stableMonitorKey(queue) {
+  return JSON.stringify((Array.isArray(queue) ? queue : []).map(e => ({
+    id: e.id || '',
+    score: e.score || 0,
+    priority_label: e.priority_label || 'normal',
+    priority_rank: e.priority_rank,
+    source_name: e.source_name || '',
+    source_type: e.source_type || '',
+    topic_guess: e.topic_guess || '',
+    suggested_format: e.suggested_format || '',
+    has_media: !!e.has_media,
+    media_count: e.media_count || 0,
+    duplicate_count: e.duplicate_count || 0,
+    related_source_count: e.related_source_count || 0,
+    possible_duplicate: !!e.possible_duplicate,
+    headline_title: (e.headline && e.headline.title) || '',
+    headline_summary: (e.headline && e.headline.summary) || '',
+    media_paths: e.media_paths || [],
+    media_urls: e.media_urls || [],
+    score_reasons: e.score_reasons || []
+  })));
+}
+let _pendingComboOriginal = '';
+let _pendingComboDirty = false;
+let _mobileLongPressTimer = null;
+let _mobileLongPressStart = null;
+let _lastStatus = null;
+let _lastPending = null;
+let _activeMobileTab = null;
+let _lastAnalyticsKey = '';
+const MONITOR_TOPICS = ['crypto','mercados','geopolitica','general'];
+const MONITOR_PRIORITIES = ['breaking','high','normal','low','duplicate','unverified'];
+const MONITOR_PRIORITY_LABELS = {
+  breaking: 'Breaking',
+  high: 'High priority',
+  normal: 'Normal',
+  low: 'Low signal',
+  duplicate: 'Possible duplicates',
+  unverified: 'Unverified'
+};
 
-function _buildAlertCard(entry) {
-  const h       = entry.headline || {};
-  const id      = _esc(entry.id || '');
-  const source  = _esc(h.source || 'Unknown');
-  const title   = _esc(h.title  || '');
-  const summary = _esc(h.summary || '');
-  const ago     = entry.received_at ? _timeAgo(entry.received_at) : '';
+function _monitorSources(queue) {
+  return Array.from(new Set((queue || []).map(e => e.source_name || (e.headline && e.headline.source) || 'Unknown'))).sort();
+}
 
-  const mediaPath = (entry.media_paths && entry.media_paths.length > 0)
-    ? entry.media_paths[0] : entry.media_path;
-  const mediaType = entry.media_type || '';
-  let mediaHtml = '';
-  if (mediaPath) {
-    const fname = _esc(mediaPath.split('/').pop());
-    mediaHtml = mediaType === 'video'
-      ? `<video src="/media/${fname}" class="monitor-img" controls muted playsinline></video>`
-      : `<img src="/media/${fname}" class="monitor-img" alt="media" loading="lazy">`;
-  }
+function _monitorTypes(queue) {
+  return Array.from(new Set((queue || []).map(e => e.source_type || 'telegram'))).sort();
+}
 
-  return `
-    <div class="monitor-card" id="mc-${id}" data-alert-id="${id}">
-      <div class="section-label" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="dot"></span>
-        <span class="badge" style="background:var(--amber-dim);color:var(--amber)">📡 ${source}</span>
-        <span style="font-size:11px;color:var(--muted)">${ago}</span>
-      </div>
-      ${mediaHtml}
-      <div class="monitor-title">${title}</div>
-      ${summary ? `<div class="monitor-summary">${summary}</div>` : ''}
-      <div class="monitor-actions">
-        <button class="btn btn-primary"   onclick="doMonitorAction('${id}','generate',this)">⚡ GENERATE</button>
-        <button class="btn btn-secondary" onclick="doMonitorAction('${id}','mixed',this)">🧩 MIXED</button>
-        <button class="btn btn-cyan"      onclick="doMonitorAction('${id}','original',this)">📰 ORIGINAL</button>
-        <button class="btn btn-danger"    onclick="doMonitorAction('${id}','ignore',this)">🚫 IGNORE</button>
-      </div>
-      <div class="monitor-card-result" style="margin-top:6px;font-size:11px;font-family:var(--mono);color:var(--muted)"></div>
-    </div>`;
+function _scrollSnapshot(selectors) {
+  const snap = {};
+  (selectors || []).forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) snap[sel] = el.scrollTop || 0;
+  });
+  return snap;
+}
+
+function _restoreScrollSnapshot(snap) {
+  requestAnimationFrame(() => {
+    Object.entries(snap || {}).forEach(([sel, top]) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = top;
+    });
+  });
+}
+
+function _monitorPriorities(queue) {
+  return Array.from(new Set((queue || []).map(e => e.priority_label || 'normal'))).sort();
+}
+
+function _monitorFiltered() {
+  const q = (_monitorFilters.q || '').toLowerCase();
+  return (_monitorQueue || []).filter(e => {
+    const h = e.headline || {};
+    const source = e.source_name || h.source || 'Unknown';
+    const type = e.source_type || 'telegram';
+    const topic = e.topic_guess || 'general';
+    const priority = e.priority_label || 'normal';
+    const hay = `${source} ${type} ${topic} ${priority} ${h.title || ''} ${h.summary || ''}`.toLowerCase();
+    if (q && !hay.includes(q)) return false;
+    if (_monitorFilters.source !== 'all' && source !== _monitorFilters.source) return false;
+    if (_monitorFilters.type !== 'all' && type !== _monitorFilters.type) return false;
+    if (_monitorFilters.topic !== 'all' && topic !== _monitorFilters.topic) return false;
+    if (_monitorFilters.priority !== 'all' && priority !== _monitorFilters.priority) return false;
+    if (_monitorFilters.media === 'media' && !e.has_media) return false;
+    if (_monitorFilters.media === 'text' && e.has_media) return false;
+    if (_monitorFilters.format !== 'all' && e.suggested_format !== _monitorFilters.format) return false;
+    return true;
+  });
+}
+
+function _monitorPriorityRank(label) {
+  const idx = MONITOR_PRIORITIES.indexOf((label || 'normal').toLowerCase());
+  return idx === -1 ? MONITOR_PRIORITIES.indexOf('normal') : idx;
+}
+
+function _monitorSorted(items) {
+  return (items || []).slice().sort((a, b) => {
+    const ar = Number.isFinite(a.priority_rank) ? a.priority_rank : _monitorPriorityRank(a.priority_label);
+    const br = Number.isFinite(b.priority_rank) ? b.priority_rank : _monitorPriorityRank(b.priority_label);
+    if (ar !== br) return ar - br;
+    const scoreDiff = (b.score || 0) - (a.score || 0);
+    if (scoreDiff) return scoreDiff;
+    const sourceDiff = String(a.source_name || '').localeCompare(String(b.source_name || ''));
+    if (sourceDiff) return sourceDiff;
+    return String(b.received_at || '').localeCompare(String(a.received_at || ''));
+  });
+}
+
+function _scoreReasonsHtml(entry, limit=3) {
+  const reasons = (entry.score_reasons || []).slice(0, limit);
+  if (!reasons.length) return '';
+  return `<div class="monitor-score-reasons">${reasons.map(r => `<span class="monitor-score-reason">${_esc(r)}</span>`).join('')}</div>`;
+}
+
+function _recommendationHtml(entry, compact=false) {
+  const rec = entry.editorial_recommendation || entry.recommendation || null;
+  if (!rec) return '';
+  const confidence = rec.confidence ? ` · ${_esc(rec.confidence)} confidence` : '';
+  const sample = rec.sample_size ? ` · n=${_esc(String(rec.sample_size))}` : '';
+  const media = rec.media && rec.media !== 'neutral' ? ` · ${_esc(rec.media)}` : '';
+  const reason = compact ? '' : `<div style="margin-top:4px;color:var(--muted2);">${_esc(rec.reason || '')}</div>`;
+  return `<div class="monitor-reco"><strong>Recommended ${_esc(rec.format || 'ANALISIS')}</strong> · ${_esc(rec.length_range || '260-340 chars')}${media}${confidence}${sample}${reason}</div>`;
+}
+
+function _recommendedButtonLabel(entry) {
+  const rec = entry.editorial_recommendation || entry.recommendation || {};
+  const fmt = (rec.format || entry.suggested_format || 'ANALISIS').toUpperCase();
+  const confidence = rec.confidence ? ` · ${String(rec.confidence).toUpperCase()}` : '';
+  return `USE ${fmt}${confidence}`;
+}
+
+function _mediaUrl(path) {
+  return '/media/' + encodeURIComponent((path || '').split('/').pop());
+}
+
+function _monitorMediaPreview(entry) {
+  const files = entry.media_files || [];
+  const remoteUrls = entry.media_urls || [];
+  const localHtml = files.map(m => {
+    const url = _mediaUrl(m.path || m.filename);
+    return (entry.media_type === 'video' || (m.filename || '').endsWith('.mp4'))
+      ? `<video src="${url}" controls muted playsinline></video>`
+      : `<img src="${url}" loading="lazy" alt="media">`;
+  });
+  const remoteHtml = !localHtml.length ? remoteUrls.slice(0, 4).map(url => {
+    const safeUrl = _esc(url);
+    return `<img src="${safeUrl}" loading="lazy" alt="remote media" referrerpolicy="no-referrer">`;
+  }) : [];
+  const all = localHtml.concat(remoteHtml);
+  return all.length ? `<div class="monitor-media-grid">${all.join('')}</div>` : '';
+}
+
+function _pill(text, color) {
+  return `<span class="detail-meta-badge" style="background:${color || 'rgba(255,255,255,0.025)'};">${_esc(text)}</span>`;
 }
 
 async function pollMonitor() {
   try {
-    const r = await fetch('/api/monitor/queue');
+    const r = await csrfFetch('/api/monitor/queue');
     if (r.ok) {
       const d = await r.json();
-      const el         = document.getElementById('monitor-content');
-      const monitorKey = JSON.stringify(d);
+      const monitorKey = _stableMonitorKey(d);
       if (monitorKey !== _lastMonitorKey) {
+        const snap = _scrollSnapshot(['#monitor-content', '#monitor-list', '.monitor-detail']);
+        const incoming = Array.isArray(d) ? d : [];
+        const hadKnownIds = _monitorKnownIds.size > 0;
+        const incomingIds = new Set(incoming.map(e => e.id));
+        const hasNewIds = incoming.some(e => !_monitorKnownIds.has(e.id));
         _lastMonitorKey = monitorKey;
-        fadeSwap(el, () => renderMonitor(d));
+        _monitorQueue = incoming;
+        _monitorKnownIds = incomingIds;
+        const filtered = _monitorFiltered();
+        if (!_monitorQueue.some(e => e.id === _monitorSelected)) {
+          _monitorSelected = filtered[0] ? filtered[0].id : (_monitorQueue[0] ? _monitorQueue[0].id : null);
+          _monitorDetailDirty = false;
+        }
+        renderMonitor(_monitorQueue);
+        _restoreScrollSnapshot(snap);
+        const drawer = document.getElementById('monitor-drawer');
+        if (hadKnownIds && hasNewIds && drawer && !drawer.classList.contains('open')) {
+          drawer.classList.add('open');
+          _syncBackdrop();
+        }
       }
     }
-  } catch(e) {}
+  } catch(e) {
+    if (typeof addLogLine === 'function') addLogLine('err', `[monitor] poll failed: ${e.message || e}`);
+  }
 }
 pollMonitor();
 setInterval(pollMonitor, 8000);
@@ -1012,10 +1406,11 @@ function renderMonitor(queue) {
   const countBadge  = document.getElementById('monitor-count-badge');
   const headerCount = document.getElementById('monitor-header-count');
   const content     = document.getElementById('monitor-content');
-  const wasEmpty    = _monitorCount === 0;
 
-  if (!queue || queue.length === 0) {
-    _monitorCount = 0;
+  const prevCount = _monitorCount;
+  _monitorCount = queue ? queue.length : 0;
+
+  if (!_monitorCount) {
     countBadge.style.display = 'none';
     headerCount.textContent = '';
     toggle.classList.remove('has-alert');
@@ -1024,29 +1419,269 @@ function renderMonitor(queue) {
     return;
   }
 
-  const prevCount = _monitorCount;
-  _monitorCount = queue.length;
   countBadge.style.display = 'inline';
-  countBadge.textContent = queue.length;
-  headerCount.textContent = `(${queue.length} pending)`;
+  countBadge.textContent = _monitorCount;
+  const sources = _monitorSources(queue);
+  const types = _monitorTypes(queue);
+  const priorities = MONITOR_PRIORITIES;
+  headerCount.textContent = `(${_monitorCount} pending · ${sources.length} sources)`;
   toggle.classList.add('has-alert');
   drawer.classList.add('has-alert');
 
-  // Full re-render (simple; queue is small)
-  content.innerHTML = queue.map(_buildAlertCard).join(
-    '<hr style="border:none;border-top:1px solid var(--border2);margin:8px 0">'
-  );
+  content.innerHTML = `
+    <div class="monitor-inbox">
+      <div class="monitor-list-pane">
+        <div class="monitor-filters">
+          <div class="monitor-chip-row" style="grid-column:1/-1;">
+            <button class="monitor-chip ${_monitorFilters.topic === 'all' && _monitorFilters.priority === 'all' ? 'active' : ''}" onclick="resetMonitorFilters()">HOME</button>
+            ${MONITOR_TOPICS.map(t => `<button class="monitor-chip ${_monitorFilters.topic === t ? 'active' : ''}" onclick="setMonitorFilter('topic','${t}')">${t}</button>`).join('')}
+            ${MONITOR_PRIORITIES.map(p => `<button class="monitor-chip ${_monitorFilters.priority === p ? 'active' : ''}" onclick="setMonitorFilter('priority','${p}')">${p}</button>`).join('')}
+          </div>
+          <input id="mon-filter-q" placeholder="search" value="${_esc(_monitorFilters.q)}" oninput="setMonitorFilter('q', this.value)">
+          <select id="mon-filter-source" onchange="setMonitorFilter('source', this.value)">
+            <option value="all">all sources</option>
+            ${sources.map(s => `<option value="${_esc(s)}" ${_monitorFilters.source === s ? 'selected' : ''}>${_esc(s)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('type', this.value)">
+            <option value="all" ${_monitorFilters.type === 'all' ? 'selected' : ''}>all types</option>
+            ${types.map(t => `<option value="${_esc(t)}" ${_monitorFilters.type === t ? 'selected' : ''}>${_esc(t)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('priority', this.value)">
+            <option value="all" ${_monitorFilters.priority === 'all' ? 'selected' : ''}>all priority</option>
+            ${priorities.map(p => `<option value="${_esc(p)}" ${_monitorFilters.priority === p ? 'selected' : ''}>${_esc(p)}</option>`).join('')}
+          </select>
+          <select onchange="setMonitorFilter('media', this.value)">
+            <option value="all" ${_monitorFilters.media === 'all' ? 'selected' : ''}>all media</option>
+            <option value="media" ${_monitorFilters.media === 'media' ? 'selected' : ''}>media only</option>
+            <option value="text" ${_monitorFilters.media === 'text' ? 'selected' : ''}>text only</option>
+          </select>
+          <select onchange="setMonitorFilter('format', this.value)">
+            <option value="all" ${_monitorFilters.format === 'all' ? 'selected' : ''}>all formats</option>
+            <option value="WIRE" ${_monitorFilters.format === 'WIRE' ? 'selected' : ''}>WIRE</option>
+            <option value="ANALISIS" ${_monitorFilters.format === 'ANALISIS' ? 'selected' : ''}>ANALISIS</option>
+            <option value="COMBINADA" ${_monitorFilters.format === 'COMBINADA' ? 'selected' : ''}>COMBINADA</option>
+          </select>
+        </div>
+        <div id="monitor-list" class="monitor-list"></div>
+        <div class="monitor-bulk-row">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted2);"><span id="monitor-selected-count">0</span> selected</span>
+          <button class="btn btn-danger btn-sm" onclick="bulkIgnoreMonitor()">IGNORE SELECTED</button>
+        </div>
+      </div>
+      <div class="monitor-detail-pane"><div id="monitor-detail" class="monitor-detail"></div></div>
+    </div>`;
+  renderMonitorList();
+  renderMonitorDetail();
+}
 
-  // Auto-open if new alert arrived while drawer was closed
-  if (prevCount === 0 && _monitorCount > 0) {
-    drawer.classList.add('open');
-    _syncBackdrop();
+function setMonitorFilter(key, value) {
+  _monitorFilters[key] = (_monitorFilters[key] === value && ['topic','priority'].includes(key)) ? 'all' : value;
+  renderMonitorList();
+  const filtered = _monitorFiltered();
+  if (!_monitorSelected || !filtered.some(e => e.id === _monitorSelected)) _monitorSelected = filtered[0] ? filtered[0].id : null;
+  renderMonitorDetail();
+}
+
+function resetMonitorFilters() {
+  _monitorFilters = {q:'', source:'all', type:'all', topic:'all', priority:'all', media:'all', format:'all'};
+  _monitorDetailDirty = false;
+  renderMonitor(_monitorQueue);
+}
+
+function toggleMonitorCheck(id, checked) {
+  if (checked) _monitorChecked.add(id); else _monitorChecked.delete(id);
+  const el = document.getElementById('monitor-selected-count');
+  if (el) el.textContent = _monitorChecked.size;
+}
+
+function renderMonitorList() {
+  const el = document.getElementById('monitor-list');
+  if (!el) return;
+  const filtered = _monitorSorted(_monitorFiltered());
+  if (!filtered.length) {
+    el.innerHTML = '<div class="monitor-empty" style="padding:18px 0;">No alerts match filters</div>';
+    return;
   }
+  let currentBand = null;
+  el.innerHTML = filtered.map(e => {
+    const h = e.headline || {};
+    const source = e.source_name || h.source || 'Unknown';
+    const priority = e.priority_label || 'normal';
+    const score = e.score != null ? e.score : '—';
+    const active = e.id === _monitorSelected ? 'active' : '';
+    const checked = _monitorChecked.has(e.id) ? 'checked' : '';
+    const band = priority || 'normal';
+    const bandHtml = band !== currentBand
+      ? `<div class="monitor-band-header"><span>${_esc(MONITOR_PRIORITY_LABELS[band] || band)}</span><span>${_monitorPriorityRank(band) + 1}/6</span></div>`
+      : '';
+    currentBand = band;
+    return `${bandHtml}<button class="monitor-list-item ${active}" draggable="true" ondragstart="startMonitorDrag(event,'${_esc(e.id)}')" ondragend="endMonitorDrag(event)" onpointerdown="startMobileAlertHold(event,'${_esc(e.id)}')" onpointermove="moveMobileAlertHold(event)" onpointerup="cancelMobileAlertHold(event)" onpointercancel="cancelMobileAlertHold(event)" onpointerleave="cancelMobileAlertHold(event)" onclick="selectMonitorAlert('${_esc(e.id)}')">
+      <div class="monitor-list-item-top">
+        <input type="checkbox" ${checked} onclick="event.stopPropagation();toggleMonitorCheck('${_esc(e.id)}', this.checked)">
+        <span style="color:var(--amber);">${_esc(source)}</span>
+        <span>${_esc(e.source_type || 'telegram')}</span>
+        <span>${_esc(priority)} ${score}</span>
+        <span>${_esc(e.suggested_format || 'ANALISIS')}</span>
+        ${e.related_source_count > 1 ? `<span>${e.related_source_count} sources</span>` : ''}
+        ${e.duplicate_count ? `<span>dup ${e.duplicate_count}</span>` : ''}
+        <span>${e.has_media ? 'media ' + (e.media_count || 1) : 'text'}</span>
+        <span style="margin-left:auto;">${e.received_at ? _timeAgo(e.received_at) : ''}</span>
+      </div>
+      <div class="monitor-list-title">${_esc(h.title || '[no text]')}</div>
+      ${_scoreReasonsHtml(e)}
+      ${_recommendationHtml(e, true)}
+    </button>`;
+  }).join('');
+  const countEl = document.getElementById('monitor-selected-count');
+  if (countEl) countEl.textContent = _monitorChecked.size;
+}
+
+function selectMonitorAlert(id) {
+  _monitorSelected = id;
+  _monitorDetailDirty = false;
+  renderMonitorList();
+  renderMonitorDetail();
+}
+
+function renderMonitorDetail() {
+  const el = document.getElementById('monitor-detail');
+  if (!el) return;
+  const entry = (_monitorQueue || []).find(e => e.id === _monitorSelected) || _monitorFiltered()[0];
+  if (!entry) {
+    el.innerHTML = '<div class="monitor-empty">Select an alert</div>';
+    return;
+  }
+  _monitorSelected = entry.id;
+  if (_monitorDetailDirty && _monitorLastDetailId === entry.id) return;
+  _monitorLastDetailId = entry.id;
+  const h = entry.headline || {};
+  const source = entry.source_name || h.source || 'Unknown';
+  const mediaHtml = _monitorMediaPreview(entry);
+  el.innerHTML = `
+    <div class="monitor-detail-meta">
+      ${_pill(source, 'rgba(176,38,255,0.12)')}
+      ${_pill(entry.source_type || 'telegram', 'rgba(255,255,255,0.04)')}
+      ${_pill((entry.priority_label || 'normal') + ' · ' + (entry.score != null ? entry.score : '—'), 'rgba(176,38,255,0.10)')}
+      ${_pill(entry.credibility || 'medium', 'rgba(255,255,255,0.04)')}
+      ${entry.related_source_count > 1 ? _pill(`${entry.related_source_count} sources`, 'rgba(34,197,94,0.10)') : ''}
+      ${entry.duplicate_count ? _pill(`${entry.duplicate_count} duplicates`, 'rgba(113,113,122,0.18)') : ''}
+      ${entry.possible_duplicate ? _pill('possible duplicate', 'rgba(239,68,68,0.10)') : ''}
+      ${_pill(entry.topic_guess || 'general', 'rgba(176,38,255,0.08)')}
+      ${_pill('suggested ' + (entry.suggested_format || 'ANALISIS'), 'rgba(34,197,94,0.10)')}
+      ${_pill(entry.has_media ? `${entry.media_count || 1} media` : 'text only', 'rgba(255,255,255,0.04)')}
+      ${_pill(entry.received_at ? _timeAgo(entry.received_at) : 'unknown age', 'rgba(255,255,255,0.04)')}
+    </div>
+    ${_recommendationHtml(entry)}
+    ${_scoreReasonsHtml(entry, 5)}
+    ${mediaHtml}
+    <div class="field-label">Title / post source</div>
+    <textarea id="mon-edit-title" oninput="_monitorDetailDirty=true">${_esc(h.title || '')}</textarea>
+    <div class="field-label">Context / summary</div>
+    <textarea id="mon-edit-summary" oninput="_monitorDetailDirty=true">${_esc(h.summary || h.title || '')}</textarea>
+    <div class="monitor-detail-actions">
+      <button class="btn btn-primary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'WIRE')">WIRE</button>
+      <button class="btn btn-cyan btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','generate',this,'ANALISIS')">ANALISIS</button>
+      <button class="btn btn-combo btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','mixed',this,'COMBINADA')">COMBINADA</button>
+      <button class="btn btn-secondary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','original',this,'ORIGINAL')">ORIGINAL</button>
+      <button class="btn btn-danger btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','ignore',this)">IGNORE</button>
+    </div>
+    <div class="monitor-reco-action">
+      <button class="btn btn-primary btn-sm" onclick="doMonitorAction('${_esc(entry.id)}','recommend',this)">${_esc(_recommendedButtonLabel(entry))}</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="saveMonitorEdit('${_esc(entry.id)}', this)">SAVE EDIT</button>
+      <span id="monitor-action-result" style="font-family:var(--mono);font-size:11px;color:var(--muted);align-self:center;"></span>
+    </div>`;
 }
 
 function toggleMonitorDrawer() {
   document.getElementById('monitor-drawer').classList.toggle('open');
   _syncBackdrop();
+}
+
+function _monitorPayload(action, tweetType) {
+  return {
+    action,
+    tweet_type: tweetType || null,
+    edited_title: (document.getElementById('mon-edit-title') || {}).value || null,
+    edited_summary: (document.getElementById('mon-edit-summary') || {}).value || null,
+  };
+}
+
+async function saveMonitorEdit(alertId, btn) {
+  const resultEl = document.getElementById('monitor-action-result');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'SAVING...'; }
+  try {
+    const r = await csrfFetch(`/api/monitor/save/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({
+        edited_title: document.getElementById('mon-edit-title').value,
+        edited_summary: document.getElementById('mon-edit-summary').value,
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error || 'save failed');
+    _monitorDetailDirty = false;
+    if (resultEl) resultEl.textContent = '✓ saved';
+    await pollMonitor();
+  } catch(e) {
+    if (resultEl) resultEl.textContent = `✗ ${e.message || e}`;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function bulkIgnoreMonitor() {
+  if (!_monitorChecked.size) return;
+  const ids = Array.from(_monitorChecked);
+  try {
+    const r = await csrfFetch('/api/monitor/bulk-ignore', {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify({ids})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || 'bulk ignore failed');
+    _monitorChecked.clear();
+    addLogLine('ok', `[monitor] ignored ${d.removed || 0} alerts`);
+    await pollMonitor();
+  } catch(e) {
+    addLogLine('err', `[monitor] bulk ignore failed: ${e.message || e}`);
+  }
+}
+
+async function doMonitorAction(alertId, action, btn, tweetType) {
+  const detail = document.getElementById('monitor-detail');
+  const btns = detail ? detail.querySelectorAll('.monitor-detail-actions .btn, .monitor-reco-action .btn') : [];
+  btns.forEach(b => b.disabled = true);
+  const orig = btn ? btn.textContent : '';
+  if (btn) btn.textContent = '...';
+  const resultEl = document.getElementById('monitor-action-result');
+
+  try {
+    const r = await csrfFetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      headers: _csrfHeaders(),
+      body: JSON.stringify(_monitorPayload(action, tweetType))
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'action failed');
+    const rec = d.recommendation && d.recommendation.format ? ` · ${d.recommendation.format}` : '';
+    if (resultEl) resultEl.textContent = action === 'ignore' ? '✓ ignored' : `✓ created ${d.pending_target || 'pending'}${rec}`;
+    addLogLine('ok', `[monitor] ${action} → ${d.pending_target || 'queue'}${rec} (${d.remaining} left)`);
+    _monitorChecked.delete(alertId);
+    await pollMonitor();
+    if (action !== 'ignore') await pollPending();
+    if ((d.remaining || 0) === 0) {
+      document.getElementById('monitor-drawer').classList.remove('open');
+      _syncBackdrop();
+    }
+  } catch(e) {
+    if (resultEl) resultEl.textContent = `✗ ${e.message || e}`;
+    btns.forEach(b => b.disabled = false);
+  }
+  if (btn) btn.textContent = orig;
 }
 
 // ─── BRAIN HISTORY ────────────────────────────────────────────
@@ -1064,7 +1699,7 @@ async function pollBrainHistory() {
   const p = document.getElementById('brain-panel');
   if (!p || p.style.display === 'none') return;
   try {
-    const r = await fetch('/api/brain/history');
+    const r = await csrfFetch('/api/brain/history');
     if (r.ok) renderBrainHistory(await r.json());
   } catch(e) {}
 }
@@ -1095,61 +1730,35 @@ function renderBrainHistory(d) {
 
 setInterval(pollBrainHistory, 30000);
 
-async function doMonitorAction(alertId, action, btn) {
-  const card = document.getElementById(`mc-${alertId}`);
-  const btns = card ? card.querySelectorAll('.monitor-actions .btn') : [];
-  btns.forEach(b => b.disabled = true);
-  if (btn) { btn.textContent = '…'; }
-  const resultEl = card ? card.querySelector('.monitor-card-result') : null;
-
-  try {
-    const r = await fetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
-      method: 'POST',
-      headers: _csrfHeaders(),
-      body: JSON.stringify({action})
-    });
-    const d = await r.json();
-
-    if (d.success) {
-      // Animate card out
-      if (card) {
-        card.style.transition = 'opacity 0.3s';
-        card.style.opacity = '0';
-        setTimeout(() => card.remove(), 300);
-      }
-      await pollMonitor();
-      if (action === 'generate' || action === 'mixed') await pollPending();
-      // Close drawer only if queue now empty
-      if ((d.remaining || 0) === 0) {
-        document.getElementById('monitor-drawer').classList.remove('open');
-        _syncBackdrop();
-      }
-    } else {
-      if (resultEl) resultEl.textContent = '✗ failed';
-      btns.forEach(b => b.disabled = false);
-    }
-  } catch(e) {
-    if (resultEl) resultEl.textContent = '✗ network error';
-    btns.forEach(b => b.disabled = false);
-  }
-}
-
 // ─── STATUS RENDERER ─────────────────────────────────────────
 function renderStatus(d) {
+  _lastStatus = d;
   const sol = d.sol_commands || {};
   const mon = d.monitor      || {};
+  const queue = d.monitor_queue || {};
+  const health = d.health_summary || {};
   const solDot = `<span class="proc-dot${sol.alive ? '' : ' dead'}"></span>`;
   const monDot = `<span class="proc-dot${mon.alive ? '' : ' dead'}"></span>`;
   const brainHtml = d.brain_enabled
     ? `<span class="brain-ok">ENABLED</span>`
     : `<span class="brain-fail">DISABLED</span>`;
+  const serviceBad = (d.system_services || []).filter(s => !s.ok).length;
+  const svcHtml = serviceBad
+    ? `<span style="color:var(--danger);font-family:var(--mono);font-size:11px;">${serviceBad} issue</span>`
+    : `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">OK</span>`;
+  const healthHtml = (health.critical || health.warning)
+    ? `<span style="color:${health.critical ? 'var(--danger)' : 'var(--amber)'};font-family:var(--mono);font-size:11px;">${health.critical || 0}C / ${health.warning || 0}W</span>`
+    : `<span style="color:var(--success);font-family:var(--mono);font-size:11px;">CLEAN</span>`;
   let lastPubHtml = '—';
   if (d.last_publish) {
     const lp = d.last_publish;
     const ago = _timeAgo(lp.published_at);
-    const plat = lp.platform === 'x' ? 'X' : lp.platform === 'threads' ? 'T' : lp.platform;
+    const plat = lp.platform === 'threads' ? 'T' : lp.platform;
     const type = lp.tweet_type ? ` · ${lp.tweet_type}` : '';
-    lastPubHtml = `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}</span>`;
+    const ok = lp.success !== false;
+    const color = ok ? 'var(--cyan)' : 'var(--danger)';
+    const state = lp.status ? ` · ${lp.status}` : '';
+    lastPubHtml = `<span style="color:${color};font-family:var(--mono);font-size:11px;">${ago} · ${plat}${type}${state}</span>`;
   }
   const genBadge = d.generator_available
     ? ''
@@ -1166,6 +1775,12 @@ function renderStatus(d) {
     <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">BRAIN</span>${brainHtml}</div>
     <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">SVC</span>${svcHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">HEALTH</span>${healthHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">QUEUE</span><span class="value" style="font-family:var(--mono);font-size:11px;">${queue.count || 0} / ${queue.breaking_count || 0} brk</span></div>
+    <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">LAST PUB</span>${lastPubHtml}</div>
     <div class="sb-divider"></div>
     <div class="sb-item">
@@ -1174,6 +1789,8 @@ function renderStatus(d) {
     </div>
     ${genBadge ? '<div class="sb-divider"></div><div class="sb-item">' + genBadge + '</div>' : ''}
   `;
+  renderSystemPanel();
+  renderMobileSystem();
 }
 
 // ─── RECENT POSTS RENDERER ───────────────────────────────────
@@ -1186,54 +1803,61 @@ function renderRecentPosts(posts) {
   }
   el.innerHTML = posts.map(p => {
     const ts = _fmtTime(p.published_at);
-    const platBadge = p.platform === 'x'
-      ? `<span class="badge badge-x" style="padding:1px 5px;font-size:9px;">𝕏</span>`
-      : `<span class="badge badge-threads" style="padding:1px 5px;font-size:9px;">T</span>`;
+    const platBadge = `<span class="badge badge-threads" style="padding:1px 5px;font-size:9px;">T</span>`;
     const typeBadge = p.tweet_type
       ? `<span class="badge badge-type" style="padding:1px 5px;font-size:9px;">${_esc(p.tweet_type)}</span>`
       : '';
     const ok = p.success ? 'log-ok' : 'log-err';
-    const mediaEmoji = p.media_type === 'video' ? '🎥\u00a0' : (p.has_media ? '📷\u00a0' : '');
+    const status = p.status || (p.success ? 'OK' : 'FAILED');
+    const statusColor = p.success ? 'var(--success)' : 'var(--danger)';
+    const statusBadge = `<span style="padding:1px 5px;font-size:9px;border:1px solid ${statusColor};color:${statusColor};border-radius:3px;">${_esc(status)}</span>`;
+    const mediaEmoji = p.media_type === 'video' ? '🎥\u00a0' : (p.media_type === 'carousel' ? '▦\u00a0' : (p.has_media ? '📷\u00a0' : ''));
+    const err = !p.success && p.error_message
+      ? `<div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.35;">${_esc(p.error_message).slice(0,180)}${p.fbtrace_id ? ` · fbtrace_id ${_esc(p.fbtrace_id)}` : ''}</div>`
+      : '';
     return `<div class="post-row">
-      <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}</div>
+      <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}${statusBadge}</div>
       <div class="post-row-text ${ok}">${mediaEmoji}${_esc(p.text_preview || '')}</div>
+      ${err}
     </div>`;
   }).join('');
 }
 
 // ─── PENDING RENDERER ────────────────────────────────────────
 function renderPending(d) {
+  _lastPending = d || {};
+  syncMobileBadges();
   const container = document.getElementById('pending-container');
   if (!container) return;
   let html = '';
+  _pendingComboExists = !!d.combo;
 
   if (d.tweet) {
     const t = d.tweet;
     const text = t.tweet || t.text || '';
     const len = text.length;
-    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
-    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    const pct = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1);
+    const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
     const ttype = t.tweet_type || '';
     const gen_at = t.generated_at ? _fmtTime(t.generated_at) : '';
     html += `
     <div class="pending-section">
-      <div class="section-label"><span class="dot"></span>PENDING TWEET</div>
+      <div class="section-label"><span class="dot"></span>PENDING POST</div>
       <div class="pending-tweet-text">${_esc(text)}</div>
       <div class="char-counter">
-        <span class="char-count-num ${cls}">${len}/280</span>
+        <span class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
         <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
       </div>
       <div class="platform-badges">
-        <span class="badge badge-x">𝕏 X</span>
         <span class="badge badge-threads">⊙ THREADS</span>
         ${ttype ? `<span class="badge badge-type">${_esc(ttype)}</span>` : ''}
         ${gen_at ? `<span style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-left:4px;">${gen_at}</span>` : ''}
       </div>
-      <div class="action-grid">
+      <div class="pending-action-group">
         <button class="btn btn-success btn-sm" onclick="publishPost('threads','pending',this)">⊙ PUBLISH</button>
         <button class="btn btn-danger btn-sm" onclick="discardPending(this)">✕ DISCARD</button>
       </div>
-      <div class="regen-row">
+      <div class="regen-row pending-subactions">
         <input type="text" id="regen-instruction" placeholder="Optional instruction for regeneration…">
         <button class="btn btn-secondary btn-sm" onclick="doRegenerate(this)">↻ REGEN</button>
         <button class="btn btn-cyan btn-sm" id="validate-btn" onclick="doValidate(this)" style="margin-left:4px;">✓ VALIDATE</button>
@@ -1246,24 +1870,29 @@ function renderPending(d) {
   if (d.combo) {
     const c = d.combo;
     const tweet = c.tweet || c.wire || '';
+    _pendingComboOriginal = tweet;
+    _pendingComboDirty = false;
     const len = tweet.length;
-    const pct = Math.min((len / 280) * 100, 100).toFixed(1);
-    const cls = len >= 270 ? 'over' : len >= 250 ? 'warn' : 'ok';
+    const pct = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1);
+    const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
     html += `
-    <div class="pending-section" style="border-left-color:var(--cyan-dim);">
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
       <div class="section-label"><span class="dot" style="background:var(--cyan);"></span>PENDING COMBO</div>
       ${tweet ? `<div style="margin-bottom:6px;">
-        <div class="pending-tweet-text" style="white-space:pre-wrap;">${_esc(tweet)}</div>
+        <textarea id="combo-edit-text" class="combo-edit-textarea" oninput="onComboEditInput()">${_esc(tweet)}</textarea>
         <div class="char-counter">
-          <span class="char-count-num ${cls}">${len}/280</span>
+          <span id="combo-char-count" class="char-count-num ${cls}">${len}/${THREADS_CHAR_LIMIT}</span>
           <div class="char-bar"><div class="char-bar-fill ${cls}" style="width:${pct}%"></div></div>
         </div>
       </div>` : ''}
-      <div class="action-grid">
+      <div class="pending-action-group">
         <button class="btn btn-success btn-sm" onclick="publishPost('threads','combo',this)">⊙ PUBLISH</button>
         <button class="btn btn-danger btn-sm" onclick="discardPending(this)">✕ DISCARD</button>
       </div>
-      <div class="regen-row">
+      <div class="regen-row pending-subactions">
+        <input type="text" id="combo-regen-instruction" placeholder="Optional combo regeneration instruction…">
+        <button class="btn btn-secondary btn-sm" id="combo-save-btn" onclick="saveComboEdit(this)" disabled>SAVE</button>
+        <button class="btn btn-combo btn-sm" onclick="regenerateCombo(this)">↻ REGEN</button>
         <button class="btn btn-cyan btn-sm" id="validate-btn-combo" onclick="doValidate(this)" style="margin-left:0;">✓ VALIDATE</button>
       </div>
       <div id="validate-result" style="margin-top:5px;"></div>
@@ -1276,6 +1905,18 @@ function renderPending(d) {
     <div class="pending-section" style="opacity:0.5;">
       <div class="section-label">PENDING POST</div>
       <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">No pending post.</div>
+    </div>`;
+    html += `
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);opacity:0.85;" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
+      <div class="section-label"><span class="dot" style="background:var(--success);"></span>PENDING COMBO</div>
+      <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">Drop a monitor card here to generate COMBINADA.</div>
+    </div>`;
+  }
+  if (d.tweet && !d.combo) {
+    html += `
+    <div class="pending-section combo-dropzone" id="pending-combo-dropzone" style="border-left-color:var(--success);opacity:0.85;" ondragover="allowComboDrop(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dropMonitorToCombo(event)">
+      <div class="section-label"><span class="dot" style="background:var(--success);"></span>PENDING COMBO</div>
+      <div class="pending-tweet-text" style="color:var(--muted2);font-size:11px;">Drop a monitor card here to generate COMBINADA.</div>
     </div>`;
   }
 
@@ -1309,7 +1950,7 @@ function renderScheduled(list) {
 // ─── PENDING REPLACE GUARD ───────────────────────────────────
 async function confirmReplaceIfPending() {
   try {
-    const r = await fetch('/api/pending');
+    const r = await csrfFetch('/api/pending');
     if (!r.ok) return true;
     const d = await r.json();
     const pendingText = (d.tweet && d.tweet.tweet) || (d.combo && (d.combo.tweet || d.combo.wire)) || null;
@@ -1348,7 +1989,7 @@ async function doGenerate(btn) {
   addChatMsg('user', headline);
 
   try {
-    const r = await fetch('/api/generate', {
+    const r = await csrfFetch('/api/generate', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
@@ -1380,7 +2021,7 @@ async function doGenerateAndPublish(btn) {
   addChatMsg('user', headline);
 
   try {
-    const r = await fetch('/api/generate', {
+    const r = await csrfFetch('/api/generate', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline, tweet_type: _activeFmt, manual: true, model_override: _activeModel === 'AUTO' ? null : _activeModel.toLowerCase()}),
@@ -1406,9 +2047,9 @@ async function doRegenerate(btn) {
   btn.innerHTML = '<span class="spin">⟳</span>';
 
   try {
-    const r = await fetch('/api/generate/regenerate', {
+    const r = await csrfFetch('/api/generate/regenerate', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: _csrfHeaders(),
       body: JSON.stringify({instruction: instr || null, tweet_type: _activeFmt !== 'ANALISIS' ? _activeFmt : null}),
     });
     const d = await r.json();
@@ -1431,7 +2072,7 @@ async function doValidate(btn) {
   const orig = btn.textContent;
   btn.textContent = '⟳ CHECKING…';
   try {
-    const r = await fetch('/api/validate');
+    const r = await csrfFetch('/api/validate');
     const d = await r.json();
     renderValidate(d);
   } catch(e) {
@@ -1453,7 +2094,7 @@ function renderValidate(d) {
   const moveColor = (d.rhetorical_move === 'none' || d.rhetorical_move === 'none') ? 'var(--amber)' : 'var(--cyan)';
   const overallColor = d.overall === 'pass' ? 'var(--success)' : d.overall === 'warning' ? 'var(--amber)' : 'var(--danger)';
   el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 0;">
-    ${pill(charColor, `CHARS: ${d.char_count}/280`)}
+    ${pill(charColor, `CHARS: ${d.char_count}/${d.char_limit || THREADS_CHAR_LIMIT}`)}
     ${d.ai_isms.length ? pill('var(--danger)', 'AI-ISMS: ' + d.ai_isms.join(', ')) : pill('var(--success)', 'AI-ISMS: CLEAN')}
     ${pill(moveColor, 'MOVE: ' + d.rhetorical_move.toUpperCase())}
     ${d.moralizing.length ? pill('var(--danger)', 'MORAL: ' + d.moralizing.join(', ')) : pill('var(--success)', 'MORAL: CLEAN')}
@@ -1470,7 +2111,7 @@ async function doMixed(btn) {
   btn.innerHTML = '<span class="spin">⟳</span> GENERATING…';
 
   try {
-    const r = await fetch('/api/mixed', {
+    const r = await csrfFetch('/api/mixed', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({headline}),
@@ -1492,36 +2133,218 @@ async function doMixed(btn) {
   btn.disabled = false;
 }
 
+function onComboEditInput() {
+  const ta = document.getElementById('combo-edit-text');
+  if (!ta) return;
+  const len = ta.value.length;
+  const cls = len > THREADS_CHAR_LIMIT ? 'over' : len > THREADS_CHAR_WARN ? 'warn' : 'ok';
+  const counter = document.getElementById('combo-char-count');
+  if (counter) {
+    counter.textContent = `${len}/${THREADS_CHAR_LIMIT}`;
+    counter.className = `char-count-num ${cls}`;
+  }
+  const fill = ta.closest('.pending-section')?.querySelector('.char-bar-fill');
+  if (fill) {
+    fill.className = `char-bar-fill ${cls}`;
+    fill.style.width = Math.min((len / THREADS_CHAR_LIMIT) * 100, 100).toFixed(1) + '%';
+  }
+  _pendingComboDirty = ta.value !== _pendingComboOriginal;
+  const saveBtn = document.getElementById('combo-save-btn');
+  if (saveBtn) saveBtn.disabled = !_pendingComboDirty;
+}
+
+async function saveComboEdit(btn, silent=false) {
+  const ta = document.getElementById('combo-edit-text');
+  if (!ta) return false;
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'SAVING…'; }
+  try {
+    const r = await csrfFetch('/api/pending/combo/save', {
+      method: 'POST',
+      body: JSON.stringify({tweet: ta.value})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || 'save failed');
+    _pendingComboOriginal = d.pending_combo?.tweet || ta.value;
+    _pendingComboDirty = false;
+    onComboEditInput();
+    if (!silent) addLogLine('ok', `[combo] saved ${d.char_count} chars`);
+    setTimeout(() => pollPending(), 300);
+    return true;
+  } catch(e) {
+    if (!silent) addLogLine('err', `[combo] save failed: ${e.message || e}`);
+    return false;
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = !_pendingComboDirty; }
+  }
+}
+
+async function regenerateCombo(btn) {
+  const instruction = (document.getElementById('combo-regen-instruction') || {}).value || '';
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'GENERATING…'; }
+  try {
+    const r = await csrfFetch('/api/pending/combo/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({instruction: instruction || null})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || 'regenerate failed');
+    addLogLine('ok', `[combo] regenerated ${d.char_count} chars`);
+    await pollPending();
+  } catch(e) {
+    addLogLine('err', `[combo] regenerate failed: ${e.message || e}`);
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
+function startMonitorDrag(ev, alertId) {
+  ev.currentTarget.classList.add('dragging');
+  ev.dataTransfer.effectAllowed = 'copy';
+  ev.dataTransfer.setData('application/x-sol-alert-id', alertId);
+  ev.dataTransfer.setData('text/plain', alertId);
+  document.body.classList.add('monitor-dragging');
+}
+
+function endMonitorDrag(ev) {
+  if (ev && ev.currentTarget) ev.currentTarget.classList.remove('dragging');
+  document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
+  document.querySelectorAll('.combo-dropzone.drag-over').forEach(function(el) {
+    el.classList.remove('drag-over');
+  });
+}
+
+function maybeCloseMonitorForDrag(ev) {
+  if (!document.body.classList.contains('monitor-dragging')) return;
+  if (document.body.classList.contains('monitor-drag-exit')) return;
+  const drawer = document.getElementById('monitor-drawer');
+  if (!drawer || !drawer.classList.contains('open')) return;
+  const rect = drawer.getBoundingClientRect();
+  const x = ev.clientX || 0;
+
+  // Close only after the cursor has actually left the drawer toward the page.
+  // Closing immediately on dragstart makes some browsers drop the native drag.
+  if (x > 0 && x < rect.left - 8) {
+    document.body.classList.add('monitor-drag-exit');
+    drawer.classList.remove('open');
+    _syncBackdrop();
+    const comboZone = document.getElementById('pending-combo-dropzone');
+    if (comboZone) comboZone.scrollIntoView({block:'center', behavior:'smooth'});
+  }
+}
+
+function allowComboDrop(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'copy';
+  ev.currentTarget.classList.add('drag-over');
+}
+
+function startMobileAlertHold(ev, alertId) {
+  if (!isMobileViewport()) return;
+  if (ev.pointerType === 'mouse') return;
+  if (ev.target && ev.target.tagName === 'INPUT') return;
+  cancelMobileAlertHold();
+  _mobileLongPressStart = {x: ev.clientX, y: ev.clientY, id: alertId, el: ev.currentTarget};
+  ev.currentTarget.classList.add('long-pressing');
+  _mobileLongPressTimer = setTimeout(async function() {
+    const hold = _mobileLongPressStart;
+    cancelMobileAlertHold();
+    if (!hold || !hold.id) return;
+    addLogLine('ok', '[mobile] long press → COMBINADA');
+    await createComboFromAlert(hold.id, 'long press');
+  }, 2000);
+}
+
+function moveMobileAlertHold(ev) {
+  if (!_mobileLongPressStart) return;
+  const dx = Math.abs((ev.clientX || 0) - _mobileLongPressStart.x);
+  const dy = Math.abs((ev.clientY || 0) - _mobileLongPressStart.y);
+  if (dx > 24 || dy > 42) cancelMobileAlertHold();
+}
+
+function cancelMobileAlertHold() {
+  if (_mobileLongPressTimer) clearTimeout(_mobileLongPressTimer);
+  _mobileLongPressTimer = null;
+  if (_mobileLongPressStart && _mobileLongPressStart.el) {
+    _mobileLongPressStart.el.classList.remove('long-pressing');
+  }
+  _mobileLongPressStart = null;
+}
+
+async function createComboFromAlert(alertId, sourceLabel='dragged alert') {
+  if (!alertId || !_monitorQueue.some(e => e.id === alertId)) {
+    addLogLine('err', '[combo] invalid alert');
+    return false;
+  }
+  if (_pendingComboExists) {
+    const ok = await _showReplaceModal(_pendingComboOriginal || 'Existing pending combo');
+    if (!ok) return false;
+  }
+  if (isMobileViewport() && _activeMobileTab !== 'pending') activateMobileTab('pending');
+  const resultEl = document.getElementById('publish-result-combo');
+  if (resultEl) resultEl.innerHTML = '<span style="color:var(--muted2);font-family:var(--mono);font-size:11px;">Generating COMBINADA…</span>';
+  try {
+    const r = await csrfFetch(`/api/monitor/action/${encodeURIComponent(alertId)}`, {
+      method: 'POST',
+      body: JSON.stringify({action:'mixed', tweet_type:'COMBINADA'})
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error_message || 'combo generation failed');
+    addLogLine('ok', `[monitor] ${sourceLabel} → pending_combo (${d.remaining} left)`);
+    _monitorChecked.delete(alertId);
+    await pollMonitor();
+    await pollPending();
+    if (isMobileViewport() && _activeMobileTab !== 'pending') activateMobileTab('pending');
+    setTimeout(() => document.getElementById('pending-combo-dropzone')?.scrollIntoView({block:'nearest', behavior:'smooth'}), 120);
+    return true;
+  } catch(e) {
+    addLogLine('err', `[combo] generation failed: ${e.message || e}`);
+    return false;
+  }
+}
+
+async function dropMonitorToCombo(ev) {
+  ev.preventDefault();
+  document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
+  ev.currentTarget.classList.remove('drag-over');
+  const alertId = ev.dataTransfer.getData('application/x-sol-alert-id') || ev.dataTransfer.getData('text/plain');
+  await createComboFromAlert(alertId, 'dragged alert');
+}
+
+window.addEventListener('dragend', function() {
+  document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
+});
+window.addEventListener('drop', function() {
+  document.body.classList.remove('monitor-dragging');
+  document.body.classList.remove('monitor-drag-exit');
+});
+window.addEventListener('dragover', maybeCloseMonitorForDrag);
+
 // ─── PUBLISH ─────────────────────────────────────────────────
 function _insertPublishProgress(grid, platform) {
-  const showX = platform !== 'threads';
-  const showT = platform !== 'x';
-  const rows = [];
-  if (showX) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">𝕏 X</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-x"></div></div><span class="pub-bar-pct" id="pub-pct-x">0%</span></div>`);
-  if (showT) rows.push(`<div class="pub-bar-row"><span class="pub-bar-label">THREADS</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-th"></div></div><span class="pub-bar-pct" id="pub-pct-th">0%</span></div>`);
   const prog = document.createElement('div');
   prog.className = 'pub-progress-container';
-  prog.innerHTML = rows.join('');
+  prog.innerHTML = `<div class="pub-bar-row"><span class="pub-bar-label">THREADS</span><div class="pub-bar-track"><div class="pub-bar-fill" id="pub-fill-th"></div></div><span class="pub-bar-pct" id="pub-pct-th">0%</span></div>`;
   if (grid) { grid.style.display = 'none'; grid.parentNode.insertBefore(prog, grid.nextSibling); }
   return prog;
 }
 
 function _animatePublishBars(container, platform) {
-  let xPct = 0, tPct = 0;
+  let tPct = 0;
   return setInterval(() => {
-    const xFill = container.querySelector('#pub-fill-x');
     const tFill = container.querySelector('#pub-fill-th');
-    const xPctEl = container.querySelector('#pub-pct-x');
     const tPctEl = container.querySelector('#pub-pct-th');
-    if (xFill && xPct < 88) { xPct = Math.min(xPct + 3, 88); xFill.style.width = xPct + '%'; if (xPctEl) xPctEl.textContent = xPct + '%'; }
     if (tFill && tPct < 88) { tPct = Math.min(tPct + 2, 88); tFill.style.width = tPct + '%'; if (tPctEl) tPctEl.textContent = tPct + '%'; }
   }, 200);
 }
 
 function _finishPublishBars(container, platform, xOk, tOk) {
   const pairs = [
-    ['#pub-fill-x', '#pub-pct-x', platform !== 'threads', xOk],
-    ['#pub-fill-th', '#pub-pct-th', platform !== 'x', tOk],
+    ['#pub-fill-th', '#pub-pct-th', true, tOk],
   ];
   for (const [fillId, pctId, active, ok] of pairs) {
     if (!active) continue;
@@ -1532,7 +2355,45 @@ function _finishPublishBars(container, platform, xOk, tOk) {
   }
 }
 
+function _publishFailureHtml(d, source) {
+  const status = d.status || d.error_category || 'FAILED';
+  const msg = d.error_message || 'Threads publish failed.';
+  const stage = d.stage ? ` · stage: ${_esc(d.stage)}` : '';
+  const trace = d.fbtrace_id ? `<div style="margin-top:4px;color:var(--muted);">fbtrace_id: ${_esc(d.fbtrace_id)}</div>` : '';
+  const media = d.media_type ? `<div style="margin-top:4px;color:var(--muted);">media: ${_esc(d.media_type)}${d.media_count ? ` (${d.media_count})` : ''}</div>` : '';
+  const urls = (d.public_media_urls || []).length
+    ? `<details style="margin-top:6px;color:var(--muted);"><summary style="cursor:pointer;color:var(--cyan);">public media URLs</summary><pre style="white-space:pre-wrap;margin-top:4px;">${_esc((d.public_media_urls || []).join('\\n'))}</pre></details>`
+    : '';
+  const out = d.stdout
+    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;color:var(--muted);">technical log</summary><pre style="white-space:pre-wrap;margin-top:6px;max-height:180px;overflow:auto;color:var(--muted);font-size:10px;">${_esc(d.stdout)}</pre></details>`
+    : '';
+  return `<div style="margin-top:8px;padding:9px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--danger);">
+    <strong>${_esc(status)}</strong>${stage}
+    <div style="margin-top:5px;color:var(--text);line-height:1.45;">${_esc(msg)}</div>
+    ${media}${trace}${urls}${out}
+    <button class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;" onclick="publishPost('threads','${source}',this)">RETRY SAME PENDING POST</button>
+  </div>`;
+}
+
 async function publishPost(platform, source, btn) {
+  platform = 'threads';
+  if (isMobileViewport() && !(btn && btn.dataset.mobileConfirmed === '1')) {
+    const ok = await showMobilePublishConfirm(source);
+    if (!ok) return;
+    if (btn) btn.dataset.mobileConfirmed = '1';
+    try {
+      return await publishPost(platform, source, btn);
+    } finally {
+      if (btn) delete btn.dataset.mobileConfirmed;
+    }
+  }
+  if (source === 'combo' && _pendingComboDirty) {
+    const saved = await saveComboEdit(null, true);
+    if (!saved) {
+      addLogLine('err', '[combo] publish blocked: save edited combo first');
+      return;
+    }
+  }
   const resultId = source === 'combo' ? 'publish-result-combo' : 'publish-result';
   const resultEl = document.getElementById(resultId);
   if (resultEl) resultEl.innerHTML = '';
@@ -1541,28 +2402,35 @@ async function publishPost(platform, source, btn) {
   const progContainer = _insertPublishProgress(grid, platform);
   const intervalId = _animatePublishBars(progContainer, platform);
 
-  let xOk = false, tOk = false, d = null;
+  let tOk = false, d = null;
   try {
-    const r = await fetch('/api/publish', {
+    const r = await csrfFetch('/api/publish', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({platform, source}),
     });
-    const d = await r.json();
+    d = await r.json();
     if (r.ok) {
-      xOk = !!d.x_success;
       tOk = !!d.threads_success;
-      const xs = d.x_success      ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
-      const ts = d.threads_success ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
-      const summary = [xs, ts].filter(Boolean).join(' · ');
+      const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
-      if (tOk && resultEl) {
+      if (tOk && d.cleared_pending) {
+        const mediaMsg = d.cleared_media_count ? ` + ${d.cleared_media_count} temp media` : '';
+        addLogLine('ok', `[publish] Published and cleared ${d.cleared_file || 'pending file'}${mediaMsg}`);
+      }
+      if (tOk && d.media_cleanup_error) {
+        addLogLine('warn', `[publish] temp media cleanup warning: ${d.media_cleanup_error}`);
+      }
+      if (!tOk && resultEl) {
+        resultEl.innerHTML = _publishFailureHtml(d, source);
+      } else if (tOk && resultEl) {
         const pid = d.threads_post_id || '';
         const ts_now = new Date().toLocaleTimeString();
         const link = pid ? `<a href="https://www.threads.net/@theclamletter/post/${pid}" target="_blank" style="color:var(--success);text-decoration:underline;">view →</a>` : '';
         resultEl.innerHTML = `<div style="margin-top:8px;padding:8px 10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.35);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--success);">
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
+        pollPending();
       }
     } else {
       if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;
@@ -1572,7 +2440,7 @@ async function publishPost(platform, source, btn) {
   }
 
   clearInterval(intervalId);
-  _finishPublishBars(progContainer, platform, xOk, tOk);
+  _finishPublishBars(progContainer, platform, false, tOk);
 
   if (d && d.wire_repost_warning && resultEl) {
     resultEl.innerHTML = `<div style="margin-top:8px;padding:7px 10px;background:rgba(245,158,11,0.08);border:1px solid var(--amber-dim);border-radius:3px;font-family:var(--mono);font-size:10.5px;color:var(--amber);">
@@ -1586,8 +2454,9 @@ async function publishPost(platform, source, btn) {
 }
 
 async function _publishNow(platform, source, btn, resultEl) {
+  platform = 'threads';
   try {
-    const r = await fetch('/api/publish', {
+    const r = await csrfFetch('/api/publish', {
       method: 'POST',
       headers: _csrfHeaders(),
       body: JSON.stringify({platform, source}),
@@ -1596,9 +2465,7 @@ async function _publishNow(platform, source, btn, resultEl) {
     if (!r.ok) {
       if (resultEl) resultEl.innerHTML = `<span class="pub-fail">Error: ${_esc(d.detail || r.status)}</span>`;
     } else {
-      const xs = d.x_success       ? '𝕏 OK'     : (platform !== 'threads' ? '𝕏 FAILED' : '');
-      const ts = d.threads_success  ? 'T OK'     : (platform !== 'x'       ? 'T FAILED' : '');
-      const summary = [xs, ts].filter(Boolean).join(' · ');
+      const summary = d.threads_success ? 'T OK' : 'T FAILED';
       addLogLine('ok', `[publish] ${summary}`);
       if (d.threads_success && resultEl) {
         const pid = d.threads_post_id || '';
@@ -1608,8 +2475,7 @@ async function _publishNow(platform, source, btn, resultEl) {
           ✓ Published to Threads · ${ts_now}${pid ? ` · ID: ${pid}` : ''} ${link}
         </div>`;
       } else if (resultEl) {
-        const cls = (d.x_success || d.threads_success) ? 'pub-ok' : 'pub-fail';
-        resultEl.innerHTML = `<span class="${cls}">${summary}</span>`;
+        resultEl.innerHTML = _publishFailureHtml(d, source);
       }
       pollPending();
       pollStatus();
@@ -1625,7 +2491,7 @@ async function discardPending(btn) {
   if (!confirm('Clear all pending_*.json files?')) return;
   btn.disabled = true;
   try {
-    const r = await fetch('/api/reset', {method: 'POST', headers: {'X-CSRF-Token': _csrfToken}});
+    const r = await csrfFetch('/api/reset', {method: 'POST', headers: {'X-CSRF-Token': _csrfToken}});
     const d = await r.json();
     addLogLine('warn', `[reset] Cleared: ${(d.cleared || []).join(', ') || 'none'}`);
     setTimeout(() => pollPending(), 500);
@@ -1639,7 +2505,7 @@ async function cancelSched(n, btn) {
   if (!confirm(`Cancel scheduled post #${n}?`)) return;
   btn.disabled = true;
   try {
-    const r = await fetch(`/api/scheduler/${n}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken}});
+    const r = await csrfFetch(`/api/scheduler/${n}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken}});
     const d = await r.json();
     addLogLine('warn', `[scheduler] Deleted pending_sched_${n}.json: ${d.deleted}`);
     setTimeout(() => pollPending(), 500);
@@ -1720,9 +2586,9 @@ function _fmtTime(isoStr) {
     document.getElementById('reply-results').innerHTML = '<div class="reply-meta">Calling Sol...</div>';
 
     try {
-      const r = await fetch('/api/replies/generate', {
+      const r = await csrfFetch('/api/replies/generate', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: _csrfHeaders(),
         body: JSON.stringify({input_type: _replyMode, content, model_override: _replyModel}),
       });
       const d = await r.json();
@@ -1795,9 +2661,9 @@ function _fmtTime(isoStr) {
     btn.disabled = true;
     btn.textContent = '⟳';
     try {
-      const r = await fetch('/api/replies/regenerate-one', {
+      const r = await csrfFetch('/api/replies/regenerate-one', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: _csrfHeaders(),
         body: JSON.stringify({move, original_tweet: _replyLastTweet, model_override: _replyModel}),
       });
       const d = await r.json();
@@ -1831,7 +2697,7 @@ function _fmtTime(isoStr) {
     pEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
     mEl.innerHTML = '<span style="color:var(--muted);font-size:10px">loading…</span>';
     try {
-      const r = await fetch('/api/signals');
+      const r = await csrfFetch('/api/signals');
       if (!r.ok) throw new Error(r.status);
       const d = await r.json();
       renderGdelt(d.gdelt);
@@ -1946,6 +2812,12 @@ function _fmtTime(isoStr) {
     if (p.style.display === 'block') loadAnalytics();
   }
 
+  function toggleSystemPanel() {
+    const p = document.getElementById('system-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    if (p.style.display === 'block') renderSystemPanel();
+  }
+
   function fmtNum(n) {
     if (n == null) return '—';
     n = Math.round(n);
@@ -1954,162 +2826,317 @@ function _fmtTime(isoStr) {
     return n.toString();
   }
 
-  async function loadAnalytics() {
-    document.getElementById('analytics-summary').innerHTML         = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-topic').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-media').innerHTML           = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-recent').innerHTML          = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">loading…</span>';
-    document.getElementById('analytics-threads-recent').innerHTML  = '<span style="color:var(--muted2)">loading…</span>';
-    try {
-      const [summary, topic, media, recent, threads] = await Promise.all([
-        fetch('/api/analytics/summary').then(r => r.json()),
-        fetch('/api/analytics/by_topic').then(r => r.json()),
-        fetch('/api/analytics/by_media').then(r => r.json()),
-        fetch('/api/analytics/recent?limit=5').then(r => r.json()),
-        fetch('/api/threads/analytics?limit=10').then(r => r.json()),
-      ]);
-      renderAnalyticsSummary(summary);
-      renderAnalyticsTopic(topic);
-      renderAnalyticsMedia(media);
-      renderAnalyticsRecent(recent);
-      renderThreadsSummary(threads);
-      renderThreadsRecent(threads);
-    } catch(e) {
-      document.getElementById('analytics-summary').innerHTML = '<span style="color:var(--danger)">error</span>';
-    }
+  function fmtBytes(n) {
+    if (n == null || isNaN(n)) return '—';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
 
-  function renderAnalyticsSummary(d) {
-    const el = document.getElementById('analytics-summary');
-    if (!d) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    const best = d.best_tweet;
+  function renderSystemPanel() {
+    const el = document.getElementById('system-panel-body');
+    const d = _lastStatus;
+    if (!el || !d) return;
+    const queue = d.monitor_queue || {};
+    const pending = d.pending_state || {};
+    const publish = d.publish_summary || {};
+    const token = d.threads_token || {};
+    const analytics = d.analytics_sync || {};
+    const files = d.critical_files || [];
+    const health = d.health_summary || {};
+    const events = d.system_events || [];
+    const services = d.system_services || [];
+    const healthPills = `
+      <span class="system-pill ${health.critical ? 'critical' : 'ok'}">${health.critical || 0} critical</span>
+      <span class="system-pill ${health.warning ? 'warning' : 'ok'}">${health.warning || 0} warning</span>
+    `;
+    const servicesHtml = services.map(s => `
+      <div class="system-service-row">
+        <div>
+          <div>${_esc(s.name)}</div>
+          <div class="system-mini">${_esc(s.enabled || 'unknown')} · ${_esc(s.active || 'unknown')}</div>
+        </div>
+        <span class="system-pill ${s.ok ? 'ok' : 'critical'}">${s.ok ? 'ok' : 'issue'}</span>
+      </div>
+    `).join('');
+    const filesHtml = files.map(f => `
+      <div class="system-metric-row">
+        <span>${_esc(f.name)}</span>
+        <strong style="color:${f.exists ? 'var(--text)' : 'var(--danger)'};">${f.exists ? fmtBytes(f.size_bytes) : 'missing'}</strong>
+      </div>
+    `).join('');
+    const eventsHtml = events.length ? events.map(ev => `
+      <div class="system-event ${_esc(ev.level || 'info')}">
+        <div class="system-event-meta">
+          <span>${_esc(ev.level || 'info')}</span>
+          <span>${_timeAgo(ev.at)}</span>
+        </div>
+        <div class="system-event-text">${_esc(ev.text || '—')}</div>
+      </div>
+    `).join('') : `<div class="system-event info"><div class="system-event-text">No active events.</div></div>`;
+
     el.innerHTML = `
-      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
-      <div style="margin-bottom:4px;">TWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_tweets)}</span></div>
-      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_views)}</span></div>
-      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(d.total_likes)}</span></div>
-      <div style="margin-bottom:4px;">RETWEETS <span style="color:var(--cyan);float:right;">${fmtNum(d.total_retweets)}</span></div>
-      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(d.avg_views)}</span></div>
-      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
-        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST TWEET</div>
-        <div style="color:var(--text);line-height:1.4;word-break:break-word;">${_esc(best.text.slice(0,60))}…</div>
-        <div style="color:var(--cyan);margin-top:3px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
-      </div>` : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">${healthPills}</div>
+      <div class="system-grid">
+        <div class="system-card">
+          <div class="system-card-title">Runtime</div>
+          <div class="system-metric-row"><span>sol commands</span><strong style="color:${d.sol_commands?.alive ? 'var(--success)' : 'var(--danger)'}">${d.sol_commands?.alive ? 'active' : 'down'}</strong></div>
+          <div class="system-metric-row"><span>monitor</span><strong style="color:${d.monitor?.alive ? 'var(--success)' : 'var(--danger)'}">${d.monitor?.alive ? 'active' : 'down'}</strong></div>
+          <div class="system-metric-row"><span>brain</span><strong style="color:${d.brain_enabled ? 'var(--success)' : 'var(--danger)'}">${d.brain_enabled ? 'enabled' : 'disabled'}</strong></div>
+          <div class="system-metric-row"><span>generator</span><strong style="color:${d.generator_available ? 'var(--success)' : 'var(--danger)'}">${d.generator_available ? 'ready' : 'unavailable'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Editorial Queue</div>
+          <div class="system-metric-row"><span>inbox total</span><strong>${queue.count || 0}</strong></div>
+          <div class="system-metric-row"><span>breaking</span><strong>${queue.breaking_count || 0}</strong></div>
+          <div class="system-metric-row"><span>high</span><strong>${queue.high_count || 0}</strong></div>
+          <div class="system-metric-row"><span>oldest alert</span><strong>${queue.oldest_age_minutes != null ? `${Math.round(queue.oldest_age_minutes)} min` : '—'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Pending</div>
+          <div class="system-metric-row"><span>pending post</span><strong>${pending.tweet ? `${pending.tweet.char_count} chars` : '—'}</strong></div>
+          <div class="system-metric-row"><span>pending combo</span><strong>${pending.combo ? `${pending.combo.char_count} chars` : '—'}</strong></div>
+          <div class="system-metric-row"><span>pending media</span><strong>${(pending.tweet?.media_count || 0) + (pending.combo?.media_count || 0)}</strong></div>
+          <div class="system-metric-row"><span>items waiting</span><strong>${pending.count || 0}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Publishing</div>
+          <div class="system-metric-row"><span>success 24h</span><strong>${publish.success_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>failures 24h</span><strong style="color:${publish.failure_24h ? 'var(--danger)' : 'var(--text)'}">${publish.failure_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>media failures</span><strong>${publish.media_failures_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>auth failures</span><strong>${publish.auth_failures_24h || 0}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Threads / Analytics</div>
+          <div class="system-metric-row"><span>threads token</span><strong style="color:${token.configured ? 'var(--success)' : 'var(--danger)'}">${token.configured ? `configured • …${_esc(token.token_hint || '')}` : 'missing'}</strong></div>
+          <div class="system-metric-row"><span>analytics db</span><strong>${analytics.db_exists ? fmtBytes(analytics.db_size_bytes) : 'missing'}</strong></div>
+          <div class="system-metric-row"><span>posts tracked</span><strong>${fmtNum(analytics.posts_count || 0)}</strong></div>
+          <div class="system-metric-row"><span>last sync</span><strong>${analytics.latest_sync?.timestamp ? `${_timeAgo(analytics.latest_sync.timestamp)} · ${_esc(analytics.latest_sync.status || 'ok')}` : '—'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Critical Files</div>
+          ${filesHtml}
+        </div>
+      </div>
+      <div class="system-grid" style="margin-top:12px;">
+        <div class="system-card">
+          <div class="system-card-title">Services</div>
+          <div class="system-service-list">${servicesHtml}</div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">System Events</div>
+          <div class="system-event-list">${eventsHtml}</div>
+        </div>
+      </div>
     `;
   }
 
-  function renderAnalyticsTopic(rows) {
-    const el = document.getElementById('analytics-topic');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    const top6 = rows.slice(0, 6);
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY TOPIC</div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="color:var(--muted2);font-size:9px;">
-        <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
-        <th style="text-align:right;padding-bottom:4px;">TWS</th>
-        <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
-        <th style="text-align:right;padding-bottom:4px;">AVG</th>
-      </tr></thead><tbody>`;
-    for (const r of top6) {
-      html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 0;color:var(--cyan);font-size:9px;word-break:break-all;">${_esc(r.topic)}</td>
-        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
-        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.total_views)}</td>
-        <td style="text-align:right;color:var(--muted);font-size:9px;">${fmtNum(r.avg_views)}</td>
-      </tr>`;
-    }
-    html += '</tbody></table>';
-    el.innerHTML = html;
+  const _analyticsFilters = {
+    days: 1,
+    sort: 'views',
+    format: 'ALL',
+    topic: 'all',
+    media: 'all'
+  };
+
+  function analyticsRangeLabel(days) {
+    if (Number(days) === 1) return '24H';
+    return `${days}D`;
   }
 
-  function renderAnalyticsMedia(rows) {
-    const el = document.getElementById('analytics-media');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">BY MEDIA</div>
-    <table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="color:var(--muted2);font-size:9px;">
-        <th style="text-align:left;padding-bottom:4px;">TYPE</th>
-        <th style="text-align:right;padding-bottom:4px;">TWS</th>
-        <th style="text-align:right;padding-bottom:4px;">AVG VIEWS</th>
-      </tr></thead><tbody>`;
-    for (const r of rows) {
-      html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 0;color:var(--text);font-size:9px;">${_esc(r.media_type)}</td>
-        <td style="text-align:right;color:var(--text);font-size:9px;">${r.count}</td>
-        <td style="text-align:right;color:var(--cyan);font-size:9px;">${fmtNum(r.avg_views)}</td>
-      </tr>`;
-    }
-    html += '</tbody></table>';
-    el.innerHTML = html;
+  function analyticsQueryString() {
+    const params = new URLSearchParams({
+      days: String(_analyticsFilters.days),
+      limit: '50',
+      sort: _analyticsFilters.sort,
+    });
+    if (_analyticsFilters.format !== 'ALL') params.set('format', _analyticsFilters.format);
+    if (_analyticsFilters.topic !== 'all') params.set('topic', _analyticsFilters.topic);
+    if (_analyticsFilters.media !== 'all') params.set('media', _analyticsFilters.media);
+    return params.toString();
   }
 
-  function renderAnalyticsRecent(rows) {
-    const el = document.getElementById('analytics-recent');
-    if (!rows || !rows.length) { el.innerHTML = '<span style="color:var(--muted2)">no data</span>'; return; }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT TWEETS</div>`;
-    for (const r of rows) {
-      const ts = r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : '—';
-      html += `<div style="border-top:1px solid var(--border);padding:4px 0;cursor:default;" title="${_esc(r.text_preview || '')}">
-        <div style="color:var(--muted2);font-size:8px;">${ts}</div>
-        <div style="color:var(--text);font-size:9px;line-height:1.3;word-break:break-word;">${_esc((r.text_preview||'').slice(0,60))}${(r.text_preview||'').length > 60 ? '…' : ''}</div>
-        <div style="color:var(--cyan);font-size:8px;margin-top:2px;">${fmtNum(r.views)} views · ${fmtNum(r.likes)} likes</div>
-      </div>`;
-    }
-    el.innerHTML = html;
+  function setAnalyticsFilter(key, value) {
+    _analyticsFilters[key] = value;
+    loadAnalytics();
   }
 
+  function renderAnalyticsControls() {
+    const opts = {
+      days: [[1,'24H'],[7,'7D'],[30,'30D']],
+      sort: [['views','views'],['likes','likes'],['replies','comments'],['engagement','engagement'],['total_engagement','total eng'],['date','date']],
+      format: [['ALL','all formats'],['WIRE','WIRE'],['ANALISIS','ANALISIS'],['COMBINADA','COMBINADA'],['CONEXION','CONEXION'],['DEBATE','DEBATE'],['ORIGINAL','ORIGINAL']],
+      topic: [['all','all topics'],['crypto','crypto'],['mercados','mercados'],['geopolitica','geopolitica'],['general','general']],
+      media: [['all','all media'],['media','media'],['text','text']]
+    };
+    const select = (key, values) => `<select onchange="setAnalyticsFilter('${key}', this.value)" aria-label="analytics ${key}">
+      ${values.map(([v, label]) => `<option value="${_esc(String(v))}" ${String(_analyticsFilters[key]) === String(v) ? 'selected' : ''}>${_esc(label)}</option>`).join('')}
+    </select>`;
+    return `<div class="analytics-controls">
+      ${select('days', opts.days)}
+      ${select('sort', opts.sort)}
+      ${select('format', opts.format)}
+      ${select('topic', opts.topic)}
+      ${select('media', opts.media)}
+    </div>`;
+  }
+
+  async function loadAnalytics() {
+    const summaryEl = document.getElementById('analytics-threads-summary');
+    const recentEl = document.getElementById('analytics-threads-recent');
+    const snap = isMobileViewport()
+      ? _scrollSnapshot(['.mobile-system-inner', '#analytics-panel', '#analytics-threads-recent'])
+      : {};
+    const query = analyticsQueryString();
+    if (!_lastAnalyticsKey) {
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--muted2)">loading...</span>';
+      if (recentEl) recentEl.innerHTML  = '<span style="color:var(--muted2)">loading...</span>';
+    } else if (recentEl) {
+      recentEl.classList.add('content-settling');
+    }
+    try {
+      const threads = await csrfFetch('/api/threads/analytics?' + query).then(r => r.json());
+      _lastAnalyticsKey = query;
+      renderThreadsSummary(threads);
+      renderThreadsRecent(threads);
+      if (isMobileViewport()) _restoreScrollSnapshot(snap);
+    } catch(e) {
+      if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--danger)">error</span>';
+      if (recentEl) recentEl.innerHTML  = '<span style="color:var(--danger)">error</span>';
+    } finally {
+      if (recentEl) recentEl.classList.remove('content-settling');
+    }
+  }
+
+  async function syncThreadsAnalytics() {
+    document.getElementById('analytics-threads-summary').innerHTML = '<span style="color:var(--muted2)">syncing...</span>';
+    try {
+      const result = await csrfFetch('/api/threads/analytics/sync?limit=50', {
+        method: 'POST',
+        headers: {'X-CSRF-Token': _csrfToken}
+      }).then(r => r.json());
+      if (!result.success) addLogLine('err', `[analytics] sync failed: ${result.error || 'unknown error'}`);
+      else addLogLine('ok', `[analytics] synced ${result.count || 0} Threads posts`);
+      await loadAnalytics();
+    } catch(e) {
+      addLogLine('err', `[analytics] sync error: ${e}`);
+      await loadAnalytics();
+    }
+  }
+
+  function pct(n) {
+    if (n == null) return '—';
+    return (Number(n) * 100).toFixed(1) + '%';
+  }
+
+  function renderRank(title, rows) {
+    if (!rows || !rows.length) return `<div style="color:var(--muted2);font-size:9px;">${title}: no data</div>`;
+    return `<div style="margin-top:8px;">
+      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:4px;">${title}</div>
+      ${rows.slice(0,5).map(r => `<div style="display:grid;grid-template-columns:1fr 44px 52px 52px;gap:6px;border-top:1px solid var(--border);padding:3px 0;">
+        <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(String(r.label || 'UNKNOWN'))}</span>
+        <span style="text-align:right;color:var(--muted2);">${fmtNum(r.posts)}</span>
+        <span style="text-align:right;color:var(--cyan);">${fmtNum(r.avg_views)}</span>
+        <span style="text-align:right;color:var(--amber);">${pct(r.avg_engagement_rate)}</span>
+      </div>`).join('')}
+      <div style="display:grid;grid-template-columns:1fr 44px 52px 52px;gap:6px;color:var(--muted2);font-size:8px;margin-top:2px;">
+        <span></span><span style="text-align:right;">posts</span><span style="text-align:right;">views</span><span style="text-align:right;">eng</span>
+      </div>
+    </div>`;
+  }
+
+  function renderLearningSummary(summary) {
+    if (!summary || summary.error) {
+      return `<div style="margin-top:8px;color:var(--muted2);font-size:9px;line-height:1.4;">LEARNING: ${summary && summary.error ? _esc(summary.error) : 'not enough data yet'}</div>`;
+    }
+    const best = (summary.best_by_topic || []).slice(0,4).map(r => `<div style="border-top:1px solid var(--border);padding:3px 0;display:grid;grid-template-columns:1fr 64px 42px;gap:6px;">
+      <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(r.topic_tag || 'general')}</span>
+      <span style="color:var(--purple2);text-align:right;">${_esc(r.tweet_type || 'UNKNOWN')}</span>
+      <span style="color:var(--muted2);text-align:right;">${fmtNum(r.posts || 0)}</span>
+    </div>`).join('');
+    const length = (summary.length_ranges || [])[0];
+    const media = (summary.media || [])[0];
+    return `<div style="margin-top:8px;">
+      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:4px;">LEARNING</div>
+      ${best || '<div style="color:var(--muted2);font-size:9px;">not enough topic samples yet</div>'}
+      ${length ? `<div style="margin-top:5px;color:var(--muted2);font-size:9px;">Best length: <span style="color:var(--purple2);">${_esc(length.label)}</span> · ${fmtNum(length.posts)} posts</div>` : ''}
+      ${media ? `<div style="margin-top:3px;color:var(--muted2);font-size:9px;">Media signal: <span style="color:var(--purple2);">${_esc(media.label)}</span> · ${fmtNum(media.posts)} posts</div>` : ''}
+    </div>`;
+  }
 
   function renderThreadsSummary(data) {
     const el = document.getElementById('analytics-threads-summary');
-    if (!data || data.error || !data.posts || !data.posts.length) {
-      el.innerHTML = `<span style="color:var(--muted2);font-size:9px;">${data && data.error ? 'token error' : 'no data'}</span>`;
+    if (!data || (data.error && !data.summary)) {
+      el.innerHTML = `<span style="color:var(--muted2);font-size:9px;">${data && data.error ? _esc(data.error) : 'no data'}</span>`;
       return;
     }
-    const posts  = data.posts;
-    const total  = data.count;
-    const views  = posts.reduce((s, p) => s + (p.views || 0), 0);
-    const likes  = posts.reduce((s, p) => s + (p.likes || 0), 0);
-    const best   = posts.reduce((a, b) => (b.views || 0) > (a.views || 0) ? b : a, posts[0]);
+    const s = data.summary || {};
+    const last = data.last_sync || null;
+    const syncLine = last ? `${(last.timestamp || '').slice(0,19)} · ${last.status || 'UNKNOWN'} · ${last.count || 0}` : 'never synced';
     el.innerHTML = `
-      <div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">SUMMARY</div>
-      <div style="margin-bottom:4px;">POSTS <span style="color:var(--cyan);float:right;">${total}</span></div>
-      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(views)}</span></div>
-      <div style="margin-bottom:4px;">LIKES <span style="color:var(--cyan);float:right;">${fmtNum(likes)}</span></div>
-      <div style="margin-bottom:8px;">AVG VIEWS <span style="color:var(--cyan);float:right;">${fmtNum(Math.round(views / total))}</span></div>
-      ${best ? `<div style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
-        <div style="color:var(--amber);font-size:9px;margin-bottom:3px;">🏆 BEST POST</div>
-        <div style="color:var(--text);line-height:1.4;word-break:break-word;font-size:9px;">${_esc((best.text||'').slice(0,55))}…</div>
-        <div style="color:var(--cyan);margin-top:3px;font-size:8px;">${fmtNum(best.views)} views · ${fmtNum(best.likes)} likes</div>
-      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+        <span style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;">${analyticsRangeLabel(_analyticsFilters.days)} SUMMARY</span>
+        <button onclick="syncThreadsAnalytics()" style="background:none;border:1px solid rgba(176,38,255,0.24);color:var(--purple2);font-size:8px;padding:2px 8px;border-radius:999px;cursor:pointer;font-family:monospace;">SYNC</button>
+      </div>
+      <div style="margin-bottom:4px;">POSTS <span style="color:var(--purple2);float:right;">${fmtNum(s.posts || 0)}</span></div>
+      <div style="margin-bottom:4px;">VIEWS <span style="color:var(--purple2);float:right;">${fmtNum(s.views || 0)}</span></div>
+      <div style="margin-bottom:4px;">LIKES <span style="color:var(--purple2);float:right;">${fmtNum(s.likes || 0)}</span></div>
+      <div style="margin-bottom:4px;">REPLIES <span style="color:var(--purple2);float:right;">${fmtNum(s.replies || 0)}</span></div>
+      <div style="margin-bottom:4px;">AVG VIEWS <span style="color:var(--purple2);float:right;">${fmtNum(s.avg_views || 0)}</span></div>
+      <div style="margin-bottom:6px;">AVG ENG <span style="color:var(--success);float:right;">${pct(s.avg_engagement_rate || 0)}</span></div>
+      <div style="border-top:1px solid var(--border);padding-top:5px;color:var(--muted2);font-size:8px;line-height:1.4;">last sync: ${_esc(syncLine)}</div>
+      ${data.error ? `<div style="color:var(--danger);font-size:8px;margin-top:4px;line-height:1.4;">${_esc(data.error)}</div>` : ''}
+      ${renderLearningSummary(data.learning_summary || {})}
+      ${renderRank('BY FORMAT', data.by_format || [])}
+      ${renderRank('BY TOPIC', data.by_topic || [])}
+      ${renderRank('MEDIA VS TEXT', data.by_media || [])}
     `;
   }
 
   function renderThreadsRecent(data) {
     const el = document.getElementById('analytics-threads-recent');
-    if (!data || !data.posts || !data.posts.length) {
-      el.innerHTML = '<span style="color:var(--muted2);font-size:9px;">no posts</span>';
+    const posts = data && (data.recent_posts || data.posts) || [];
+    if (!posts.length) {
+      el.innerHTML = renderAnalyticsControls() + '<span style="color:var(--muted2);font-size:9px;">no posts match these analytics filters. try 7D or 30D.</span>';
       return;
     }
-    let html = `<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">RECENT POSTS</div>
-    <table style="width:100%;border-collapse:collapse;">
+    const title = _analyticsFilters.sort === 'date'
+      ? `RECENT POSTS · ${analyticsRangeLabel(_analyticsFilters.days)}`
+      : `TOP POSTS · ${analyticsRangeLabel(_analyticsFilters.days)} · ${_analyticsFilters.sort.toUpperCase().replace('_', ' ')}`;
+    let html = `${renderAnalyticsControls()}<div style="color:var(--muted2);font-size:9px;letter-spacing:0.07em;margin-bottom:6px;">${_esc(title)}</div>
+    <table class="analytics-table">
       <thead><tr style="color:var(--muted2);font-size:9px;">
         <th style="text-align:left;padding-bottom:4px;">POST</th>
+        <th style="text-align:left;padding-bottom:4px;">FMT</th>
+        <th style="text-align:left;padding-bottom:4px;">TOPIC</th>
         <th style="text-align:right;padding-bottom:4px;">VIEWS</th>
         <th style="text-align:right;padding-bottom:4px;">LIKES</th>
-        <th style="text-align:right;padding-bottom:4px;">RPL</th>
+        <th style="text-align:right;padding-bottom:4px;">COM</th>
+        <th style="text-align:right;padding-bottom:4px;">RP</th>
+        <th style="text-align:right;padding-bottom:4px;">QT</th>
+        <th style="text-align:right;padding-bottom:4px;">TOTAL</th>
+        <th style="text-align:right;padding-bottom:4px;">ENG</th>
       </tr></thead><tbody>`;
-    for (const p of data.posts) {
+    for (const p of posts) {
       const ts   = p.timestamp ? p.timestamp.slice(0, 10) : '—';
-      const link = p.permalink ? `<a href="${p.permalink}" target="_blank" style="color:var(--cyan);text-decoration:none;" title="${_esc(p.text||'')}">↗</a>` : '';
+      const link = p.permalink ? `<a href="${p.permalink}" target="_blank" style="color:var(--purple2);text-decoration:none;" title="${_esc(p.text||'')}">↗</a>` : '';
+      const total = Number(p.total_engagement || 0);
+      const media = p.has_media ? `media ${p.media_count || 1}` : 'text';
       html += `<tr style="border-top:1px solid var(--border);">
-        <td style="padding:3px 4px 3px 0;font-size:9px;max-width:260px;">
-          <span style="color:var(--muted2);font-size:8px;">${ts}</span> ${link}<br>
-          <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,70))}${(p.text||'').length > 70 ? '…' : ''}</span>
+        <td style="padding:4px 6px 4px 0;font-size:9px;max-width:340px;">
+          <span style="color:var(--muted2);font-size:8px;">${ts} · ${_esc(media)} · ${fmtNum(p.char_count || 0)} chars</span> ${link}<br>
+          <span style="color:var(--text);line-height:1.3;word-break:break-word;">${_esc((p.text||'').slice(0,92))}${(p.text||'').length > 92 ? '...' : ''}</span>
         </td>
-        <td style="text-align:right;color:var(--cyan);font-size:9px;white-space:nowrap;">${fmtNum(p.views)}</td>
+        <td style="color:var(--purple2);font-size:9px;white-space:nowrap;">${_esc(p.tweet_type || 'UNKNOWN')}</td>
+        <td style="color:var(--muted);font-size:9px;white-space:nowrap;">${_esc(p.topic_tag || 'general')}</td>
+        <td style="text-align:right;color:var(--purple2);font-size:9px;white-space:nowrap;">${fmtNum(p.views)}</td>
         <td style="text-align:right;color:var(--text);font-size:9px;white-space:nowrap;">${fmtNum(p.likes)}</td>
         <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.replies)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.reposts)}</td>
+        <td style="text-align:right;color:var(--muted);font-size:9px;white-space:nowrap;">${fmtNum(p.quotes)}</td>
+        <td style="text-align:right;color:var(--purple2);font-size:9px;white-space:nowrap;">${fmtNum(total)}</td>
+        <td style="text-align:right;color:var(--success);font-size:9px;white-space:nowrap;">${pct(p.engagement_rate || 0)}</td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -2117,64 +3144,221 @@ function _fmtTime(isoStr) {
   }
 
 // ─── MOBILE TAB NAVIGATION ───────────────────────────────────────
-(function() {
-  const TAB_COL = {
-    status:  '.col-manager',
-    post:    '.col-chat',
-    mixed:   '.col-mixed',
-    monitor: null,
-  };
+function isMobileViewport() {
+  return window.innerWidth <= 768;
+}
 
-  window.activateMobileTab = function(tabName) {
-    if (window.innerWidth > 768) return;
+function setMobileTabClass(tabName) {
+  document.body.classList.remove('mobile-tab-inbox','mobile-tab-pending','mobile-tab-create','mobile-tab-analytics','mobile-tab-system');
+  document.body.classList.add('mobile-tab-' + tabName);
+}
 
-    document.querySelectorAll('.mob-tab').forEach(function(t) {
-      t.classList.toggle('active', t.dataset.tab === tabName);
-    });
-    document.querySelectorAll('.col').forEach(function(c) {
-      c.classList.remove('mob-active');
-    });
+function closeMobileOverlays() {
+  const analytics = document.getElementById('analytics-panel');
+  const analyticsHome = document.getElementById('analytics-panel-home');
+  const brain = document.getElementById('brain-panel');
+  const signals = document.getElementById('signals-panel');
+  if (analytics) analytics.classList.remove('mobile-inline');
+  if (analytics && analyticsHome && analytics.parentNode !== analyticsHome.parentNode) analyticsHome.after(analytics);
+  if (analytics && !document.body.classList.contains('mobile-tab-analytics')) analytics.style.display = 'none';
+  if (brain) brain.style.display = 'none';
+  if (signals) signals.style.display = 'none';
+  const reply = document.getElementById('reply-drawer');
+  if (reply) reply.classList.remove('open');
+}
 
-    if (tabName === 'monitor') {
-      document.getElementById('monitor-drawer').classList.add('open');
-    } else {
-      document.getElementById('monitor-drawer').classList.remove('open');
-      var sel = TAB_COL[tabName];
-      if (sel) document.querySelector(sel).classList.add('mob-active');
-    }
-  };
-
-  // When monitor drawer closes on mobile, return tab bar to status
-  var _origToggle = window.toggleMonitorDrawer;
-  window.toggleMonitorDrawer = function() {
-    var wasOpen = document.getElementById('monitor-drawer').classList.contains('open');
-    _origToggle();
-    if (wasOpen && window.innerWidth <= 768) {
-      document.querySelectorAll('.mob-tab').forEach(function(t) {
-        t.classList.toggle('active', t.dataset.tab === 'status');
-      });
-      var mgr = document.querySelector('.col-manager');
-      if (mgr) mgr.classList.add('mob-active');
-    }
-  };
-
-  // Keep mobile monitor badge in sync with _monitorCount
-  setInterval(function() {
-    var badge = document.getElementById('mob-monitor-badge');
-    if (!badge) return;
+function syncMobileBadges() {
+  const inboxBadge = document.getElementById('mob-inbox-badge');
+  const pendingBadge = document.getElementById('mob-pending-badge');
+  if (inboxBadge) {
     if (typeof _monitorCount !== 'undefined' && _monitorCount > 0) {
-      badge.textContent = _monitorCount;
-      badge.classList.add('visible');
+      inboxBadge.textContent = _monitorCount;
+      inboxBadge.classList.add('visible');
     } else {
-      badge.classList.remove('visible');
+      inboxBadge.classList.remove('visible');
     }
-  }, 1000);
-
-  // Init on mobile
-  if (window.innerWidth <= 768) {
-    window.activateMobileTab('status');
   }
+  if (pendingBadge) {
+    const count = (_lastPending && _lastPending.tweet ? 1 : 0) + (_lastPending && _lastPending.combo ? 1 : 0);
+    if (count > 0) {
+      pendingBadge.textContent = count;
+      pendingBadge.classList.add('visible');
+    } else {
+      pendingBadge.classList.remove('visible');
+    }
+  }
+}
+
+function renderMobileSystem() {
+  const el = document.getElementById('mobile-system-inner');
+  const d = _lastStatus;
+  if (!el || !d) return;
+  if (document.body.classList.contains('mobile-tab-analytics')) return;
+  const sol = d.sol_commands || {};
+  const mon = d.monitor || {};
+  const services = d.system_services || [];
+  const bad = services.filter(s => !s.ok);
+  const queue = d.monitor_queue || {};
+  const pending = d.pending_state || {};
+  const publish = d.publish_summary || {};
+  const token = d.threads_token || {};
+  const analytics = d.analytics_sync || {};
+  const health = d.health_summary || {};
+  const events = (d.system_events || []).slice(0, 4);
+  const last = d.last_publish ? `${_timeAgo(d.last_publish.published_at)} · ${(d.last_publish.tweet_type || 'post')} · ${(d.last_publish.status || (d.last_publish.success === false ? 'FAILED' : 'OK'))}` : '—';
+  el.innerHTML = `
+    <div class="mobile-card">
+      <div class="mobile-card-title">Runtime</div>
+      <div class="mobile-metric-row"><span>sol commands</span><strong style="color:${sol.alive ? 'var(--success)' : 'var(--danger)'}">${sol.alive ? 'active' : 'down'}</strong></div>
+      <div class="mobile-metric-row"><span>monitor</span><strong style="color:${mon.alive ? 'var(--success)' : 'var(--danger)'}">${mon.alive ? 'active' : 'down'}</strong></div>
+      <div class="mobile-metric-row"><span>brain</span><strong style="color:${d.brain_enabled ? 'var(--success)' : 'var(--danger)'}">${d.brain_enabled ? 'enabled' : 'disabled'}</strong></div>
+      <div class="mobile-metric-row"><span>services</span><strong style="color:${bad.length ? 'var(--danger)' : 'var(--success)'}">${bad.length ? bad.length + ' issue' : 'ok'}</strong></div>
+      <div class="mobile-metric-row"><span>health</span><strong style="color:${health.critical ? 'var(--danger)' : health.warning ? 'var(--amber)' : 'var(--success)'}">${health.critical || 0}C / ${health.warning || 0}W</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Editorial</div>
+      <div class="mobile-metric-row"><span>monitor inbox</span><strong>${queue.count || _monitorCount || 0}</strong></div>
+      <div class="mobile-metric-row"><span>breaking</span><strong>${queue.breaking_count || 0}</strong></div>
+      <div class="mobile-metric-row"><span>posts today</span><strong>${d.posts_today || 0}</strong></div>
+      <div class="mobile-metric-row"><span>last publish</span><strong style="text-align:right;max-width:58%;">${_esc(last)}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Pending / Threads</div>
+      <div class="mobile-metric-row"><span>pending post</span><strong>${pending.tweet ? `${pending.tweet.char_count} chars` : '—'}</strong></div>
+      <div class="mobile-metric-row"><span>pending combo</span><strong>${pending.combo ? `${pending.combo.char_count} chars` : '—'}</strong></div>
+      <div class="mobile-metric-row"><span>threads token</span><strong style="color:${token.configured ? 'var(--success)' : 'var(--danger)'}">${token.configured ? `ok • …${_esc(token.token_hint || '')}` : 'missing'}</strong></div>
+      <div class="mobile-metric-row"><span>analytics sync</span><strong>${analytics.latest_sync?.timestamp ? `${_timeAgo(analytics.latest_sync.timestamp)}` : '—'}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Failures</div>
+      <div class="mobile-metric-row"><span>publish failures 24h</span><strong style="color:${publish.failure_24h ? 'var(--danger)' : 'var(--success)'}">${publish.failure_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>media failures</span><strong>${publish.media_failures_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>auth failures</span><strong>${publish.auth_failures_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>oldest alert</span><strong>${queue.oldest_age_minutes != null ? `${Math.round(queue.oldest_age_minutes)} min` : '—'}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Events</div>
+      ${events.length ? events.map(ev => `
+        <div class="mobile-metric-row">
+          <span style="text-transform:uppercase;color:${ev.level === 'critical' ? 'var(--danger)' : ev.level === 'warning' ? 'var(--amber)' : 'var(--purple2)'}">${_esc(ev.level)}</span>
+          <strong style="text-align:right;max-width:62%;">${_esc(ev.text)}</strong>
+        </div>`).join('') : `<div class="mobile-metric-row"><span>status</span><strong>quiet</strong></div>`}
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Actions</div>
+      <div class="mobile-action-grid">
+        <button class="btn btn-secondary" onclick="pollStatus(); loadSignals();">REFRESH</button>
+        <button class="btn btn-primary" onclick="toggleBrainPanel()">BRAIN</button>
+        <button class="btn btn-combo" onclick="toggleReplyDrawer()">REPLY</button>
+        <button class="btn btn-secondary" onclick="toggleSignalsPanel(); loadSignals();">SIGNALS</button>
+      </div>
+    </div>`;
+}
+
+function activateMobileTab(tabName) {
+  if (!isMobileViewport()) return;
+  if (_activeMobileTab === tabName) {
+    syncMobileBadges();
+    return;
+  }
+  _activeMobileTab = tabName;
+  setMobileTabClass(tabName);
+  document.querySelectorAll('.mob-tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.col').forEach(function(c) {
+    c.classList.remove('mob-active');
+  });
+  closeMobileOverlays();
+
+  const drawer = document.getElementById('monitor-drawer');
+  if (drawer) drawer.classList.remove('open');
+
+  if (tabName === 'inbox') {
+    if (drawer) drawer.classList.add('open');
+  } else if (tabName === 'pending') {
+    const col = document.querySelector('.col-manager');
+    if (col) col.classList.add('mob-active');
+  } else if (tabName === 'create') {
+    const chat = document.querySelector('.col-chat');
+    const mixed = document.querySelector('.col-mixed');
+    if (chat) chat.classList.add('mob-active');
+    if (mixed) mixed.classList.add('mob-active');
+  } else if (tabName === 'analytics') {
+    const col = document.querySelector('.col-system');
+    const analytics = document.getElementById('analytics-panel');
+    if (col) col.classList.add('mob-active');
+    if (analytics) {
+      analytics.classList.add('mobile-inline');
+      analytics.style.display = 'block';
+      const host = document.getElementById('mobile-system-inner');
+      if (host && analytics.parentNode !== host) host.prepend(analytics);
+    }
+    if (!_lastAnalyticsKey) loadAnalytics();
+  } else if (tabName === 'system') {
+    const col = document.querySelector('.col-system');
+    if (col) col.classList.add('mob-active');
+    renderMobileSystem();
+  }
+  _syncBackdrop();
+  syncMobileBadges();
+}
+
+// Keep desktop drawer behavior, but on mobile closing Inbox returns to Pending.
+(function() {
+  const _origToggle = window.toggleMonitorDrawer;
+  window.toggleMonitorDrawer = function() {
+    const wasOpen = document.getElementById('monitor-drawer').classList.contains('open');
+    _origToggle();
+    if (wasOpen && isMobileViewport()) activateMobileTab('pending');
+  };
+
+  setInterval(syncMobileBadges, 1000);
+  window.addEventListener('resize', function() {
+    if (isMobileViewport()) {
+      if (!document.body.className.match(/mobile-tab-/)) activateMobileTab(_activeMobileTab || 'inbox');
+    } else {
+      _activeMobileTab = null;
+      document.body.classList.remove('mobile-tab-inbox','mobile-tab-pending','mobile-tab-create','mobile-tab-analytics','mobile-tab-system');
+      document.querySelectorAll('.col').forEach(c => c.classList.remove('mob-active'));
+      const drawer = document.getElementById('monitor-drawer');
+      if (drawer) drawer.classList.remove('open');
+    }
+  });
+  if (isMobileViewport()) activateMobileTab('inbox');
 })();
+
+function pendingPreviewText(source) {
+  if (source === 'combo') {
+    const ta = document.getElementById('combo-edit-text');
+    if (ta && ta.value) return ta.value;
+    return (_lastPending && _lastPending.combo && (_lastPending.combo.tweet || _lastPending.combo.wire)) || '';
+  }
+  return (_lastPending && _lastPending.tweet && (_lastPending.tweet.tweet || _lastPending.tweet.text)) || '';
+}
+
+function showMobilePublishConfirm(source) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('publish-confirm-modal');
+    const preview = document.getElementById('publish-confirm-preview');
+    const label = document.getElementById('publish-confirm-label');
+    const ok = document.getElementById('publish-confirm-ok');
+    const cancel = document.getElementById('publish-confirm-cancel');
+    if (!modal || !preview || !ok || !cancel) return resolve(window.confirm('Publish to Threads?'));
+    const text = pendingPreviewText(source);
+    label.textContent = `This will publish the ${source === 'combo' ? 'pending combo' : 'pending post'} to Threads.`;
+    preview.textContent = text ? text.slice(0, 420) + (text.length > 420 ? '…' : '') : '[empty preview]';
+    const cleanup = (value) => {
+      modal.classList.remove('visible');
+      ok.onclick = null;
+      cancel.onclick = null;
+      resolve(value);
+    };
+    ok.onclick = () => cleanup(true);
+    cancel.onclick = () => cleanup(false);
+    modal.classList.add('visible');
+  });
+}
 </script>
 <script>
   if ('serviceWorker' in navigator) {
@@ -2182,6 +3366,19 @@ function _fmtTime(isoStr) {
   }
 </script>
 <!-- DRAWER BACKDROP -->
+<div id="publish-confirm-modal">
+  <div class="replace-modal-box">
+    <div class="replace-modal-icon">⊙</div>
+    <div class="replace-modal-title">Confirm Threads publish</div>
+    <div class="replace-modal-body" id="publish-confirm-label">This will publish from mobile.</div>
+    <div class="replace-modal-preview" id="publish-confirm-preview"></div>
+    <div class="replace-modal-actions">
+      <button class="btn btn-secondary" id="publish-confirm-cancel">CANCEL</button>
+      <button class="btn btn-success" id="publish-confirm-ok">PUBLISH</button>
+    </div>
+  </div>
+</div>
+
 <div id="drawer-backdrop" class="drawer-backdrop" onclick="closeAllDrawers()"></div>
 </body>
 </html>
