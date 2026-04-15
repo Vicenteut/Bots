@@ -3,6 +3,9 @@
 evaluate_posts.py — LLM-as-Judge evaluator for Sol bot posts.
 Reads last N posts from analytics.db, scores each on 4 dimensions using
 anthropic/claude-sonnet-4-6 via OpenRouter, saves results to evaluation_results.json.
+
+Historical note: this reads the old analytics.db schema. It is not part of
+the current Threads-only dashboard analytics path.
 """
 
 import argparse

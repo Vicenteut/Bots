@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reply suggestion generator for @napoleotics with humanization."""
+"""Reply suggestion generator for Sol with humanization."""
 import os
 import random
 import time
@@ -14,11 +14,11 @@ from telegram_client import send_message
 
 load_environment()
 
-REPLY_SYSTEM = """Eres el analista detras de @napoleotics. Genera UNA reply para un tweet de una cuenta grande.
+REPLY_SYSTEM = """Eres el analista detras de @napoleotics. Genera UNA reply para un post de una cuenta grande.
 
 TIPOS DE REPLY (se te indicara cual usar):
-1. DATO_CONTRARIO - Aporta un dato que contradice o matiza el tweet original
-2. CONEXION_MACRO - Conecta el tweet con un evento macro que nadie menciono
+1. DATO_CONTRARIO - Aporta un dato que contradice o matiza el post original
+2. CONEXION_MACRO - Conecta el post con un evento macro que nadie menciono
 3. PREGUNTA_RETORICA - Pregunta que hace pensar y genera engagement
 4. CONTEXTO_HISTORICO - Trae un paralelo historico relevante
 5. OPERADOR - Dato de mercado/trading que complementa
@@ -49,14 +49,14 @@ def send_tg(text):
         print('Telegram error: ' + str(e))
 
 
-def generate_reply(account, tweet_text):
+def generate_reply(account, post_text):
     reply_type = random.choice([
         'DATO_CONTRARIO', 'CONEXION_MACRO', 'PREGUNTA_RETORICA',
         'CONTEXTO_HISTORICO', 'OPERADOR'
     ])
     nl = chr(10)
     prompt = 'Cuenta: @' + account + nl
-    prompt += 'Tweet: ' + tweet_text + nl
+    prompt += 'Post: ' + post_text + nl
     prompt += 'Tipo: ' + reply_type + nl + nl
     prompt += 'Reply (solo texto):'
 
@@ -97,9 +97,9 @@ def main():
     msg = 'Sugerencias de reply (' + str(len(suggestions)) + '):' + nl + nl
     for i, s in enumerate(suggestions, 1):
         msg += str(i) + '. @' + s['a'] + nl
-        msg += 'Tweet: ' + s['o'][:150] + nl
+        msg += 'Post: ' + s['o'][:150] + nl
         msg += 'Tu reply: ' + s['r'] + nl + nl
-    msg += 'Copia y pega en X desde tu telefono.'
+    msg += 'Copia y pega la reply donde corresponda.'
 
     send_tg(msg)
     print('[' + str(datetime.now()) + '] Enviadas ' + str(len(suggestions)))

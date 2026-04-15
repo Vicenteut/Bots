@@ -22,7 +22,7 @@ defaultTest:
       - OPEC+ emergency meeting called for next week
 
 tests:
-  - description: "TC1 — Single geopolitical tweet (Fed + inflation)"
+  - description: "TC1 — Single geopolitical post (Fed + inflation)"
     vars:
       original_tweet: "Fed holds rates. Inflation at 3.2%. Markets rally."
     assert:
@@ -47,7 +47,7 @@ tests:
             return true;
           } catch(e) { return false; }
 
-  - description: "TC2 — Full thread (US-China tariffs, 3 tweets)"
+  - description: "TC2 — Full thread (US-China tariffs, 3 posts)"
     vars:
       original_tweet: |
         1/ US raises tariffs on Chinese EVs to 100%. This will protect American auto workers and reduce dependency on Chinese manufacturing.
@@ -90,7 +90,7 @@ tests:
             return true;
           } catch(e) { return false; }
 
-  - description: "TC4 — Moralizing tweet (Sol must stay dry/factual, not match tone)"
+  - description: "TC4 — Moralizing post (Sol must stay dry/factual, not match tone)"
     vars:
       original_tweet: "What China is doing to Taiwan is shameful and unacceptable. The international community must act now before it's too late. This aggression cannot stand."
     assert:
@@ -133,7 +133,7 @@ tests:
             return hasMacro;
           } catch(e) { return false; }
 
-  - description: "TC6 — Edge case: very short tweet (under 20 chars)"
+  - description: "TC6 — Edge case: very short post (under 20 chars)"
     vars:
       original_tweet: "Iran nuclear deal dead."
     assert:

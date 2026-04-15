@@ -2,6 +2,7 @@
 
 > Generated: 2026-04-08  
 > Context: Single-operator VPS (Ubuntu 22.04, Hetzner), Python bot stack, Telegram as primary control surface
+> Status: historical scoring note. Production Sol now uses a private FastAPI dashboard and Threads-only publishing.
 
 ---
 

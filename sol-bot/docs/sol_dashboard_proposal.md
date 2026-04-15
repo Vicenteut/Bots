@@ -3,6 +3,7 @@
 > Generated: 2026-04-08  
 > Stack: FastAPI + htmx · uvicorn · nginx · systemd  
 > See also: `friction_audit.md`, `options_scored.md`
+> Status: historical design note. Sol is now Threads-only; X publishing, Streamlit, and dual-publish references below are legacy context, not current implementation guidance.
 
 ---
 

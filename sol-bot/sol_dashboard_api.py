@@ -5,37 +5,35 @@ FastAPI + htmx operational dashboard, port 8502
 import asyncio
 import base64
 import glob
+import hashlib
 import json
 import os
 import re
 import secrets
-import sqlite3
 import subprocess
 import urllib.parse
+import urllib.request
 from filelock import FileLock
 try:
     from openai import OpenAI as _OpenAI
     _OPENAI_AVAILABLE = True
 except ImportError:
     _OPENAI_AVAILABLE = False
-try:
-    import tweepy as _tweepy
-    _TWEEPY_AVAILABLE = True
-except ImportError:
-    _tweepy = None
-    _TWEEPY_AVAILABLE = False
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import psutil
 from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, priority_rank, score_alert_details
+from recommendation_engine import get_learning_summary, recommend_for_alert
+from topic_utils import classify_topic
 
 try:
     from gdeltdoc import GdeltDoc, Filters as GdeltFilters
@@ -71,8 +69,9 @@ PENDING_COMBO   = BOT_DIR / "pending_combo.json"
 MONITOR_PENDING = BOT_DIR / "monitor_pending.json"
 MONITOR_QUEUE      = BOT_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK = BOT_DIR / "monitor_queue.lock"
+MONITOR_QUEUE_MAX  = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
 MEDIA_DIR          = BOT_DIR / "media"
-ANALYTICS_DB    = Path("/root/x-bot/analytics.db")
+SOURCE_CONFIG      = BOT_DIR / "source_config.json"
 CONTEXT_JSON    = BOT_DIR / "context.json"
 REPLY_PROMPT    = BOT_DIR / "reply_generator_prompt.txt"
 REPLY_USER_TMPL = BOT_DIR / "reply_gen_user_msg.txt"
@@ -81,11 +80,21 @@ OPENROUTER_BASE   = "https://openrouter.ai/api/v1"
 REPLY_MODEL_MAP   = {
     "haiku":  "anthropic/claude-haiku-4-5",
     "sonnet": "anthropic/claude-sonnet-4-6",
-    "opus":   "anthropic/claude-opus-4-6",
+    "opus":   "anthropic/claude-sonnet-4-6",
 }
 REPLY_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
 LOG_ALLOWLIST = {"sol_commands", "monitor", "scheduler", "analytics", "trending", "replies"}
+
+THREADS_POST_MAX_CHARS = 500
+THREADS_POST_WARN_CHARS = 460
+REMOTE_MONITOR_IMAGE_MAX_BYTES = int(os.getenv("REMOTE_MONITOR_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)) or str(5 * 1024 * 1024))
+REMOTE_MONITOR_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
 # ─── SIGNALS CACHE ───────────────────────────────────────────────────────────
 _gdelt_cache: dict = {"data": None, "ts": 0.0}
@@ -94,16 +103,56 @@ _markets_cache: dict = {"data": None, "ts": 0.0}
 
 # ─── AUTH ────────────────────────────────────────────────────────────────────
 DASHBOARD_USER = os.getenv("DASHBOARD_USER", "sol")
-DASHBOARD_PASS = os.getenv("DASHBOARD_PASS") or "solpass123"
+DASHBOARD_PASSWORD_HASH = (os.getenv("DASHBOARD_PASSWORD_HASH") or "").strip().lower()
+INGEST_API_TOKEN = (os.getenv("INGEST_API_TOKEN") or "").strip()
+INGEST_RATE_LIMIT_PER_MIN = int(os.getenv("INGEST_RATE_LIMIT_PER_MIN", "60") or "60")
+if not DASHBOARD_PASSWORD_HASH or DASHBOARD_PASSWORD_HASH == "change_me_to_sha256_hash":
+    raise RuntimeError("DASHBOARD_PASSWORD_HASH must be set in the environment")
+if not re.fullmatch(r"[0-9a-f]{64}", DASHBOARD_PASSWORD_HASH):
+    raise RuntimeError("DASHBOARD_PASSWORD_HASH must be a 64-character SHA-256 hex digest")
+
 SESSION_COOKIE = "sol_session"
+SESSION_MAX_AGE = 86400 * 7
 # Cryptographically random session token — generated at startup, never derived from credentials
 SESSION_TOKEN  = secrets.token_hex(32)
 # CSRF token — separate random value, sent to browser and echoed back on state-changing requests
 CSRF_TOKEN     = secrets.token_hex(32)
+_ingest_rate_events: list[float] = []
 
 
 def _check_credentials(user: str, pwd: str) -> bool:
-    return secrets.compare_digest(user, DASHBOARD_USER) and secrets.compare_digest(pwd, DASHBOARD_PASS)
+    pwd_hash = hashlib.sha256(pwd.encode("utf-8")).hexdigest()
+    return (
+        secrets.compare_digest(user, DASHBOARD_USER)
+        and secrets.compare_digest(pwd_hash, DASHBOARD_PASSWORD_HASH)
+    )
+
+
+def _check_ingest_auth_header(auth: str) -> bool:
+    if not INGEST_API_TOKEN:
+        return False
+    prefix = "Bearer "
+    if not auth.startswith(prefix):
+        return False
+    token = auth[len(prefix):].strip()
+    return secrets.compare_digest(token, INGEST_API_TOKEN)
+
+
+def _require_ingest_auth(request: Request) -> None:
+    if not INGEST_API_TOKEN:
+        raise HTTPException(503, "INGEST_API_TOKEN is not configured")
+    if not _check_ingest_auth_header(request.headers.get("Authorization", "")):
+        raise HTTPException(401, "Invalid ingest token")
+
+
+def _require_ingest_rate_limit() -> None:
+    now = time.time()
+    window_start = now - 60
+    while _ingest_rate_events and _ingest_rate_events[0] < window_start:
+        _ingest_rate_events.pop(0)
+    if len(_ingest_rate_events) >= INGEST_RATE_LIMIT_PER_MIN:
+        raise HTTPException(429, "Ingest rate limit exceeded")
+    _ingest_rate_events.append(now)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -114,6 +163,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
            path == "/manifest.json" or path.startswith("/static/") or \
            path.startswith("/media/"):
             return await call_next(request)
+
+        if path == "/api/monitor/ingest" and request.method == "POST":
+            if _check_ingest_auth_header(request.headers.get("Authorization", "")):
+                return await call_next(request)
+            return Response(
+                content="Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Bearer realm="Sol Ingest"'},
+            )
 
         # 1. Valid session cookie → pass through
         if request.cookies.get(SESSION_COOKIE) == SESSION_TOKEN:
@@ -130,7 +188,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     response = await call_next(request)
                     response.set_cookie(
                         SESSION_COOKIE, SESSION_TOKEN,
-                        httponly=True, samesite="lax", max_age=86400 * 7,
+                        httponly=True, samesite="lax", max_age=SESSION_MAX_AGE,
                     )
                     return response
             except Exception:
@@ -254,6 +312,39 @@ def _read_pid(name: str) -> dict:
         return {"alive": False, "pid": None, "uptime_s": 0.0}
 
 
+def _monitored_services() -> list[dict]:
+    names = [
+        item.strip() for item in os.getenv(
+            "SOL_MONITORED_SERVICES",
+            "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer,sol-rss-fetcher.timer",
+        ).split(",")
+        if item.strip()
+    ]
+    services = []
+    for name in names:
+        try:
+            active = subprocess.run(
+                ["systemctl", "is-active", name],
+                capture_output=True, text=True, timeout=2, check=False,
+            ).stdout.strip()
+        except Exception:
+            active = "unknown"
+        try:
+            enabled = subprocess.run(
+                ["systemctl", "is-enabled", name],
+                capture_output=True, text=True, timeout=2, check=False,
+            ).stdout.strip()
+        except Exception:
+            enabled = "unknown"
+        services.append({
+            "name": name,
+            "active": active,
+            "enabled": enabled,
+            "ok": active in {"active", "inactive"} if name.endswith(".timer") else active == "active",
+        })
+    return services
+
+
 def _brain_enabled() -> bool:
     try:
         data = json.loads(BRAIN_HISTORY.read_text())
@@ -282,7 +373,20 @@ def _read_json_safe(path: Path):
 
 
 def _save_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = path.parent / f".tmp_{path.name}"
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+_PRESERVE_PENDING_KEYS = {
+    "media_paths", "media_path", "media_type", "headline", "source_alert_id", "source_name",
+    "tweet_type", "metadata", "canonical_url", "source_type", "topic_tag", "topic_guess",
+    "score", "priority_label", "credibility", "related_sources", "related_source_count",
+}
+
+
+def _preserve_pending_fields(existing: dict) -> dict:
+    return {k: existing[k] for k in _PRESERVE_PENDING_KEYS if k in existing}
 
 
 def _attach_media_to_pending(data: dict) -> dict:
@@ -326,7 +430,10 @@ def _attach_media_to_pending(data: dict) -> dict:
 
 def _append_publish_log(platform: str, success: bool, tweet: str,
                         tweet_id: str = None, tweet_type: str = None,
-                        has_media: bool = False, media_type: str = "") -> None:
+                        has_media: bool = False, media_type: str = "",
+                        media_count: int = 0, status: str = None,
+                        error_category: str = None, error_message: str = None,
+                        fbtrace_id: str = None, public_media_urls: list[str] = None) -> None:
     """Append a publish event to logs/publish_log.json (same format as sol_commands.py)."""
     try:
         entry = {
@@ -336,9 +443,16 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
             "tweet_id": tweet_id,
             "text_preview": (tweet or "")[:80],
             "tweet_type": tweet_type,
+            "topic_tag": classify_topic(tweet),
             "char_count": len(tweet) if tweet else 0,
             "has_media": has_media,
             "media_type": media_type,
+            "media_count": media_count,
+            "status": status or ("OK" if success else "FAILED"),
+            "error_category": error_category,
+            "error_message": (error_message or "")[:500] if error_message else None,
+            "fbtrace_id": fbtrace_id,
+            "public_media_urls": public_media_urls or [],
         }
         if PUBLISH_LOG.exists():
             try:
@@ -367,6 +481,74 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
         logger.warning(f"[publish_log] Failed to append: {e}")
 
 
+def _extract_threads_result(output: str) -> dict:
+    """Parse the structured result emitted by threads_publisher.py."""
+    result = {}
+    for line in (output or "").splitlines():
+        if line.startswith("[THREADS_RESULT]"):
+            raw = line.split("]", 1)[1].strip()
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    result = parsed
+            except Exception:
+                pass
+    return result
+
+
+def _classify_publish_result(output: str, returncode: int, media_kind: str) -> dict:
+    parsed = _extract_threads_result(output)
+    post_id = parsed.get("post_id") if parsed else None
+    success = returncode == 0 and bool(post_id or parsed.get("success"))
+    category = parsed.get("category") if parsed else None
+    message = parsed.get("message") if parsed else None
+    stage = parsed.get("stage") if parsed else None
+
+    if not success and not category:
+        lower = (output or "").lower()
+        if "csrf" in lower:
+            category = "AUTH_ERROR"
+        elif "token" in lower or "permission" in lower or "unauthorized" in lower:
+            category = "AUTH_ERROR"
+        elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
+            category = "MEDIA_ERROR"
+        elif "timed out" in lower or "timeout" in lower:
+            category = "TIMEOUT"
+        elif "http error" in lower or "meta error" in lower or "fbtrace_id" in lower:
+            category = "META_ERROR"
+        else:
+            category = "FAILED"
+
+    if not message and not success:
+        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+        interesting = [ln for ln in lines if "[ERROR]" in ln or "[META ERROR]" in ln or "Container failed" in ln]
+        message = (interesting[-1] if interesting else (lines[-1] if lines else "Threads publish failed"))
+
+    status = "OK" if success else (category or "FAILED")
+    return {
+        "success": success,
+        "post_id": post_id,
+        "status": status,
+        "error_category": None if success else category,
+        "error_message": None if success else message,
+        "stage": stage,
+        "http_code": parsed.get("http_code") if parsed else None,
+        "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
+        "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
+        "media_kind": parsed.get("media_type") or media_kind,
+    }
+
+
+def _media_kind_from_args(media_type: str, media_paths: list[str]) -> str:
+    if media_type == "video" and media_paths:
+        return "video"
+    if len(media_paths) > 1:
+        return "carousel"
+    if len(media_paths) == 1:
+        return "image"
+    return "text"
+
+
 def _tail_file(path: Path, n: int) -> list[str]:
     try:
         with open(path, "rb") as f:
@@ -393,11 +575,11 @@ def _tail_file(path: Path, n: int) -> list[str]:
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
-    if username == DASHBOARD_USER and password == DASHBOARD_PASS:
+    if _check_credentials(username, password):
         response = RedirectResponse(url="/", status_code=303)
         response.set_cookie(
             SESSION_COOKIE, SESSION_TOKEN,
-            httponly=True, samesite="lax", max_age=86400 * 7,
+            httponly=True, samesite="lax", max_age=SESSION_MAX_AGE,
         )
         return response
     return RedirectResponse(url="/?error=1", status_code=303)
@@ -420,11 +602,7 @@ async def api_csrf_token():
 
 
 def _require_csrf(request: Request) -> None:
-    """Raise 403 if the X-CSRF-Token header is missing or invalid.
-    Skips check for requests from localhost (e.g. nginx proxy, curl tests)."""
-    client_host = request.client.host if request.client else ""
-    if client_host in ("127.0.0.1", "::1", "localhost"):
-        return
+    """Raise 403 if the X-CSRF-Token header is missing or invalid."""
     token = request.headers.get("X-CSRF-Token", "")
     if not secrets.compare_digest(token, CSRF_TOKEN):
         raise HTTPException(status_code=403, detail="CSRF validation failed")
@@ -465,6 +643,7 @@ async def api_status():
         "last_publish": last_publish,
         "posts_today": posts_today,
         "recent_posts": recent_posts,
+        "system_services": _monitored_services(),
         "generator_available": _GENERATOR_AVAILABLE,
     }
 
@@ -501,11 +680,15 @@ class GeneratePayload(BaseModel):
     headline: str
     tweet_type: str = "RANDOM"   # WIRE|ANALISIS|DEBATE|CONEXION|RANDOM
     manual: bool = True
-    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"|"opus"
+    model_override: Optional[str] = None  # null|"auto"|"haiku"|"sonnet"
 
 
 class MixedPayload(BaseModel):
     headline: str
+
+
+class ComboSavePayload(BaseModel):
+    tweet: str
 
 
 class RegeneratePayload(BaseModel):
@@ -514,13 +697,48 @@ class RegeneratePayload(BaseModel):
 
 
 class MonitorActionPayload(BaseModel):
-    action: str                   # "generate" | "mixed" | "original" | "ignore"
+    action: str                   # "generate" | "mixed" | "recommend" | "original" | "ignore"
     tweet_type: Optional[str] = None
+    edited_title: Optional[str] = None
+    edited_summary: Optional[str] = None
+
+
+class MonitorBulkPayload(BaseModel):
+    ids: list[str]
+
+
+class MonitorSavePayload(BaseModel):
+    edited_title: str
+    edited_summary: Optional[str] = None
+
+
+class MonitorIngestHeadline(BaseModel):
+    title: str
+    summary: Optional[str] = None
+    source: Optional[str] = None
+    url: Optional[str] = None
+
+
+class MonitorIngestPayload(BaseModel):
+    external_id: Optional[str] = None
+    received_at: Optional[str] = None
+    published_at: Optional[str] = None
+    source_name: str
+    source_type: str = "webhook"
+    canonical_url: Optional[str] = None
+    url: Optional[str] = None
+    headline: MonitorIngestHeadline
+    media_urls: list[str] = Field(default_factory=list)
+    media_paths: list[str] = Field(default_factory=list)
+    media_path: Optional[str] = None
+    media_type: Optional[str] = None
+    language: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 class ReplyPayload(BaseModel):
-    input_type: str               # "text" | "url"
-    content: str                  # pasted text OR tweet URL
-    model_override: Optional[str] = None  # "haiku"|"sonnet"|"opus"|null
+    input_type: str               # "text"; URL fetch was removed with X support
+    content: str                  # pasted text
+    model_override: Optional[str] = None  # "haiku"|"sonnet"|null
 
 class ReplyRegenPayload(BaseModel):
     move: str
@@ -553,6 +771,8 @@ async def api_publish(request: Request, payload: PublishPayload):
         tweet_text = data.get("tweet") or data.get("text") or ""
         if not tweet_text:
             raise HTTPException(422, "Source file has no tweet text")
+    if len(tweet_text) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Threads post is {len(tweet_text)} chars; max is {THREADS_POST_MAX_CHARS}")
 
     # Build media args — use --video for .mp4, --image otherwise
     media_args: list[str] = []
@@ -565,8 +785,9 @@ async def api_publish(request: Request, payload: PublishPayload):
         valid_paths = [p for p in media_paths if p and Path(p).exists()]
         missing = [p for p in media_paths if p and not Path(p).exists()]
         if missing:
-            print(f"[publish/{source}] WARNING: {len(missing)} media file(s) missing, publishing text-only: {missing}", flush=True)
+            raise HTTPException(422, f"Media file missing: {missing[0]}")
         media_paths = valid_paths
+    media_kind = _media_kind_from_args(media_type, media_paths)
 
     if media_type == "video" and media_paths:
         mp = media_paths[0]
@@ -575,77 +796,102 @@ async def api_publish(request: Request, payload: PublishPayload):
             print(f"[publish/{source}] media flag=--video path={mp}", flush=True)
         elif mp:
             print(f"[publish/{source}] video path not found: {mp}", flush=True)
-    else:
+    elif media_paths:
+        valid = [p for p in media_paths if p and Path(p).exists()]
+        if valid:
+            # threads_publisher.py expects repeated --image flags for carousels.
+            for mp in valid:
+                media_args += ["--image", mp]
+            print(f"[publish/{source}] media flag=--image count={len(valid)}", flush=True)
         for mp in media_paths:
-            if mp and Path(mp).exists():
-                flag = "--video" if Path(mp).suffix.lower() == ".mp4" else "--image"
-                media_args += [flag, mp]
-                print(f"[publish/{source}] media flag={flag} path={mp}", flush=True)
-            elif mp:
+            if mp and not Path(mp).exists():
                 print(f"[publish/{source}] media path not found: {mp}", flush=True)
 
-    # Build command — all platforms routed through publish_dual.py for consistent media handling
-    if platform == "both":
-        cmd = ["python3", "publish_dual.py"] + media_args + [tweet_text]
-    elif platform == "x":
-        cmd = ["python3", "publish_dual.py", "--x-only"] + media_args + [tweet_text]
-    else:  # threads
-        cmd = ["python3", "publish_dual.py", "--threads-only"] + media_args + [tweet_text]
-    print(f"[publish/{source}] platform={platform} cmd={cmd[:6]}", flush=True)
+    # Legacy platform selectors are ignored: route every publish request to Threads only.
+    requested_platform = platform
+    platform = "threads"
+    cmd = ["python3", "threads_publisher.py", "--quiet"] + media_args + [tweet_text]
+    print(f"[publish/{source}] requested_platform={requested_platform} routed_platform=threads cmd={cmd[:6]}", flush=True)
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=str(BOT_DIR),
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(BOT_DIR),
+            timeout=360 if media_type == "video" else 120,
+        )
+    except subprocess.TimeoutExpired:
+        _append_publish_log("threads", False, tweet_text, tweet_type=data.get("tweet_type"),
+                            has_media=bool(media_args), media_type=media_kind,
+                            media_count=len(media_paths), status="TIMEOUT",
+                            error_category="TIMEOUT",
+                            error_message="Publish timed out — check Threads token, media URL, or video processing")
+        raise HTTPException(504, "Publish timed out — check Threads token, media URL, or video processing")
     stdout = result.stdout + result.stderr
+    if result.returncode != 0:
+        print(f"[publish/{source}] Threads publish failed rc={result.returncode}: {stdout[-1200:]}", flush=True)
 
-    # Parse results
-    x_success = False
-    threads_success = False
-    x_tweet_id = None
-    threads_post_id = None
+    parsed_result = _classify_publish_result(stdout, result.returncode, media_kind)
+    threads_success = parsed_result["success"]
+    threads_post_id = parsed_result["post_id"]
+    if not threads_post_id:
+        m_t = re.search(r"\[SUCCESS\].*?ID:\s*(\S+)", stdout)
+        if m_t:
+            threads_post_id = m_t.group(1)
+            threads_success = result.returncode == 0
+            if threads_success:
+                parsed_result["status"] = "OK"
+                parsed_result["error_category"] = None
+                parsed_result["error_message"] = None
 
-    if platform == "both":
-        m = re.search(r"\[RESULT\]\s+X:\s*(OK|FAILED)\s*\|\s*Threads:\s*(OK|FAILED)", stdout)
-        if m:
-            x_success = m.group(1) == "OK"
-            threads_success = m.group(2) == "OK"
-    elif platform == "x":
-        x_success = result.returncode == 0
-    elif platform == "threads":
-        threads_success = result.returncode == 0
-
-    # Extract IDs
-    m_x = re.search(r"Tweet \d+ publicado\. ID:\s*(\S+)", stdout)
-    if m_x:
-        x_tweet_id = m_x.group(1)
-    m_t = re.search(r"\[SUCCESS\] Post published! ID:\s*(\S+)", stdout)
-    if m_t:
-        threads_post_id = m_t.group(1)
-
-    # Write to publish_log.json so Recent Posts panel updates
+    # Write to publish_log.json so Recent Posts panel updates.
     tweet_type_log = data.get("tweet_type")
     _has_media = bool(media_args)
-    if x_success:
-        _append_publish_log("x", True, tweet_text, tweet_id=x_tweet_id, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    elif platform in ("both", "x"):
-        _append_publish_log("x", False, tweet_text, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    if threads_success:
-        _append_publish_log("threads", True, tweet_text, tweet_id=threads_post_id, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
-    elif platform in ("both", "threads"):
-        _append_publish_log("threads", False, tweet_text, tweet_type=tweet_type_log, has_media=_has_media, media_type=media_type)
+    _append_publish_log("threads", threads_success, tweet_text, tweet_id=threads_post_id,
+                        tweet_type=tweet_type_log, has_media=_has_media, media_type=media_kind,
+                        media_count=len(media_paths), status=parsed_result["status"],
+                        error_category=parsed_result["error_category"],
+                        error_message=parsed_result["error_message"],
+                        fbtrace_id=parsed_result["fbtrace_id"],
+                        public_media_urls=parsed_result["public_media_urls"])
 
     wire_repost_warning = bool(re.match(r'^(just in|🚨)', tweet_text, re.IGNORECASE))
+    cleared_pending = False
+    cleared_file = None
+    cleared_media_files: list[str] = []
+    media_cleanup_error = None
+    if threads_success and threads_post_id:
+        try:
+            source_file.unlink(missing_ok=True)
+            cleared_pending = True
+            cleared_file = source_file.name
+            print(f"[publish/{source}] cleared pending file after Threads confirmation: {cleared_file}", flush=True)
+        except Exception as exc:
+            print(f"[publish/{source}] failed to clear pending file {source_file.name}: {exc}", flush=True)
+        cleared_media_files, media_cleanup_error = _clear_temporary_media_paths(data, source)
+        if media_cleanup_error:
+            print(f"[publish/{source}] temporary media cleanup warning: {media_cleanup_error}", flush=True)
 
     return {
-        "x_success": x_success,
         "threads_success": threads_success,
-        "x_tweet_id": x_tweet_id,
         "threads_post_id": threads_post_id,
+        "status": "OK" if threads_success else parsed_result["status"],
+        "error_category": parsed_result["error_category"],
+        "error_message": parsed_result["error_message"],
+        "stage": parsed_result["stage"],
+        "http_code": parsed_result["http_code"],
+        "fbtrace_id": parsed_result["fbtrace_id"],
+        "media_type": media_kind,
+        "media_count": len(media_paths),
+        "public_media_urls": parsed_result["public_media_urls"],
         "stdout": stdout[-2000:],  # last 2000 chars for debugging
         "wire_repost_warning": wire_repost_warning,
+        "cleared_pending": cleared_pending,
+        "cleared_file": cleared_file,
+        "cleared_media_count": len(cleared_media_files),
+        "cleared_media_files": [Path(p).name for p in cleared_media_files],
+        "media_cleanup_error": media_cleanup_error,
     }
 
 
@@ -736,7 +982,8 @@ async def api_mixed(request: Request, payload: MixedPayload):
 
 
 @app.post("/api/generate/regenerate")
-async def api_regenerate(payload: RegeneratePayload):
+async def api_regenerate(request: Request, payload: RegeneratePayload):
+    _require_csrf(request)
     if not _GENERATOR_AVAILABLE:
         raise HTTPException(503, f"generator.py unavailable: {_GENERATOR_ERROR}")
 
@@ -771,6 +1018,59 @@ async def api_regenerate(payload: RegeneratePayload):
     }
 
 
+@app.post("/api/pending/combo/save")
+async def api_pending_combo_save(request: Request, payload: ComboSavePayload):
+    _require_csrf(request)
+    existing = _read_json_safe(PENDING_COMBO)
+    if not existing:
+        raise HTTPException(404, "No pending_combo.json to save")
+
+    tweet = (payload.tweet or "").strip()
+    if not tweet:
+        raise HTTPException(422, "Combo text is empty")
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Threads post is {len(tweet)} chars; max is {THREADS_POST_MAX_CHARS}")
+
+    data = {**existing, "tweet": tweet, "edited_at": datetime.now().isoformat()}
+    _save_json(PENDING_COMBO, data)
+    return {"ok": True, "pending_combo": data, "char_count": len(tweet)}
+
+
+@app.post("/api/pending/combo/regenerate")
+async def api_pending_combo_regenerate(request: Request, payload: RegeneratePayload):
+    _require_csrf(request)
+    if not _GENERATOR_AVAILABLE:
+        raise HTTPException(503, f"generator.py unavailable: {_GENERATOR_ERROR}")
+
+    existing = _read_json_safe(PENDING_COMBO)
+    if not existing:
+        raise HTTPException(404, "No pending_combo.json to regenerate")
+
+    headline_dict = existing.get("headline") or {
+        "title": existing.get("tweet", ""), "summary": existing.get("tweet", ""), "source": "manual"
+    }
+    if payload.instruction:
+        headline_dict = dict(headline_dict, instruction=payload.instruction)
+
+    loop = asyncio.get_event_loop()
+    tweet = await loop.run_in_executor(
+        None, lambda: _generate_combinada_tweet(headline_dict, manual=True)
+    )
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        raise HTTPException(422, f"Generated combo is {len(tweet)} chars; max is {THREADS_POST_MAX_CHARS}")
+
+    preserved = _preserve_pending_fields(existing)
+    data = {
+        **preserved,
+        "tweet": tweet,
+        "headline": headline_dict,
+        "generated_at": datetime.now().isoformat(),
+        "tweet_type": "COMBINADA",
+    }
+    _save_json(PENDING_COMBO, data)
+    return {"ok": True, "pending_combo": data, "char_count": len(tweet)}
+
+
 @app.get("/api/validate")
 async def api_validate():
     data = _read_json_safe(PENDING_TWEET)
@@ -784,9 +1084,9 @@ async def api_validate():
     char_count = len(tweet)
 
     # 1. Char count
-    if char_count > 280:
+    if char_count > THREADS_POST_MAX_CHARS:
         char_status = "error"
-    elif char_count > 270:
+    elif char_count > THREADS_POST_WARN_CHARS:
         char_status = "warning"
     else:
         char_status = "ok"
@@ -837,6 +1137,7 @@ async def api_validate():
     return {
         "empty": False,
         "char_count": char_count,
+        "char_limit": THREADS_POST_MAX_CHARS,
         "char_status": char_status,
         "ai_isms": found_isms,
         "rhetorical_move": move,
@@ -959,17 +1260,303 @@ def _write_queue(queue: list) -> None:
         os.replace(tmp, MONITOR_QUEUE)
 
 
+def _read_source_config() -> dict:
+    try:
+        data = json.loads(SOURCE_CONFIG.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {"sources": []}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {"sources": []}
+
+
+def _append_or_merge_monitor_entry(entry: dict) -> tuple[dict, str, int]:
+    """Append an ingested alert or merge it into an existing dedup group."""
+    with FileLock(str(MONITOR_QUEUE_LOCK), timeout=5):
+        try:
+            data = json.loads(MONITOR_QUEUE.read_text(encoding="utf-8")) if MONITOR_QUEUE.exists() else []
+            queue = data if isinstance(data, list) else []
+        except (json.JSONDecodeError, OSError):
+            queue = []
+        queue, stored, status = append_or_merge_queue(queue, entry, max_items=MONITOR_QUEUE_MAX)
+        tmp = MONITOR_QUEUE.parent / f".tmp_{MONITOR_QUEUE.name}"
+        tmp.write_text(json.dumps(queue, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, MONITOR_QUEUE)
+    return stored, status, len(queue)
+
+
+def _entry_media_paths(entry: dict) -> list[str]:
+    paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
+    return [p for p in paths if p]
+
+
+def _valid_media_paths(entry: dict) -> list[str]:
+    return [p for p in _entry_media_paths(entry) if Path(p).exists()]
+
+
+def _remote_image_ext(url: str, content_type: str) -> str | None:
+    content_type = (content_type or "").split(";", 1)[0].strip().lower()
+    if content_type in REMOTE_MONITOR_IMAGE_TYPES:
+        return REMOTE_MONITOR_IMAGE_TYPES[content_type]
+    suffix = Path(urllib.parse.urlparse(url).path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".webp"}:
+        return ".jpg" if suffix == ".jpeg" else suffix
+    return None
+
+
+def _should_download_remote_monitor_media(entry: dict) -> bool:
+    score, label, _reasons = score_alert_details(entry)
+    return label in {"high", "breaking"} or score >= 60
+
+
+def _download_remote_monitor_image(entry: dict, label: str) -> tuple[str, str] | None:
+    """Download a remote RSS preview image when it is eligible for publishing.
+
+    The inbox can preview remote `media_urls`, but Threads publishing needs a
+    local file path. Keep this fallback conservative: high/breaking alerts only.
+    """
+    if not _should_download_remote_monitor_media(entry):
+        return None
+    urls = entry.get("media_urls") or []
+    if not isinstance(urls, list) or not urls:
+        return None
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    source_name = entry.get("source_name") or "monitor"
+    external_id = entry.get("external_id") or entry.get("id") or ""
+    for url in [u for u in urls if isinstance(u, str) and u.startswith(("http://", "https://"))]:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "sol-dashboard/1.0"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                ext = _remote_image_ext(url, content_type)
+                if not ext:
+                    print(f"[monitor/{label}] skipped remote media unsupported type={content_type} url={url}", flush=True)
+                    continue
+                declared_size = resp.headers.get("Content-Length")
+                if declared_size and int(declared_size) > REMOTE_MONITOR_IMAGE_MAX_BYTES:
+                    print(f"[monitor/{label}] skipped remote media too large size={declared_size} url={url}", flush=True)
+                    continue
+                data = resp.read(REMOTE_MONITOR_IMAGE_MAX_BYTES + 1)
+                if len(data) > REMOTE_MONITOR_IMAGE_MAX_BYTES:
+                    print(f"[monitor/{label}] skipped remote media over limit url={url}", flush=True)
+                    continue
+        except Exception as exc:
+            print(f"[monitor/{label}] remote media download failed url={url}: {exc}", flush=True)
+            continue
+
+        slug = "".join(c.lower() if c.isalnum() else "_" for c in source_name)[:32].strip("_") or "monitor"
+        digest = hashlib.sha1(f"{source_name}:{external_id}:{url}".encode("utf-8")).hexdigest()[:16]
+        path = MEDIA_DIR / f"monitor_{slug}_{digest}{ext}"
+        try:
+            path.write_bytes(data)
+        except Exception as exc:
+            print(f"[monitor/{label}] remote media write failed path={path}: {exc}", flush=True)
+            continue
+        print(f"[monitor/{label}] downloaded remote media: {path}", flush=True)
+        return str(path), url
+    return None
+
+
+def _clear_temporary_media_paths(data: dict, source: str) -> tuple[list[str], str | None]:
+    cleared: list[str] = []
+    errors: list[str] = []
+    media_root = MEDIA_DIR.resolve()
+    paths = data.get("temporary_media_paths") or []
+    if not isinstance(paths, list):
+        return cleared, "temporary_media_paths is not a list"
+    for raw in paths:
+        if not raw:
+            continue
+        try:
+            path = Path(str(raw)).resolve()
+            if not str(path).startswith(str(media_root) + os.sep):
+                errors.append(f"outside media dir: {raw}")
+                continue
+            if path.exists():
+                path.unlink()
+                cleared.append(str(path))
+                print(f"[publish/{source}] cleared temporary media: {path}", flush=True)
+        except Exception as exc:
+            errors.append(f"{raw}: {exc}")
+    return cleared, "; ".join(errors) if errors else None
+
+
+def _suggest_monitor_format(entry: dict) -> str:
+    headline = entry.get("headline", {}) or {}
+    text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
+    topic = classify_topic(text)
+    low = text.lower()
+    if topic in {"crypto", "mercados"} and len(text) >= 140:
+        return "COMBINADA"
+    if len(text) <= 140 or low.startswith(("just in", "breaking", "urgent")):
+        return "WIRE"
+    if topic == "geopolitica" and len(text) >= 180:
+        return "ANALISIS"
+    return "ANALISIS"
+
+
+def _enrich_monitor_entry(entry: dict) -> dict:
+    enriched = dict(entry)
+    headline = dict(enriched.get("headline") or {})
+    text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
+    paths = _entry_media_paths(enriched)
+    received = enriched.get("received_at")
+    age_seconds = None
+    if received:
+        try:
+            dt = datetime.fromisoformat(received)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            age_seconds = max(0, int((datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()))
+        except Exception:
+            age_seconds = None
+    enriched["headline"] = headline
+    enriched["source_name"] = enriched.get("source_name") or headline.get("source") or "Unknown"
+    enriched["media_count"] = len(paths)
+    enriched["has_media"] = bool(paths or enriched.get("media_urls"))
+    enriched["age_seconds"] = age_seconds
+    enriched["topic_guess"] = classify_topic(text)
+    enriched["suggested_format"] = _suggest_monitor_format(enriched)
+    enriched["editorial_recommendation"] = recommend_for_alert(enriched, fallback_format=enriched["suggested_format"])
+    enriched["source_type"] = enriched.get("source_type") or "telegram"
+    enriched["credibility"] = enriched.get("credibility") or "medium"
+    enriched["priority"] = enriched.get("priority") or "normal"
+    enriched["related_source_count"] = int(enriched.get("related_source_count") or 1)
+    enriched["duplicate_count"] = int(enriched.get("duplicate_count") or 0)
+    enriched["possible_duplicate"] = bool(enriched.get("possible_duplicate"))
+    enriched["score"], enriched["priority_label"], enriched["score_reasons"] = score_alert_details(enriched)
+    enriched["priority_rank"] = priority_rank(enriched["priority_label"])
+    enriched["related_sources"] = enriched.get("related_sources") or [
+        {
+            "source_name": enriched["source_name"],
+            "source_type": enriched["source_type"],
+            "canonical_url": enriched.get("canonical_url") or headline.get("url", ""),
+        }
+    ]
+    enriched["media_files"] = [
+        {"path": p, "filename": Path(p).name, "exists": Path(p).exists()}
+        for p in paths
+    ]
+    return enriched
+
+
+def _monitor_sort_key(entry: dict) -> tuple:
+    return (
+        int(entry.get("priority_rank", priority_rank(entry.get("priority_label")))),
+        -int(entry.get("score") or 0),
+        (entry.get("source_name") or "").lower(),
+        entry.get("received_at") or "",
+    )
+
+
+def _headline_from_payload(entry: dict, payload: MonitorActionPayload | MonitorSavePayload) -> dict:
+    headline = dict(entry.get("headline") or {})
+    if getattr(payload, "edited_title", None) is not None:
+        headline["title"] = (payload.edited_title or "").strip()
+    if getattr(payload, "edited_summary", None) is not None:
+        headline["summary"] = (payload.edited_summary or "").strip()
+    if not headline.get("summary"):
+        headline["summary"] = headline.get("title", "")
+    if entry.get("source_name"):
+        headline["source"] = entry.get("source_name")
+    return headline
+
+
+def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
+    media_paths = _valid_media_paths(entry)
+    downloaded_source_url = None
+    if not media_paths:
+        downloaded = _download_remote_monitor_image(entry, label)
+        if downloaded:
+            downloaded_path, downloaded_source_url = downloaded
+            media_paths = [downloaded_path]
+    if media_paths:
+        data["media_paths"] = media_paths
+        data["media_path"] = media_paths[0]
+        data["media_type"] = entry.get("media_type", "photo")
+        if not entry.get("media_type"):
+            data["media_type"] = "photo"
+        if entry.get("media_urls"):
+            data["media_source_urls"] = entry.get("media_urls")
+        if downloaded_source_url:
+            data["temporary_media_paths"] = media_paths
+            data["media_origin"] = "remote_rss"
+        print(f"[monitor/{label}] attached {len(media_paths)} media file(s)", flush=True)
+
+
 @app.get("/api/monitor/queue")
 async def api_monitor_queue():
-    """Return full queue, oldest first."""
-    return JSONResponse(_read_queue())
+    """Return enriched queue ordered by editorial priority bands."""
+    enriched = [_enrich_monitor_entry(e) for e in _read_queue()]
+    return JSONResponse(sorted(enriched, key=_monitor_sort_key))
+
+
+@app.get("/api/recommendation/alert/{alert_id}")
+async def api_alert_recommendation(alert_id: str):
+    """Return the analytics-backed editorial recommendation for one alert."""
+    entry = next((e for e in _read_queue() if e.get("id") == alert_id), None)
+    if entry is None:
+        raise HTTPException(404, f"Alert {alert_id} not found in queue")
+    enriched = _enrich_monitor_entry(entry)
+    return JSONResponse(enriched.get("editorial_recommendation") or {})
+
+
+@app.get("/api/monitor/sources")
+async def api_monitor_sources():
+    """Return configured sources for dashboard filters and operations."""
+    config = _read_source_config()
+    sources = [
+        {
+            "name": s.get("name"),
+            "type": s.get("type"),
+            "enabled": bool(s.get("enabled")),
+            "credibility": s.get("credibility", "medium"),
+            "base_priority": s.get("base_priority", "normal"),
+            "is_official": bool(s.get("is_official", False)),
+            "redistributable": bool(s.get("redistributable", True)),
+        }
+        for s in config.get("sources", [])
+        if isinstance(s, dict)
+    ]
+    return JSONResponse({"sources": sources})
+
+
+@app.post("/api/monitor/ingest")
+async def api_monitor_ingest(request: Request, payload: MonitorIngestPayload):
+    """Private ingestion endpoint for n8n, RSS fetchers, APIs, and future sources."""
+    _require_ingest_auth(request)
+    _require_ingest_rate_limit()
+    try:
+        raw = payload.model_dump(exclude_none=True)
+    except AttributeError:
+        raw = payload.dict(exclude_none=True)
+    entry = normalize_ingest_payload(raw)
+    if not entry.get("headline", {}).get("title"):
+        raise HTTPException(422, "headline.title is required")
+    stored, status, remaining = _append_or_merge_monitor_entry(entry)
+    enriched = _enrich_monitor_entry(stored)
+    print(
+        f"[monitor/ingest] status={status} source={enriched.get('source_name')} "
+        f"type={enriched.get('source_type')} score={enriched.get('score')} "
+        f"priority={enriched.get('priority_label')}",
+        flush=True,
+    )
+    return {
+        "success": True,
+        "status": status,
+        "id": stored.get("id"),
+        "dedup_key": stored.get("dedup_key"),
+        "score": enriched.get("score"),
+        "priority_label": enriched.get("priority_label"),
+        "related_source_count": enriched.get("related_source_count"),
+        "remaining": remaining,
+    }
 
 
 @app.get("/api/monitor/current")
 async def api_monitor_current():
     """Return oldest unprocessed entry, or null."""
     queue = _read_queue()
-    return JSONResponse(queue[0] if queue else None)
+    return JSONResponse(_enrich_monitor_entry(queue[0]) if queue else None)
 
 
 ALLOWED_MEDIA_EXT = {".jpg", ".jpeg", ".png", ".mp4", ".gif"}
@@ -987,6 +1574,47 @@ async def serve_media(filename: str):
     return FileResponse(path)
 
 
+@app.post("/api/monitor/save/{alert_id}")
+async def api_monitor_save(request: Request, alert_id: str, payload: MonitorSavePayload):
+    _require_csrf(request)
+    queue = _read_queue()
+    changed = False
+    for entry in queue:
+        if entry.get("id") != alert_id:
+            continue
+        headline = dict(entry.get("headline") or {})
+        title = payload.edited_title.strip()
+        if not title:
+            raise HTTPException(422, "edited_title is empty")
+        headline["title"] = title
+        headline["summary"] = (payload.edited_summary or title).strip()
+        headline["source"] = entry.get("source_name") or headline.get("source", "manual")
+        entry["headline"] = headline
+        entry["source_name"] = entry.get("source_name") or headline.get("source")
+        entry["edited_at"] = datetime.now().isoformat()
+        changed = True
+        break
+    if not changed:
+        raise HTTPException(404, f"Alert {alert_id} not found in queue")
+    _write_queue(queue)
+    return {"success": True, "alert": _enrich_monitor_entry(next(e for e in queue if e.get("id") == alert_id))}
+
+
+@app.post("/api/monitor/bulk-ignore")
+async def api_monitor_bulk_ignore(request: Request, payload: MonitorBulkPayload):
+    _require_csrf(request)
+    ids = {str(i) for i in payload.ids if str(i).strip()}
+    if not ids:
+        return {"success": True, "removed": 0, "remaining": len(_read_queue())}
+    queue = _read_queue()
+    before = len(queue)
+    queue = [e for e in queue if e.get("id") not in ids]
+    _write_queue(queue)
+    removed = before - len(queue)
+    print(f"[monitor/bulk-ignore] removed={removed} ids={list(ids)[:8]}", flush=True)
+    return {"success": True, "removed": removed, "remaining": len(queue)}
+
+
 @app.post("/api/monitor/action/{alert_id}")
 async def api_monitor_action(request: Request, alert_id: str, payload: MonitorActionPayload):
     _require_csrf(request)
@@ -995,30 +1623,42 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
     if entry is None:
         raise HTTPException(404, f"Alert {alert_id} not found in queue")
 
-    headline_dict = entry.get("headline", {})
     action = payload.action.lower()
+    headline_dict = _headline_from_payload(entry, payload)
+    source_name = entry.get("source_name") or headline_dict.get("source", "Unknown")
+    media_count = len(_entry_media_paths(entry))
+    recommendation = None
+    if action == "recommend":
+        rec_entry = dict(entry)
+        rec_entry["headline"] = headline_dict
+        recommendation = recommend_for_alert(
+            _enrich_monitor_entry(rec_entry),
+            fallback_format=_suggest_monitor_format(rec_entry),
+        )
+        recommended_format = (recommendation.get("format") or _suggest_monitor_format(entry) or "ANALISIS").upper()
+        action = "mixed" if recommended_format in {"COMBINADA", "MIXED"} else "generate"
+        payload.tweet_type = "COMBINADA" if action == "mixed" else recommended_format
 
     try:
         if action == "generate":
+            tweet_type = (payload.tweet_type or _suggest_monitor_format(entry) or "WIRE").upper()
+            if tweet_type == "COMBINADA":
+                tweet_type = "ANALISIS"
             loop = asyncio.get_event_loop()
             tweet = await loop.run_in_executor(
-                None, lambda: _generate_tweet(headline_dict, tweet_type=payload.tweet_type, manual=True)
+                None, lambda: _generate_tweet(headline_dict, tweet_type=tweet_type, manual=True)
             )
             data = {
                 "tweet": tweet,
-                "tweet_type": payload.tweet_type or "WIRE",
+                "tweet_type": tweet_type,
                 "generated_at": datetime.now().isoformat(),
                 "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
             }
-            # Copy media from queue entry
-            media_paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
-            media_paths = [p for p in media_paths if Path(p).exists()]
-            if media_paths:
-                data["media_paths"] = media_paths
-                data["media_path"] = media_paths[0]
-                data["media_type"] = entry.get("media_type", "photo")
-                print(f"[monitor/generate] attached {len(media_paths)} media file(s)", flush=True)
+            _attach_entry_media(data, entry, "generate")
             _save_json(PENDING_TWEET, data)
+            pending_target = "pending_tweet"
 
         elif action == "mixed":
             loop = asyncio.get_event_loop()
@@ -1030,55 +1670,50 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                 "tweet_type": "COMBINADA",
                 "generated_at": datetime.now().isoformat(),
                 "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
             }
-            # Copy media from queue entry
-            media_paths = entry.get("media_paths") or ([entry["media_path"]] if entry.get("media_path") else [])
-            media_paths = [p for p in media_paths if Path(p).exists()]
-            if media_paths:
-                data["media_paths"] = media_paths
-                data["media_path"] = media_paths[0]
-                data["media_type"] = entry.get("media_type", "photo")
-                print(f"[monitor/mixed] attached {len(media_paths)} media file(s)", flush=True)
+            _attach_entry_media(data, entry, "mixed")
             _save_json(PENDING_COMBO, data)
+            pending_target = "pending_combo"
 
         elif action == "original":
-            tweet = headline_dict.get("title", "")
+            tweet = headline_dict.get("title", "").strip()
             if not tweet:
                 raise HTTPException(422, "headline.title is empty")
-            media_args: list[str] = []
-            media_paths = entry.get("media_paths") or []
-            if not media_paths and entry.get("media_path"):
-                media_paths = [entry["media_path"]]
-            for mp in media_paths:
-                if mp and Path(mp).exists():
-                    flag = "--video" if Path(mp).suffix.lower() == ".mp4" else "--image"
-                    media_args += [flag, mp]
-                    print(f"[monitor/original] media flag={flag} path={mp}", flush=True)
-                elif mp:
-                    print(f"[monitor/original] media path not found: {mp}", flush=True)
-            cmd = ["python3", "publish_dual.py"] + media_args + [tweet]
-            print(f"[monitor/original] running: {cmd}", flush=True)
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BOT_DIR))
-            if result.stdout:
-                print(f"[monitor/original] stdout: {result.stdout[:400]}", flush=True)
-            if result.stderr:
-                print(f"[monitor/original] stderr: {result.stderr[:400]}", flush=True)
-            if result.returncode != 0:
-                # Remove from queue even on publish failure so it doesn't get stuck
-                queue = [e for e in queue if e.get("id") != alert_id]
-                _write_queue(queue)
-                return {"success": False, "action": action, "tweet": tweet, "remaining": len(queue)}
+            data = {
+                "tweet": tweet,
+                "tweet_type": "ORIGINAL",
+                "generated_at": datetime.now().isoformat(),
+                "headline": headline_dict,
+                "source_alert_id": alert_id,
+                "source_name": source_name,
+            }
+            _attach_entry_media(data, entry, "original")
+            _save_json(PENDING_TWEET, data)
+            pending_target = "pending_tweet"
 
         elif action == "ignore":
             tweet = None
+            pending_target = None
 
         else:
             raise HTTPException(400, f"Unknown action: {action}")
 
-        # Remove processed entry from queue
         queue = [e for e in queue if e.get("id") != alert_id]
         _write_queue(queue)
-        return {"success": True, "action": action, "tweet": tweet if action != "ignore" else None, "remaining": len(queue)}
+        print(
+            f"[monitor/action] action={action} source={source_name} pending={pending_target} media_count={media_count}",
+            flush=True,
+        )
+        return {
+            "success": True,
+            "action": action,
+            "recommendation": recommendation,
+            "tweet": tweet if action != "ignore" else None,
+            "pending_target": pending_target,
+            "remaining": len(queue),
+        }
 
     except HTTPException:
         raise
@@ -1086,161 +1721,39 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
         raise HTTPException(500, str(e))
 
 
-# ─── ANALYTICS ────────────────────────────────────────────────────────────────
-
-def _analytics_conn():
-    """Open read-only connection to analytics.db; raises if missing."""
-    if not ANALYTICS_DB.exists():
-        raise FileNotFoundError("analytics.db not found")
-    conn = sqlite3.connect(f"file:{ANALYTICS_DB}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-@app.get("/api/analytics/summary")
-async def api_analytics_summary():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COUNT(*)            AS total_tweets,
-                COALESCE(SUM(views), 0)     AS total_views,
-                COALESCE(SUM(likes), 0)     AS total_likes,
-                COALESCE(SUM(retweets), 0)  AS total_retweets,
-                COALESCE(SUM(replies), 0)   AS total_replies,
-                COALESCE(AVG(views), 0)     AS avg_views,
-                MAX(last_updated)           AS last_updated
-            FROM tweets
-        """)
-        row = cur.fetchone()
-        if not row or row["total_tweets"] == 0:
-            conn.close()
-            return JSONResponse(None)
-
-        cur.execute("""
-            SELECT tweet_id, text, views, likes
-            FROM tweets
-            ORDER BY views DESC
-            LIMIT 1
-        """)
-        best = cur.fetchone()
-        conn.close()
-
-        return JSONResponse({
-            "total_tweets":   row["total_tweets"],
-            "total_views":    row["total_views"],
-            "total_likes":    row["total_likes"],
-            "total_retweets": row["total_retweets"],
-            "total_replies":  row["total_replies"],
-            "avg_views":      round(row["avg_views"], 1),
-            "last_updated":   row["last_updated"],
-            "best_tweet": {
-                "tweet_id": best["tweet_id"],
-                "text":     best["text"][:80] if best["text"] else "",
-                "views":    best["views"],
-                "likes":    best["likes"],
-            } if best else None,
-        })
-    except Exception:
-        return JSONResponse(None)
-
-
-@app.get("/api/analytics/by_topic")
-async def api_analytics_by_topic():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COALESCE(topic, 'unknown')  AS topic,
-                COUNT(*)                    AS count,
-                COALESCE(SUM(views), 0)     AS total_views,
-                COALESCE(SUM(likes), 0)     AS total_likes,
-                COALESCE(SUM(retweets), 0)  AS total_retweets,
-                COALESCE(AVG(views), 0)     AS avg_views
-            FROM tweets
-            GROUP BY topic
-            ORDER BY total_views DESC
-        """)
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        for r in rows:
-            r["avg_views"] = round(r["avg_views"], 1)
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/by_media")
-async def api_analytics_by_media():
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                COALESCE(media_type, 'text') AS media_type,
-                COUNT(*)                     AS count,
-                COALESCE(SUM(views), 0)      AS total_views,
-                COALESCE(AVG(views), 0)      AS avg_views
-            FROM tweets
-            GROUP BY media_type
-            ORDER BY total_views DESC
-        """)
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        for r in rows:
-            r["avg_views"] = round(r["avg_views"], 1)
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/recent")
-async def api_analytics_recent(limit: int = 10):
-    limit = max(1, min(limit, 50))
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT tweet_id, text, created_at, views, likes, retweets, replies, topic, media_type
-            FROM tweets
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,))
-        rows = []
-        for r in cur.fetchall():
-            d = dict(r)
-            d["text_preview"] = (d["text"] or "")[:80]
-            rows.append(d)
-        conn.close()
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
-@app.get("/api/analytics/growth")
-async def api_analytics_growth(tweet_id: str):
-    try:
-        conn = _analytics_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT timestamp, views, likes, retweets, replies
-            FROM snapshots
-            WHERE tweet_id = ?
-            ORDER BY timestamp ASC
-        """, (tweet_id,))
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        return JSONResponse(rows)
-    except Exception:
-        return JSONResponse([])
-
-
 # ─── THREADS ANALYTICS ────────────────────────────────────────────────────────
 
 @app.get("/api/threads/analytics")
-async def api_threads_analytics(limit: int = 20):
+async def api_threads_analytics(
+    days: int = 7,
+    limit: int = 20,
+    sort: str = "date",
+    format: Optional[str] = None,
+    topic: Optional[str] = None,
+    media: Optional[str] = None,
+):
+    days = max(1, min(days, 90))
+    limit = max(1, min(limit, 50))
+    sort = (sort or "date").strip().lower()
+    if sort not in {"views", "likes", "replies", "comments", "engagement", "date", "total_engagement"}:
+        sort = "date"
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "threads_analytics", BOT_DIR / "threads_analytics.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        data = mod.get_analytics(days=days, limit=limit, sort=sort, format=format, topic=topic, media=media)
+        data["learning_summary"] = get_learning_summary(days=days)
+        return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({"error": str(e), "summary": {}, "recent_posts": []})
+
+
+@app.post("/api/threads/analytics/sync")
+async def api_threads_analytics_sync(request: Request, limit: int = 50):
+    _require_csrf(request)
     limit = max(1, min(limit, 50))
     try:
         import importlib.util
@@ -1249,9 +1762,9 @@ async def api_threads_analytics(limit: int = 20):
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return JSONResponse(mod.fetch_posts(limit=limit))
+        return JSONResponse(mod.sync_posts(limit=limit))
     except Exception as e:
-        return JSONResponse({"error": str(e), "posts": [], "count": 0})
+        return JSONResponse({"success": False, "count": 0, "error": str(e)})
 
 
 # ─── REPLY GENERATOR ──────────────────────────────────────────────────────────
@@ -1322,66 +1835,15 @@ def _reply_parse(raw: str) -> dict:
     return json.loads(cleaned)
 
 
-def _fetch_tweet_text(tweet_url: str) -> tuple[str | None, str | None]:
-    """Fetch tweet text via tweepy v2 API. Returns (text, error_msg)."""
-    if not _TWEEPY_AVAILABLE:
-        return None, "tweepy not installed"
-    m = re.search(r"/status/(\d+)", tweet_url)
-    if not m:
-        return None, "Invalid tweet URL — no status ID found"
-    tweet_id = m.group(1)
-
-    # Try Bearer Token (OAuth2) first if available
-    bearer = os.getenv("TWITTER_BEARER_TOKEN") or os.getenv("X_BEARER_TOKEN")
-    clients_to_try = []
-    if bearer:
-        clients_to_try.append(("bearer", _tweepy.Client(bearer_token=bearer, wait_on_rate_limit=False)))
-    # Always add OAuth1 fallback
-    clients_to_try.append(("oauth1", _tweepy.Client(
-        consumer_key=os.getenv("X_API_KEY"),
-        consumer_secret=os.getenv("X_API_SECRET"),
-        access_token=os.getenv("X_ACCESS_TOKEN"),
-        access_token_secret=os.getenv("X_ACCESS_TOKEN_SECRET"),
-        wait_on_rate_limit=False,
-    )))
-
-    last_error = "Unknown error"
-    for auth_type, client in clients_to_try:
-        try:
-            resp = client.get_tweet(tweet_id, tweet_fields=["text", "author_id"])
-            if resp and resp.data:
-                print(f"[reply/fetch_tweet] OK via {auth_type}: tweet_id={tweet_id}", flush=True)
-                return resp.data.text, None
-            # No data, no errors — tweet exists but empty
-            last_error = "Tweet returned no data (possibly deleted)"
-        except Exception as e:
-            err_str = str(e).lower()
-            print(f"[reply/fetch_tweet] {auth_type} error: {e}", flush=True)
-            if "429" in err_str or "rate limit" in err_str:
-                last_error = "Rate limit reached — try again in a few minutes"
-                break  # No point trying other auth
-            elif "401" in err_str or "403" in err_str or "unauthorized" in err_str or "forbidden" in err_str:
-                last_error = "Auth error — tweet may be from a protected account"
-            elif "404" in err_str or "not found" in err_str:
-                last_error = "Tweet not found — may be deleted or private"
-                break
-            else:
-                last_error = f"Fetch failed: {str(e)[:120]}"
-
-    return None, last_error
-
-
 @app.post("/api/replies/generate")
-async def api_replies_generate(payload: ReplyPayload):
-    # Resolve original tweet text
+async def api_replies_generate(request: Request, payload: ReplyPayload):
+    _require_csrf(request)
+    # Resolve original text. URL fetching was removed; paste source text instead.
     if payload.input_type == "url":
-        loop = asyncio.get_event_loop()
-        tweet_text, fetch_error = await loop.run_in_executor(None, lambda: _fetch_tweet_text(payload.content))
-        if not tweet_text:
-            return JSONResponse({"error": fetch_error or "Could not fetch tweet — paste text instead"}, status_code=422)
+        return JSONResponse({"error": "URL fetch is disabled. Paste the text instead."}, status_code=422)
     else:
-        tweet_text = payload.content.strip()
-        if not tweet_text:
+        post_text = payload.content.strip()
+        if not post_text:
             return JSONResponse({"error": "content is empty"}, status_code=422)
 
     # Load system prompt and user template
@@ -1393,7 +1855,7 @@ async def api_replies_generate(payload: ReplyPayload):
 
     sol_posts_today, headlines_in_queue = _reply_get_context()
     user_msg = (user_template
-                .replace("{{original_tweet}}", tweet_text)
+                .replace("{{original_tweet}}", post_text)
                 .replace("{{sol_posts_today}}", sol_posts_today)
                 .replace("{{headlines_in_queue}}", headlines_in_queue))
 
@@ -1414,7 +1876,7 @@ async def api_replies_generate(payload: ReplyPayload):
     return JSONResponse({
         "replies":        parsed.get("replies", []),
         "context_used":   parsed.get("context_used", []),
-        "original_tweet": tweet_text,
+        "original_tweet": post_text,
         "model_used":     model_id,
         "sol_count":      sol_count,
         "hl_count":       hl_count,
@@ -1422,7 +1884,8 @@ async def api_replies_generate(payload: ReplyPayload):
 
 
 @app.post("/api/replies/regenerate-one")
-async def api_replies_regenerate_one(payload: ReplyRegenPayload):
+async def api_replies_regenerate_one(request: Request, payload: ReplyRegenPayload):
+    _require_csrf(request)
     try:
         system_prompt = REPLY_PROMPT.read_text()
     except FileNotFoundError as e:
@@ -1430,7 +1893,7 @@ async def api_replies_regenerate_one(payload: ReplyRegenPayload):
 
     sol_posts_today, headlines_in_queue = _reply_get_context()
     user_msg = (
-        f"ORIGINAL_TWEET:\n{payload.original_tweet}\n\n"
+        f"ORIGINAL_POST:\n{payload.original_tweet}\n\n"
         f"SOL_POSTS_TODAY:\n{sol_posts_today}\n\n"
         f"HEADLINES_IN_QUEUE:\n{headlines_in_queue}\n\n"
         f"Regenerate ONLY the '{payload.move}' reply. "
@@ -1626,14 +2089,6 @@ GDELT_BASELINE     = BOT_DIR / "gdelt_baseline.json"
 GDELT_BASELINE_LOCK = BOT_DIR / "gdelt_baseline.lock"
 
 
-class EngagementUpdate(BaseModel):
-    tweet_id: str
-    views: int = 0
-    likes: int = 0
-    retweets: int = 0
-    replies: int = 0
-
-
 @app.get("/api/n8n/gdelt-baseline")
 async def n8n_gdelt_baseline_get():
     try:
@@ -1646,6 +2101,7 @@ async def n8n_gdelt_baseline_get():
 
 @app.post("/api/n8n/gdelt-baseline")
 async def n8n_gdelt_baseline_post(request: Request):
+    _require_csrf(request)
     """Partial update: {keyword, count, set_alert: bool}.
     Updates only the named keyword. set_alert=true stamps last_alert=now."""
     try:
@@ -1668,66 +2124,5 @@ async def n8n_gdelt_baseline_post(request: Request):
             tmp.write_text(json.dumps(baseline, indent=2))
             tmp.rename(GDELT_BASELINE)
         return JSONResponse({"saved": True, "keyword": keyword, "count": count})
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.get("/api/n8n/publish-log")
-async def n8n_publish_log():
-    try:
-        if not PUBLISH_LOG.exists():
-            return JSONResponse([])
-        entries = json.loads(PUBLISH_LOG.read_text())
-        x_tweets = [
-            {
-                "tweet_id": e["tweet_id"],
-                "text_preview": (e.get("text_preview") or "")[:80],
-                "published_at": e.get("published_at"),
-            }
-            for e in entries
-            if e.get("platform") == "x"
-            and e.get("success") is True
-            and e.get("tweet_id")
-        ]
-        return JSONResponse(x_tweets[-50:])
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.post("/api/n8n/update-engagement")
-async def n8n_update_engagement(payload: EngagementUpdate):
-    try:
-        now = _now_iso()
-        conn = sqlite3.connect(str(ANALYTICS_DB))
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT OR IGNORE INTO tweets
-              (tweet_id, first_seen, last_updated, likes, retweets, replies, views)
-            VALUES (?, ?, ?, 0, 0, 0, 0)
-            """,
-            (payload.tweet_id, now, now),
-        )
-        cur.execute(
-            """
-            UPDATE tweets
-            SET likes=?, retweets=?, replies=?, views=?,
-                last_updated=?,
-                engagement_rate=ROUND(
-                  (? + ? + ?) * 1.0 / NULLIF(?, 0), 4
-                )
-            WHERE tweet_id=?
-            """,
-            (
-                payload.likes, payload.retweets, payload.replies, payload.views,
-                now,
-                payload.likes, payload.retweets, payload.replies, payload.views,
-                payload.tweet_id,
-            ),
-        )
-        conn.commit()
-        conn.close()
-        return JSONResponse({"updated": True, "tweet_id": payload.tweet_id})
     except Exception as e:
         raise HTTPException(500, str(e))

@@ -117,7 +117,7 @@ def _call_api(client, model: str, system: str, user_prompt: str, max_tokens: int
 CHARACTER_SHEET = """
 SOL'S CHARACTER:
 - You are Sol, geopolitical-macro analyst. Skeptical of consensus by default.
-- When everyone says X, your instinct is to explore not-X before accepting it.
+- When everyone repeats the consensus story, your instinct is to explore the missing counter-angle before accepting it.
 - You believe geography and demographics move markets more than monetary policy.
 - Globalization is unwinding. Supply chains are regionalizing. Sol noticed in 2019.
 - Moderately bullish on Bitcoin as a non-sovereign store of value. Deeply cynical about altcoins — most are securities wearing a hoodie.
@@ -192,14 +192,14 @@ Sol notices what others skip. Sol says it short. Sol trusts the data over the ta
 
 WRITING_RULES = """
 WRITING RULES:
-- 60% of tweets: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
+- 60% of posts: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
 - Emojis allowed occasionally: 💀 🤡 (only for genuine sarcasm)
 - Hook distribution:
   30% ultra-short (under 50 chars): "This doesn't add up.", "Something's coming."
   50% normal (50-100 chars)
   20% long (100-140 chars, only WIRE with numerical data)
 - Mix short sentences (5 words) with long ones (20 words).
-- Write in English. No hashtags on X.
+- Write in English. No hashtags on Threads.
 - ALWAYS use line breaks between ideas. NEVER a continuous block.
 """
 
@@ -252,21 +252,30 @@ MOODS = list(MOOD_INSTRUCTIONS.keys())
 
 TWEET_TYPES = ["WIRE", "ANALISIS", "DEBATE", "CONEXION"]
 
+THREADS_POST_MAX_CHARS = 500
+THREADS_LENGTH_GUIDE = {
+    "WIRE": "Target 180-260 characters. Hard max 300.",
+    "DEBATE": "Target 220-340 characters. Hard max 380.",
+    "ANALISIS": "Target 320-460 characters. Hard max 500.",
+    "CONEXION": "Target 300-460 characters. Hard max 500.",
+}
+THREADS_COMBINADA_LENGTH_GUIDE = "Target 360-480 characters. Hard max 500."
+
 
 # ------------------------------------------------------------------
-# Tone modifiers per tweet type
+# Tone modifiers per post format
 # ------------------------------------------------------------------
 
 TONE_MODIFIERS = {
-    "WIRE":     "Tone: urgent, factual, zero opinion. Data + direct impact. Max 2 lines.",
-    "ANALISIS": "Tone: reflective, like an internal memo. Connect dots others miss. 3-5 lines.",
+    "WIRE":     "Tone: urgent, factual, zero opinion. Data + direct impact. Max 2 short lines.",
+    "ANALISIS": "Tone: reflective, like an internal memo. Connect dots others miss. 4-6 short lines.",
     "DEBATE": (
         "Tone: state something the mainstream narrative gets wrong. "
         "Be specific — name the assumption, not just 'the system'. "
         "The ideal reader reaction is 'wait, is that actually true?' "
-        "3 lines. No hedging at the end."
+        "3-4 short lines. No hedging at the end."
     ),
-    "CONEXION": "Tone: detective. You just discovered something. Mix wonder with concern. 3-4 lines.",
+    "CONEXION": "Tone: detective. You just discovered something. Mix wonder with concern. 4-5 short lines.",
 }
 
 
@@ -276,16 +285,17 @@ TONE_MODIFIERS = {
 
 PLATFORM_INSTRUCTIONS = {
     "x": (
-        "Write for X. Be provocative and direct. "
+        "Write for Threads. Be provocative and direct. "
         "Include at least one specific numerical data point when possible. "
-        "Optimize for bookmarks and quote-tweets. Max 280 characters."
+        "Optimize for saves, replies, and reposts. Use the format-specific Threads length guide."
     ),
     "threads": (
         "Write for Threads. Same Sol voice but slightly more accessible — "
         "assume the reader is smart but not a trader. "
-        "Use one more sentence of context than you would on X. "
+        "Use one more sentence of context when it sharpens the insight. "
         "If the insight earns a question, end with one. Don't force it. "
-        "Maximum 500 characters."
+        "As long as needed, no longer. Never pad to hit the limit. "
+        f"Technical maximum: {THREADS_POST_MAX_CHARS} characters."
     ),
 }
 
@@ -321,19 +331,19 @@ def generate_tweet(
     headline: dict,
     tweet_type: str = None,
     hook_angle: str = None,
-    platform: str = "x",
+    platform: str = "threads",
     mood: str = None,
     manual: bool = False,
     model_override: str = None,
 ) -> str:
     """
-    Generate a single tweet/post for the given headline.
+    Generate a single Threads post for the given headline.
 
     Args:
         headline: dict with keys title, summary, source
         tweet_type: WIRE | ANALISIS | DEBATE | CONEXION (random if None)
         hook_angle: one of HOOK_ANGLES (random if None)
-        platform: "x" or "threads"
+        platform: "threads" or "x"
         mood: one of MOODS (random if None)
 
     Returns:
@@ -352,6 +362,7 @@ def generate_tweet(
     topic = _detect_topic(headline)
     tone = TONE_MODIFIERS.get(tweet_type, "")
     platform_instr = PLATFORM_INSTRUCTIONS.get(platform.lower(), PLATFORM_INSTRUCTIONS["x"])
+    length_instr = THREADS_LENGTH_GUIDE.get(tweet_type, "Target 300-460 characters. Hard max 500.")
     model = get_model(tweet_type, manual=manual)
     if model_override and model_override.lower() not in ("auto", ""):
         _is_or = bool(os.getenv("OPENROUTER_API_KEY"))
@@ -392,6 +403,7 @@ Mood: {MOOD_INSTRUCTIONS[mood]}
 
 {tone}
 {platform_instr}
+Length guidance: {length_instr} As long as needed, no longer. Short beats, no filler.
 {avoid_note}
 {instruction_note}
 Generate ONE post. Only the final text. No quotes, no labels.
@@ -403,7 +415,7 @@ IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstan
         system = SYSTEM_PROMPT + "\n\n" + continuity
 
     client, is_or = _get_client()
-    tweet = _call_api(client, model, system, prompt, 200, is_or).strip('"')
+    tweet = _call_api(client, model, system, prompt, 320, is_or).strip('"')
 
     # Save to memory
     memory.add_tweet(tweet, tweet_type, topic, platform)
@@ -413,13 +425,13 @@ IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstan
 
 def generate_combinada_tweet(headline: dict, manual: bool = False) -> str:
     """
-    Generate a single fused tweet: raw headline + Sol's hooked analysis.
+    Generate a single fused Threads post: raw headline + Sol's hooked analysis.
 
     Format:
       Line 1: raw news headline (verbatim or near-verbatim)
       Blank line
-      2-3 lines: Sol's analysis using one of his rhetorical moves, opening with a tension hook
-      Total ≤ 280 characters.
+      3-5 lines: Sol's analysis using one of his rhetorical moves, opening with a tension hook
+      Total ≤ 500 characters.
     """
     model = get_model("ANALISIS", manual=manual)
     memory = get_memory()
@@ -432,26 +444,26 @@ def generate_combinada_tweet(headline: dict, manual: bool = False) -> str:
 Context: {headline['summary'][:400]}
 Source: {headline['source']}
 
-Write ONE tweet in this exact format:
+Write ONE Threads post in this exact format:
 - Line 1: The raw news headline, verbatim or near-verbatim. No opinion, no framing added.
 - Blank line
-- 2-3 lines of Sol's analysis. Use ONE of Sol's rhetorical moves: THE BURIED LEDE, NOBODY NOTICED, THE MATH CHECK, THE HISTORY RHYME, THE COLD FACT DROP, or THE COLD CONCLUSION. The first line of analysis must create immediate tension or curiosity — it should make the reader stop scrolling. End with the sharpest insight Sol has on this. Cold, no filler.
-- Total must be under 280 characters including the blank line.
+- 3-5 short lines of Sol's analysis. Use ONE of Sol's rhetorical moves: THE BURIED LEDE, NOBODY NOTICED, THE MATH CHECK, THE HISTORY RHYME, THE COLD FACT DROP, or THE COLD CONCLUSION. The first line of analysis must create immediate tension or curiosity — it should make the reader stop scrolling. End with the sharpest insight Sol has on this. Cold, no filler.
+- Length guidance: {THREADS_COMBINADA_LENGTH_GUIDE} As long as needed, no longer. Never pad to hit the limit.
 {instruction_note}
 Output only the final text. No quotes, no labels, no explanations.
 Write exclusively in English."""
 
     client, is_or = _get_client()
-    tweet = _call_api(client, model, system, prompt, 200, is_or).strip('"')
+    tweet = _call_api(client, model, system, prompt, 360, is_or).strip('"')
 
     topic = _detect_topic(headline)
-    memory.add_tweet(tweet, "ANALISIS", topic, "x")
+    memory.add_tweet(tweet, "ANALISIS", topic, "threads")
 
     return tweet
 
 
-def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "x") -> list[str]:
-    """Generate a multi-tweet thread."""
+def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "threads") -> list[str]:
+    """Generate a multi-post thread."""
     hook_angle = random.choice(HOOK_ANGLES)
     topic = _detect_topic(headline)
     mood = random.choice(MOODS)
@@ -467,21 +479,21 @@ Source: {headline['source']}
 Hook angle: {hook_angle}
 Mood: {MOOD_INSTRUCTIONS[mood]}
 
-Write a thread of {num_tweets} tweets:
-Tweet 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
-Tweets 2-{num_tweets - 1}: One data point or angle per tweet. Short lines. No filler.
-Tweet {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
+Write a thread of {num_tweets} posts:
+Post 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
+Posts 2-{num_tweets - 1}: One data point or angle per post. Short lines. No filler.
+Post {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
 
-Separate each tweet with ---
+Separate each post with ---
 Text only. No numbers, no labels. Write exclusively in English."""
 
     client, is_or = _get_client()
     raw = _call_api(client, model, system, prompt, 900, is_or)
-    tweets = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
-    tweets = tweets[:num_tweets]
+    posts = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
+    posts = posts[:num_tweets]
 
     # Save thread opener to memory
-    if tweets:
-        memory.add_tweet(tweets[0], "ANALISIS", topic, platform)
+    if posts:
+        memory.add_tweet(posts[0], "ANALISIS", topic, platform)
 
-    return tweets
+    return posts
