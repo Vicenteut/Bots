@@ -2815,7 +2815,13 @@ function _fmtTime(isoStr) {
   function toggleSystemPanel() {
     const p = document.getElementById('system-panel');
     p.style.display = p.style.display === 'none' ? 'block' : 'none';
-    if (p.style.display === 'block') renderSystemPanel();
+    if (p.style.display === 'block') {
+      if (_lastStatus) {
+        renderSystemPanel();
+      } else {
+        pollStatus().then(() => renderSystemPanel());
+      }
+    }
   }
 
   function fmtNum(n) {
