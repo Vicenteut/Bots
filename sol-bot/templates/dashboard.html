@@ -1817,7 +1817,7 @@ function renderRecentPosts(posts) {
       : '';
     return `<div class="post-row">
       <div class="post-row-meta"><span class="ts">${ts}</span>${platBadge}${typeBadge}${statusBadge}</div>
-      <div class="post-row-text ${ok}">${mediaEmoji}${_esc(p.text_preview || '')}</div>
+      <div class="post-row-text">${mediaEmoji}${_esc(p.text_preview || '')}</div>
       ${err}
     </div>`;
   }).join('');
