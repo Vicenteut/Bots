@@ -1,7 +1,8 @@
 # Bots
 
 ## sol-bot/
-Bot automatizado de noticias para Threads.
+Command center editorial para Threads. Documentacion completa: [sol-bot/README.md](sol-bot/README.md).
+
 - Publicacion Threads-only desde dashboard y Telegram
 - Imagenes, carruseles y videos
 - Videos normalizados con ffmpeg antes de publicar
