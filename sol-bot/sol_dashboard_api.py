@@ -10,6 +10,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import subprocess
 import urllib.parse
 import urllib.request
@@ -75,6 +76,7 @@ SOURCE_CONFIG      = BOT_DIR / "source_config.json"
 CONTEXT_JSON    = BOT_DIR / "context.json"
 REPLY_PROMPT    = BOT_DIR / "reply_generator_prompt.txt"
 REPLY_USER_TMPL = BOT_DIR / "reply_gen_user_msg.txt"
+THREADS_ANALYTICS_DB = BOT_DIR / "threads_analytics.db"
 
 OPENROUTER_BASE   = "https://openrouter.ai/api/v1"
 REPLY_MODEL_MAP   = {
@@ -572,6 +574,346 @@ def _tail_file(path: Path, n: int) -> list[str]:
         return []
 
 
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _load_env_value(name: str) -> str:
+    for path in (BOT_DIR / ".env", BOT_DIR.parent / ".env"):
+        try:
+            if not path.exists():
+                continue
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line or line.lstrip().startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                if key.strip() == name:
+                    return value.strip()
+        except Exception:
+            continue
+    return (os.getenv(name) or "").strip()
+
+
+def _monitor_queue_summary() -> dict[str, Any]:
+    queue = _read_queue()
+    priority_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    oldest_dt = None
+    newest_dt = None
+    for entry in queue:
+        label = entry.get("priority_label") or "normal"
+        priority_counts[label] = priority_counts.get(label, 0) + 1
+        src = entry.get("source_name") or "unknown"
+        source_counts[src] = source_counts.get(src, 0) + 1
+        ts = _parse_iso(entry.get("received_at") or entry.get("ingested_at") or entry.get("published_at"))
+        if ts is None:
+            continue
+        oldest_dt = ts if oldest_dt is None or ts < oldest_dt else oldest_dt
+        newest_dt = ts if newest_dt is None or ts > newest_dt else newest_dt
+    top_sources = [
+        {"source_name": name, "count": count}
+        for name, count in sorted(source_counts.items(), key=lambda item: (-item[1], item[0].lower()))[:5]
+    ]
+    now = datetime.now(timezone.utc)
+    return {
+        "count": len(queue),
+        "priority_counts": priority_counts,
+        "top_sources": top_sources,
+        "breaking_count": priority_counts.get("breaking", 0),
+        "high_count": priority_counts.get("high", 0),
+        "duplicate_count": priority_counts.get("duplicate", 0),
+        "unverified_count": priority_counts.get("unverified", 0),
+        "oldest_at": oldest_dt.isoformat() if oldest_dt else None,
+        "newest_at": newest_dt.isoformat() if newest_dt else None,
+        "oldest_age_minutes": round((now - oldest_dt).total_seconds() / 60, 1) if oldest_dt else None,
+        "newest_age_minutes": round((now - newest_dt).total_seconds() / 60, 1) if newest_dt else None,
+    }
+
+
+def _pending_summary() -> dict[str, Any]:
+    def _entry(path: Path, kind: str) -> dict[str, Any] | None:
+        data = _read_json_safe(path)
+        if not isinstance(data, dict):
+            return None
+        text = data.get("tweet") or data.get("text") or ""
+        mtime = None
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+        except Exception:
+            pass
+        media_paths = data.get("media_paths") or ([data.get("media_path")] if data.get("media_path") else [])
+        media_paths = [p for p in media_paths if p]
+        return {
+            "kind": kind,
+            "exists": True,
+            "char_count": len(text),
+            "tweet_type": data.get("tweet_type"),
+            "source_name": data.get("source_name"),
+            "source_alert_id": data.get("source_alert_id"),
+            "has_media": bool(media_paths),
+            "media_count": len(media_paths),
+            "updated_at": mtime,
+        }
+
+    tweet = _entry(PENDING_TWEET, "pending_tweet")
+    combo = _entry(PENDING_COMBO, "pending_combo")
+    return {
+        "tweet": tweet,
+        "combo": combo,
+        "count": int(bool(tweet)) + int(bool(combo)),
+    }
+
+
+def _publish_summary(log_data: list[dict[str, Any]] | None) -> dict[str, Any]:
+    summary = {
+        "last_success": None,
+        "last_failure": None,
+        "success_24h": 0,
+        "failure_24h": 0,
+        "auth_failures_24h": 0,
+        "media_failures_24h": 0,
+        "timeout_failures_24h": 0,
+    }
+    if not isinstance(log_data, list):
+        return summary
+    cutoff = datetime.now(timezone.utc).timestamp() - 86400
+    for entry in reversed(log_data):
+        ts = _parse_iso(entry.get("published_at"))
+        if summary["last_success"] is None and entry.get("success") is True:
+            summary["last_success"] = entry
+        if summary["last_failure"] is None and entry.get("success") is False:
+            summary["last_failure"] = entry
+        if ts is None or ts.timestamp() < cutoff:
+            continue
+        if entry.get("success") is True:
+            summary["success_24h"] += 1
+        else:
+            summary["failure_24h"] += 1
+            cat = (entry.get("error_category") or "").upper()
+            if cat == "AUTH_ERROR":
+                summary["auth_failures_24h"] += 1
+            elif cat == "MEDIA_ERROR":
+                summary["media_failures_24h"] += 1
+            elif cat == "TIMEOUT":
+                summary["timeout_failures_24h"] += 1
+    return summary
+
+
+def _threads_token_status(publish_summary: dict[str, Any]) -> dict[str, Any]:
+    access_token = _load_env_value("THREADS_ACCESS_TOKEN")
+    user_id = _load_env_value("THREADS_USER_ID")
+    last_failure = publish_summary.get("last_failure") or {}
+    last_error_category = (last_failure.get("error_category") or "").upper()
+    return {
+        "configured": bool(access_token and user_id),
+        "token_present": bool(access_token),
+        "user_id_present": bool(user_id),
+        "token_hint": access_token[-6:] if access_token else None,
+        "last_error_category": last_error_category or None,
+        "suspect_auth_issue": last_error_category == "AUTH_ERROR" or publish_summary.get("auth_failures_24h", 0) > 0,
+    }
+
+
+def _threads_analytics_status() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "db_exists": THREADS_ANALYTICS_DB.exists(),
+        "db_size_bytes": THREADS_ANALYTICS_DB.stat().st_size if THREADS_ANALYTICS_DB.exists() else 0,
+        "posts_count": 0,
+        "snapshots_count": 0,
+        "latest_sync": None,
+    }
+    if not THREADS_ANALYTICS_DB.exists():
+        return info
+    try:
+        conn = sqlite3.connect(THREADS_ANALYTICS_DB)
+        conn.row_factory = sqlite3.Row
+        info["posts_count"] = int(conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0])
+        info["snapshots_count"] = int(conn.execute("SELECT COUNT(*) FROM post_snapshots").fetchone()[0])
+        row = conn.execute(
+            "SELECT timestamp, status, count, error FROM sync_runs ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            info["latest_sync"] = {
+                "timestamp": row["timestamp"],
+                "status": row["status"],
+                "count": row["count"],
+                "error": row["error"],
+            }
+    except Exception as exc:
+        info["latest_sync"] = {
+            "timestamp": _iso_now(),
+            "status": "error",
+            "count": 0,
+            "error": str(exc)[:180],
+        }
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return info
+
+
+def _critical_files_status() -> list[dict[str, Any]]:
+    checks = [
+        ("source_config", SOURCE_CONFIG),
+        ("context", CONTEXT_JSON),
+        ("reply_prompt", REPLY_PROMPT),
+        ("publish_log", PUBLISH_LOG),
+        ("analytics_db", THREADS_ANALYTICS_DB),
+    ]
+    results = []
+    for label, path in checks:
+        exists = path.exists()
+        size_bytes = path.stat().st_size if exists else 0
+        updated_at = None
+        if exists:
+            try:
+                updated_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+            except Exception:
+                updated_at = None
+        results.append({
+            "name": label,
+            "path": str(path),
+            "exists": exists,
+            "size_bytes": size_bytes,
+            "updated_at": updated_at,
+        })
+    return results
+
+
+def _health_summary(services: list[dict[str, Any]], queue_summary: dict[str, Any], token_status: dict[str, Any],
+                    analytics_status: dict[str, Any], pending_summary: dict[str, Any], publish_summary: dict[str, Any]) -> dict[str, int]:
+    critical = 0
+    warning = 0
+    for svc in services:
+        if not svc.get("ok"):
+            critical += 1
+    if not token_status.get("configured"):
+        critical += 1
+    latest_sync = analytics_status.get("latest_sync") or {}
+    if latest_sync.get("status") not in {None, "ok", "success"}:
+        warning += 1
+    if (queue_summary.get("oldest_age_minutes") or 0) > 240:
+        warning += 1
+    if publish_summary.get("failure_24h", 0) > 0:
+        warning += 1
+    if pending_summary.get("count", 0) > 0:
+        warning += 1
+    return {"critical": critical, "warning": warning}
+
+
+def _system_events(services: list[dict[str, Any]], queue_summary: dict[str, Any], pending_summary: dict[str, Any],
+                   publish_summary: dict[str, Any], token_status: dict[str, Any],
+                   analytics_status: dict[str, Any]) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+
+    for svc in services:
+        if not svc.get("ok"):
+            events.append({
+                "level": "critical",
+                "code": "service_down",
+                "at": _iso_now(),
+                "text": f"{svc['name']} is {svc.get('active') or 'unknown'}",
+            })
+
+    if not token_status.get("configured"):
+        events.append({
+            "level": "critical",
+            "code": "threads_token_missing",
+            "at": _iso_now(),
+            "text": "Threads token or user ID is missing in environment.",
+        })
+    elif token_status.get("suspect_auth_issue"):
+        last_failure = publish_summary.get("last_failure") or {}
+        events.append({
+            "level": "warning",
+            "code": "threads_auth_warning",
+            "at": last_failure.get("published_at") or _iso_now(),
+            "text": f"Recent publish hit auth-related error: {last_failure.get('error_message') or 'AUTH_ERROR'}",
+        })
+
+    if pending_summary.get("combo"):
+        combo = pending_summary["combo"]
+        events.append({
+            "level": "info",
+            "code": "combo_pending",
+            "at": combo.get("updated_at") or _iso_now(),
+            "text": f"Pending combo ready ({combo.get('char_count', 0)} chars{', media' if combo.get('has_media') else ''}).",
+        })
+    if pending_summary.get("tweet"):
+        tweet = pending_summary["tweet"]
+        events.append({
+            "level": "info",
+            "code": "tweet_pending",
+            "at": tweet.get("updated_at") or _iso_now(),
+            "text": f"Pending post ready ({tweet.get('char_count', 0)} chars{', media' if tweet.get('has_media') else ''}).",
+        })
+
+    last_failure = publish_summary.get("last_failure")
+    if last_failure:
+        events.append({
+            "level": "warning",
+            "code": "last_publish_failure",
+            "at": last_failure.get("published_at") or _iso_now(),
+            "text": f"Last publish failed: {last_failure.get('error_category') or 'FAILED'} · {last_failure.get('error_message') or 'unknown error'}",
+        })
+    last_success = publish_summary.get("last_success")
+    if last_success:
+        events.append({
+            "level": "info",
+            "code": "last_publish_success",
+            "at": last_success.get("published_at") or _iso_now(),
+            "text": f"Last publish OK: {(last_success.get('tweet_type') or 'post')} on {last_success.get('platform') or 'threads'}.",
+        })
+
+    if queue_summary.get("breaking_count", 0) > 0:
+        events.append({
+            "level": "info",
+            "code": "breaking_queue",
+            "at": queue_summary.get("newest_at") or _iso_now(),
+            "text": f"Inbox has {queue_summary['breaking_count']} breaking alert(s) waiting.",
+        })
+    if (queue_summary.get("oldest_age_minutes") or 0) > 240:
+        events.append({
+            "level": "warning",
+            "code": "queue_backlog",
+            "at": queue_summary.get("oldest_at") or _iso_now(),
+            "text": f"Inbox backlog is aging ({queue_summary['oldest_age_minutes']} min oldest alert).",
+        })
+
+    latest_sync = analytics_status.get("latest_sync")
+    if latest_sync:
+        sync_status = (latest_sync.get("status") or "").lower()
+        if sync_status not in {"ok", "success"}:
+            events.append({
+                "level": "warning",
+                "code": "analytics_sync_issue",
+                "at": latest_sync.get("timestamp") or _iso_now(),
+                "text": f"Threads analytics sync issue: {latest_sync.get('error') or sync_status or 'unknown'}",
+            })
+        else:
+            events.append({
+                "level": "info",
+                "code": "analytics_sync_ok",
+                "at": latest_sync.get("timestamp") or _iso_now(),
+                "text": f"Threads analytics synced {latest_sync.get('count') or 0} post(s).",
+            })
+
+    level_rank = {"critical": 0, "warning": 1, "info": 2}
+    events.sort(key=lambda ev: (level_rank.get(ev["level"], 9), -( _parse_iso(ev.get("at")) or datetime.fromtimestamp(0, tz=timezone.utc)).timestamp()))
+    return events[:10]
+
+
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
@@ -636,6 +978,20 @@ async def api_status():
     if isinstance(log_data, list):
         recent_posts = log_data[-10:][::-1]  # newest first
 
+    services = _monitored_services()
+    queue_summary = _monitor_queue_summary()
+    pending_state = _pending_summary()
+    publish_summary = _publish_summary(log_data if isinstance(log_data, list) else [])
+    threads_token = _threads_token_status(publish_summary)
+    analytics_sync = _threads_analytics_status()
+    critical_files = _critical_files_status()
+    health_summary = _health_summary(
+        services, queue_summary, threads_token, analytics_sync, pending_state, publish_summary
+    )
+    system_events = _system_events(
+        services, queue_summary, pending_state, publish_summary, threads_token, analytics_sync
+    )
+
     return {
         "sol_commands": sol_state,
         "monitor": mon_state,
@@ -643,7 +999,15 @@ async def api_status():
         "last_publish": last_publish,
         "posts_today": posts_today,
         "recent_posts": recent_posts,
-        "system_services": _monitored_services(),
+        "system_services": services,
+        "monitor_queue": queue_summary,
+        "pending_state": pending_state,
+        "publish_summary": publish_summary,
+        "threads_token": threads_token,
+        "analytics_sync": analytics_sync,
+        "critical_files": critical_files,
+        "health_summary": health_summary,
+        "system_events": system_events,
         "generator_available": _GENERATOR_AVAILABLE,
     }
 

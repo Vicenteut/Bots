@@ -153,6 +153,26 @@
   .analytics-controls select { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); font-family: var(--mono); font-size: 9px; padding: 5px 7px; border-radius: 3px; }
   .analytics-table { width: 100%; border-collapse: collapse; }
   .analytics-table th { position: sticky; top: 0; background: var(--surface1); z-index: 1; }
+  .system-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
+  .system-card { border:1px solid var(--border); border-radius:10px; background:var(--surface1); padding:12px; min-height:0; }
+  .system-card-title { font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.12em; color:var(--purple2); text-transform:uppercase; margin-bottom:10px; }
+  .system-metric-row { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-top:1px solid rgba(255,255,255,0.06); font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .system-metric-row:first-of-type { border-top:0; padding-top:0; }
+  .system-metric-row strong { color:var(--text); font-weight:500; text-align:right; }
+  .system-event-list { display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
+  .system-event { border:1px solid var(--border); border-left-width:3px; border-radius:8px; padding:8px 10px; background:var(--surface2); }
+  .system-event.critical { border-left-color:var(--danger); }
+  .system-event.warning { border-left-color:var(--amber); }
+  .system-event.info { border-left-color:var(--purple); }
+  .system-event-meta { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted2); }
+  .system-event-text { font-family:var(--mono); font-size:11px; line-height:1.45; color:var(--text); }
+  .system-pill { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border2); border-radius:999px; padding:3px 7px; font-family:var(--mono); font-size:9px; color:var(--muted); }
+  .system-pill.critical { color:var(--danger); border-color:rgba(239,68,68,.4); }
+  .system-pill.warning { color:var(--amber); border-color:rgba(163,163,163,.4); }
+  .system-pill.ok { color:var(--success); border-color:rgba(34,197,94,.35); }
+  .system-service-list { display:flex; flex-direction:column; gap:6px; }
+  .system-service-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:7px 8px; border:1px solid var(--border); border-radius:7px; background:var(--surface2); font-family:var(--mono); font-size:11px; }
+  .system-mini { color:var(--muted2); font-size:10px; }
 
   /* MIXED BUILDER */
   .mixed-inner { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg); }
@@ -705,6 +725,7 @@
     <div class="sb-spacer"></div>
     <button id="brain-toggle-btn" onclick="toggleBrainPanel()" style="background:none;border:1px solid #22d3ee33;color:#22d3ee;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">🧠 BRAIN</button>
     <button id="analytics-toggle-btn" onclick="toggleAnalyticsPanel()" style="background:none;border:1px solid #f59e0b33;color:#f59e0b;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📊 ANALYTICS</button>
+    <button id="system-toggle-btn" onclick="toggleSystemPanel()" style="background:none;border:1px solid #b026ff33;color:#d86cff;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">🛠 SYSTEM</button>
     <button id="reply-toggle-btn" onclick="toggleReplyDrawer()" style="background:none;border:1px solid #22c55e33;color:#22c55e;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">💬 REPLY</button>
     <button id="signals-toggle-btn" onclick="toggleSignalsPanel()" style="background:none;border:1px solid #818cf833;color:#818cf8;font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;margin-right:8px;letter-spacing:0.05em;">📡 SIGNALS</button>
     <div class="sb-item" style="font-family:var(--mono);font-size:10px;color:var(--muted2);" id="sb-clock"></div>
@@ -730,6 +751,16 @@
 
   <!-- ANALYTICS PANEL -->
   <div id="analytics-panel-home"></div>
+  <div id="system-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="color:var(--purple2);font-weight:700;letter-spacing:0.08em;">🛠 SYSTEM</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="pollStatus()" style="background:none;border:1px solid var(--border2);color:var(--muted);font-size:9px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace;">↺ REFRESH</button>
+        <button onclick="toggleSystemPanel()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:11px;">✕ CLOSE</button>
+      </div>
+    </div>
+    <div id="system-panel-body"></div>
+  </div>
   <div id="analytics-panel" style="display:none;background:var(--surface1);border-bottom:1px solid var(--border);padding:10px 16px;font-family:monospace;font-size:10px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <span style="color:var(--amber);font-weight:700;letter-spacing:0.08em;">📊 ANALYTICS</span>
@@ -1653,6 +1684,8 @@ function renderStatus(d) {
   _lastStatus = d;
   const sol = d.sol_commands || {};
   const mon = d.monitor      || {};
+  const queue = d.monitor_queue || {};
+  const health = d.health_summary || {};
   const solDot = `<span class="proc-dot${sol.alive ? '' : ' dead'}"></span>`;
   const monDot = `<span class="proc-dot${mon.alive ? '' : ' dead'}"></span>`;
   const brainHtml = d.brain_enabled
@@ -1662,6 +1695,9 @@ function renderStatus(d) {
   const svcHtml = serviceBad
     ? `<span style="color:var(--danger);font-family:var(--mono);font-size:11px;">${serviceBad} issue</span>`
     : `<span style="color:var(--cyan);font-family:var(--mono);font-size:11px;">OK</span>`;
+  const healthHtml = (health.critical || health.warning)
+    ? `<span style="color:${health.critical ? 'var(--danger)' : 'var(--amber)'};font-family:var(--mono);font-size:11px;">${health.critical || 0}C / ${health.warning || 0}W</span>`
+    : `<span style="color:var(--success);font-family:var(--mono);font-size:11px;">CLEAN</span>`;
   let lastPubHtml = '—';
   if (d.last_publish) {
     const lp = d.last_publish;
@@ -1690,6 +1726,10 @@ function renderStatus(d) {
     <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">SVC</span>${svcHtml}</div>
     <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">HEALTH</span>${healthHtml}</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item"><span class="label">QUEUE</span><span class="value" style="font-family:var(--mono);font-size:11px;">${queue.count || 0} / ${queue.breaking_count || 0} brk</span></div>
+    <div class="sb-divider"></div>
     <div class="sb-item"><span class="label">LAST PUB</span>${lastPubHtml}</div>
     <div class="sb-divider"></div>
     <div class="sb-item">
@@ -1698,6 +1738,7 @@ function renderStatus(d) {
     </div>
     ${genBadge ? '<div class="sb-divider"></div><div class="sb-item">' + genBadge + '</div>' : ''}
   `;
+  renderSystemPanel();
   renderMobileSystem();
 }
 
@@ -2720,12 +2761,124 @@ function _fmtTime(isoStr) {
     if (p.style.display === 'block') loadAnalytics();
   }
 
+  function toggleSystemPanel() {
+    const p = document.getElementById('system-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    if (p.style.display === 'block') renderSystemPanel();
+  }
+
   function fmtNum(n) {
     if (n == null) return '—';
     n = Math.round(n);
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
     return n.toString();
+  }
+
+  function fmtBytes(n) {
+    if (n == null || isNaN(n)) return '—';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+
+  function renderSystemPanel() {
+    const el = document.getElementById('system-panel-body');
+    const d = _lastStatus;
+    if (!el || !d) return;
+    const queue = d.monitor_queue || {};
+    const pending = d.pending_state || {};
+    const publish = d.publish_summary || {};
+    const token = d.threads_token || {};
+    const analytics = d.analytics_sync || {};
+    const files = d.critical_files || [];
+    const health = d.health_summary || {};
+    const events = d.system_events || [];
+    const services = d.system_services || [];
+    const healthPills = `
+      <span class="system-pill ${health.critical ? 'critical' : 'ok'}">${health.critical || 0} critical</span>
+      <span class="system-pill ${health.warning ? 'warning' : 'ok'}">${health.warning || 0} warning</span>
+    `;
+    const servicesHtml = services.map(s => `
+      <div class="system-service-row">
+        <div>
+          <div>${_esc(s.name)}</div>
+          <div class="system-mini">${_esc(s.enabled || 'unknown')} · ${_esc(s.active || 'unknown')}</div>
+        </div>
+        <span class="system-pill ${s.ok ? 'ok' : 'critical'}">${s.ok ? 'ok' : 'issue'}</span>
+      </div>
+    `).join('');
+    const filesHtml = files.map(f => `
+      <div class="system-metric-row">
+        <span>${_esc(f.name)}</span>
+        <strong style="color:${f.exists ? 'var(--text)' : 'var(--danger)'};">${f.exists ? fmtBytes(f.size_bytes) : 'missing'}</strong>
+      </div>
+    `).join('');
+    const eventsHtml = events.length ? events.map(ev => `
+      <div class="system-event ${_esc(ev.level || 'info')}">
+        <div class="system-event-meta">
+          <span>${_esc(ev.level || 'info')}</span>
+          <span>${_timeAgo(ev.at)}</span>
+        </div>
+        <div class="system-event-text">${_esc(ev.text || '—')}</div>
+      </div>
+    `).join('') : `<div class="system-event info"><div class="system-event-text">No active events.</div></div>`;
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">${healthPills}</div>
+      <div class="system-grid">
+        <div class="system-card">
+          <div class="system-card-title">Runtime</div>
+          <div class="system-metric-row"><span>sol commands</span><strong style="color:${d.sol_commands?.alive ? 'var(--success)' : 'var(--danger)'}">${d.sol_commands?.alive ? 'active' : 'down'}</strong></div>
+          <div class="system-metric-row"><span>monitor</span><strong style="color:${d.monitor?.alive ? 'var(--success)' : 'var(--danger)'}">${d.monitor?.alive ? 'active' : 'down'}</strong></div>
+          <div class="system-metric-row"><span>brain</span><strong style="color:${d.brain_enabled ? 'var(--success)' : 'var(--danger)'}">${d.brain_enabled ? 'enabled' : 'disabled'}</strong></div>
+          <div class="system-metric-row"><span>generator</span><strong style="color:${d.generator_available ? 'var(--success)' : 'var(--danger)'}">${d.generator_available ? 'ready' : 'unavailable'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Editorial Queue</div>
+          <div class="system-metric-row"><span>inbox total</span><strong>${queue.count || 0}</strong></div>
+          <div class="system-metric-row"><span>breaking</span><strong>${queue.breaking_count || 0}</strong></div>
+          <div class="system-metric-row"><span>high</span><strong>${queue.high_count || 0}</strong></div>
+          <div class="system-metric-row"><span>oldest alert</span><strong>${queue.oldest_age_minutes != null ? `${Math.round(queue.oldest_age_minutes)} min` : '—'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Pending</div>
+          <div class="system-metric-row"><span>pending post</span><strong>${pending.tweet ? `${pending.tweet.char_count} chars` : '—'}</strong></div>
+          <div class="system-metric-row"><span>pending combo</span><strong>${pending.combo ? `${pending.combo.char_count} chars` : '—'}</strong></div>
+          <div class="system-metric-row"><span>pending media</span><strong>${(pending.tweet?.media_count || 0) + (pending.combo?.media_count || 0)}</strong></div>
+          <div class="system-metric-row"><span>items waiting</span><strong>${pending.count || 0}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Publishing</div>
+          <div class="system-metric-row"><span>success 24h</span><strong>${publish.success_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>failures 24h</span><strong style="color:${publish.failure_24h ? 'var(--danger)' : 'var(--text)'}">${publish.failure_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>media failures</span><strong>${publish.media_failures_24h || 0}</strong></div>
+          <div class="system-metric-row"><span>auth failures</span><strong>${publish.auth_failures_24h || 0}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Threads / Analytics</div>
+          <div class="system-metric-row"><span>threads token</span><strong style="color:${token.configured ? 'var(--success)' : 'var(--danger)'}">${token.configured ? `configured • …${_esc(token.token_hint || '')}` : 'missing'}</strong></div>
+          <div class="system-metric-row"><span>analytics db</span><strong>${analytics.db_exists ? fmtBytes(analytics.db_size_bytes) : 'missing'}</strong></div>
+          <div class="system-metric-row"><span>posts tracked</span><strong>${fmtNum(analytics.posts_count || 0)}</strong></div>
+          <div class="system-metric-row"><span>last sync</span><strong>${analytics.latest_sync?.timestamp ? `${_timeAgo(analytics.latest_sync.timestamp)} · ${_esc(analytics.latest_sync.status || 'ok')}` : '—'}</strong></div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">Critical Files</div>
+          ${filesHtml}
+        </div>
+      </div>
+      <div class="system-grid" style="margin-top:12px;">
+        <div class="system-card">
+          <div class="system-card-title">Services</div>
+          <div class="system-service-list">${servicesHtml}</div>
+        </div>
+        <div class="system-card">
+          <div class="system-card-title">System Events</div>
+          <div class="system-event-list">${eventsHtml}</div>
+        </div>
+      </div>
+    `;
   }
 
   const _analyticsFilters = {
@@ -2994,6 +3147,13 @@ function renderMobileSystem() {
   const mon = d.monitor || {};
   const services = d.system_services || [];
   const bad = services.filter(s => !s.ok);
+  const queue = d.monitor_queue || {};
+  const pending = d.pending_state || {};
+  const publish = d.publish_summary || {};
+  const token = d.threads_token || {};
+  const analytics = d.analytics_sync || {};
+  const health = d.health_summary || {};
+  const events = (d.system_events || []).slice(0, 4);
   const last = d.last_publish ? `${_timeAgo(d.last_publish.published_at)} · ${(d.last_publish.tweet_type || 'post')} · ${(d.last_publish.status || (d.last_publish.success === false ? 'FAILED' : 'OK'))}` : '—';
   el.innerHTML = `
     <div class="mobile-card">
@@ -3002,12 +3162,36 @@ function renderMobileSystem() {
       <div class="mobile-metric-row"><span>monitor</span><strong style="color:${mon.alive ? 'var(--success)' : 'var(--danger)'}">${mon.alive ? 'active' : 'down'}</strong></div>
       <div class="mobile-metric-row"><span>brain</span><strong style="color:${d.brain_enabled ? 'var(--success)' : 'var(--danger)'}">${d.brain_enabled ? 'enabled' : 'disabled'}</strong></div>
       <div class="mobile-metric-row"><span>services</span><strong style="color:${bad.length ? 'var(--danger)' : 'var(--success)'}">${bad.length ? bad.length + ' issue' : 'ok'}</strong></div>
+      <div class="mobile-metric-row"><span>health</span><strong style="color:${health.critical ? 'var(--danger)' : health.warning ? 'var(--amber)' : 'var(--success)'}">${health.critical || 0}C / ${health.warning || 0}W</strong></div>
     </div>
     <div class="mobile-card">
       <div class="mobile-card-title">Editorial</div>
-      <div class="mobile-metric-row"><span>monitor inbox</span><strong>${_monitorCount || 0}</strong></div>
+      <div class="mobile-metric-row"><span>monitor inbox</span><strong>${queue.count || _monitorCount || 0}</strong></div>
+      <div class="mobile-metric-row"><span>breaking</span><strong>${queue.breaking_count || 0}</strong></div>
       <div class="mobile-metric-row"><span>posts today</span><strong>${d.posts_today || 0}</strong></div>
       <div class="mobile-metric-row"><span>last publish</span><strong style="text-align:right;max-width:58%;">${_esc(last)}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Pending / Threads</div>
+      <div class="mobile-metric-row"><span>pending post</span><strong>${pending.tweet ? `${pending.tweet.char_count} chars` : '—'}</strong></div>
+      <div class="mobile-metric-row"><span>pending combo</span><strong>${pending.combo ? `${pending.combo.char_count} chars` : '—'}</strong></div>
+      <div class="mobile-metric-row"><span>threads token</span><strong style="color:${token.configured ? 'var(--success)' : 'var(--danger)'}">${token.configured ? `ok • …${_esc(token.token_hint || '')}` : 'missing'}</strong></div>
+      <div class="mobile-metric-row"><span>analytics sync</span><strong>${analytics.latest_sync?.timestamp ? `${_timeAgo(analytics.latest_sync.timestamp)}` : '—'}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Failures</div>
+      <div class="mobile-metric-row"><span>publish failures 24h</span><strong style="color:${publish.failure_24h ? 'var(--danger)' : 'var(--success)'}">${publish.failure_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>media failures</span><strong>${publish.media_failures_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>auth failures</span><strong>${publish.auth_failures_24h || 0}</strong></div>
+      <div class="mobile-metric-row"><span>oldest alert</span><strong>${queue.oldest_age_minutes != null ? `${Math.round(queue.oldest_age_minutes)} min` : '—'}</strong></div>
+    </div>
+    <div class="mobile-card">
+      <div class="mobile-card-title">Events</div>
+      ${events.length ? events.map(ev => `
+        <div class="mobile-metric-row">
+          <span style="text-transform:uppercase;color:${ev.level === 'critical' ? 'var(--danger)' : ev.level === 'warning' ? 'var(--amber)' : 'var(--purple2)'}">${_esc(ev.level)}</span>
+          <strong style="text-align:right;max-width:62%;">${_esc(ev.text)}</strong>
+        </div>`).join('') : `<div class="mobile-metric-row"><span>status</span><strong>quiet</strong></div>`}
     </div>
     <div class="mobile-card">
       <div class="mobile-card-title">Actions</div>
