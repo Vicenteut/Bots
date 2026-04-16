@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.23-2",
+    "lastTouchedAt": "2026-03-24T22:35:00.000Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-19T00:56:51.835Z",
+    "lastRunVersion": "2026.3.13",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "browser": {
+    "enabled": true,
+    "cdpUrl": "ws://localhost:9222",
+    "executablePath": "/usr/bin/google-chrome-stable",
+    "headless": true,
+    "noSandbox": true,
+    "attachOnly": false,
+    "profiles": {
+      "openclaw": {
+        "cdpPort": 9222,
+        "attachOnly": false,
+        "color": "#F7931A"
+      }
+    }
+  },
+  "auth": {
+    "profiles": {
+      "anthropic:default": {
+        "provider": "anthropic",
+        "mode": "api_key"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-haiku-4-5-20251001"
+      },
+      "models": {
+        "anthropic/claude-sonnet-4-6": {
+          "params": {
+            "cacheRetention": "short"
+          }
+        },
+        "anthropic/claude-haiku-4-5-20251001": {
+          "params": {
+            "cacheRetention": "short"
+          }
+        }
+      },
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "1h"
+      },
+      "compaction": {
+        "mode": "default"
+      },
+      "heartbeat": {
+        "every": "30m"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "8603788822:AAHkhXtvyFBqYSA-hglE0aXr_0rAZhFaWxM",
+      "allowFrom": [
+        "6054558214"
+      ],
+      "groupPolicy": "allowlist",
+      "streaming": "partial"
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "b936a29f4dbe05a65f4c79ae171d25b59de192930d3cb94a"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  }
+}

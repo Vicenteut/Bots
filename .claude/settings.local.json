@@ -129,7 +129,31 @@
       "Bash(scp -P 443 root@89.167.109.62:/root/x-bot/sol-bot/sol_commands.py \"/tmp/sol_commands_vps.py\")",
       "Bash(scp -P 443 \"C:/Users/chico/Claude Code/sol-bot/scheduler.py\" root@89.167.109.62:/root/x-bot/sol-bot/scheduler.py)",
       "Bash(scp -P 443 \"C:/Users/chico/Claude Code/sol-bot/post_thread.js\" root@89.167.109.62:/root/x-bot/sol-bot/post_thread.js)",
-      "Bash(scp -P 443 root@89.167.109.62:/root/x-bot/sol-bot/threads_publisher.py \"C:/Users/chico/Claude Code/sol-bot/threads_publisher.py\")"
+      "Bash(scp -P 443 root@89.167.109.62:/root/x-bot/sol-bot/threads_publisher.py \"C:/Users/chico/Claude Code/sol-bot/threads_publisher.py\")",
+      "Bash(where claude:*)",
+      "Bash(where sshfs:*)",
+      "Bash(where rclone:*)",
+      "Read(//c/Program Files/SSHFS-Win//**)",
+      "Read(//c/Program Files/**)",
+      "Bash(reg query:*)",
+      "Bash(rclone listremotes:*)",
+      "Bash(rclone config:*)",
+      "Bash(schtasks /create /tn \"Mount VPS R Drive\" /tr \"powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File \\\\\"C:\\\\Users\\\\chico\\\\scripts\\\\mount-vps.ps1\\\\\"\" /sc ONLOGON /ru \"chico\" /f)",
+      "Bash(powershell.exe -Command \"schtasks /create /tn 'Mount VPS R Drive' /tr 'powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File \\\\\"C:\\\\\\\\Users\\\\\\\\chico\\\\\\\\scripts\\\\\\\\mount-vps.ps1\\\\\"' /sc ONLOGON /ru chico /f\")",
+      "Bash(powershell.exe -Command ':*)",
+      "Bash(powershell.exe -Command \"Start-Process -FilePath rclone -ArgumentList 'mount','Vicente:/','R:','--vfs-cache-mode','full','--network-name','VPS-Vicente','--volname','VPS' -WindowStyle Hidden; Start-Sleep 3; Test-Path 'R:\\\\'\")",
+      "Bash(powershell.exe -Command \"rclone mount Vicente:/ R: --vfs-cache-mode full --network-name VPS-Vicente 2>&1 &\")",
+      "Read(//r//**)",
+      "Bash(powershell.exe -Command \"Start-Process rclone -ArgumentList 'mount Vicente:/ R: --vfs-cache-mode full --network-name VPS-Vicente' -WindowStyle Hidden; Start-Sleep -Seconds 5; Test-Path 'R:\\\\'\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Backend:', d.get\\('s3',{}\\).get\\('s3Endpoint',''\\) or d.get\\('webdav',{}\\).get\\('address',''\\) or d.get\\('dropbox',{}\\) and 'Dropbox' or d.get\\('onedrive',{}\\) and 'OneDrive' or 'ver config'\\); print\\('Provider:', d.get\\('serviceType','?'\\)\\)\")",
+      "Bash(gh api:*)",
+      "Bash(python3 -c \"import json,sys; t=json.load\\(sys.stdin\\); [print\\(f['path']\\) for f in t.get\\('tree',[]\\) if 'AI/skills' in f['path'] or 'skills business' in f['path']]\")",
+      "Bash(powershell.exe -Command \"Start-Sleep -Seconds 5; Test-Path 'R:\\\\'\")",
+      "Bash(scp -P 443 \"C:\\\\Users\\\\chico\\\\scripts\\\\setup_kit.py\" root@89.167.109.62:/tmp/)",
+      "Bash(ssh -o ConnectTimeout=5 -o BatchMode=yes root@89.167.109.62 \"echo connected\")",
+      "Bash(ssh -o ConnectTimeout=5 -o BatchMode=yes -p 443 root@89.167.109.62 \"echo connected\")",
+      "Bash(scp -P 443 \"C:\\\\Users\\\\chico\\\\AppData\\\\Local\\\\Temp\\\\prompts_p1.txt\" \"root@89.167.109.62:/tmp/prompts.md\")",
+      "Bash(scp -P 443 \"root@89.167.109.62:/VICENT OG/🤖 AI/skills business/claude-marketing-kit/prompts.md\" \"C:\\\\Users\\\\chico\\\\AppData\\\\Local\\\\Temp\\\\prompts_review.md\")"
     ]
   }
 }
