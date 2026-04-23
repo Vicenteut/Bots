@@ -8,6 +8,7 @@ platform-specific copy, model routing, and memory continuity.
 import os
 import random
 import logging
+from collections import Counter
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -57,12 +58,12 @@ MODEL_MAP_ANTHROPIC = {
 MODEL_OVERRIDE_OR = {
     "haiku":  "anthropic/claude-haiku-4-5",
     "sonnet": "anthropic/claude-sonnet-4-6",
-    "opus":   "anthropic/claude-sonnet-4-6"  # opus removed, using sonnet,
+    "opus":   "anthropic/claude-sonnet-4-6",
 }
 MODEL_OVERRIDE_ANTHROPIC = {
     "haiku":  "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
-    "opus":   "claude-sonnet-4-6"  # opus removed, using sonnet,
+    "opus":   "claude-sonnet-4-6",
 }
 
 def get_model(tweet_type: str, manual: bool = False) -> str:
@@ -117,7 +118,7 @@ def _call_api(client, model: str, system: str, user_prompt: str, max_tokens: int
 CHARACTER_SHEET = """
 SOL'S CHARACTER:
 - You are Sol, geopolitical-macro analyst. Skeptical of consensus by default.
-- When everyone says X, your instinct is to explore not-X before accepting it.
+- When everyone repeats the consensus story, your instinct is to explore the missing counter-angle before accepting it.
 - You believe geography and demographics move markets more than monetary policy.
 - Globalization is unwinding. Supply chains are regionalizing. Sol noticed in 2019.
 - Moderately bullish on Bitcoin as a non-sovereign store of value. Deeply cynical about altcoins — most are securities wearing a hoodie.
@@ -192,14 +193,14 @@ Sol notices what others skip. Sol says it short. Sol trusts the data over the ta
 
 WRITING_RULES = """
 WRITING RULES:
-- 60% of tweets: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
+- 60% of posts: 1 emoji. 25%: 0 emojis. 15%: 2 emojis.
 - Emojis allowed occasionally: 💀 🤡 (only for genuine sarcasm)
 - Hook distribution:
   30% ultra-short (under 50 chars): "This doesn't add up.", "Something's coming."
   50% normal (50-100 chars)
   20% long (100-140 chars, only WIRE with numerical data)
 - Mix short sentences (5 words) with long ones (20 words).
-- Write in English. No hashtags on X.
+- Write in English. No hashtags on Threads.
 - ALWAYS use line breaks between ideas. NEVER a continuous block.
 """
 
@@ -241,6 +242,138 @@ HOOK_ANGLES = [
     "pattern",     # This happened before. In 2008. In 1998. Look.
 ]
 
+# One-sentence instructions for the FIRST line of Sol's analysis,
+# mapped to each hook angle. Injected explicitly into the prompt.
+HOOK_ANGLE_INSTRUCTIONS = {
+    "curiosity":  "Open on a connection nobody else is making yet — the dot between two things that don't usually get paired.",
+    "contrarian": "Open by naming the consensus story in one beat and flipping it immediately with a specific fact.",
+    "the_math":   "Open with the number that breaks the narrative. No adjectives, just the arithmetic that doesn't balance.",
+    "warning":    "Open with the piece the headline buried — the second-order effect nobody is pricing in yet.",
+    "authority":  "Open with what an institution is actually doing (positioning, balance sheet, filings), not what it is saying.",
+    "urgency":    "Open by naming a window that is closing — a specific deadline or structural trigger, not vague alarm.",
+    "pattern":    "Open with a precise historical rhyme: name the year, name the mechanism, then drop the current parallel.",
+}
+
+# Sol's rhetorical moves — each with structural variants so the same
+# move doesn't produce the same-shaped post twice. Voice: dry,
+# contrarian, geopolitical-macro. No em-dashes. No AI-isms.
+RHETORICAL_MOVES = {
+    "cold_fact_drop": {
+        "name": "Cold Fact Drop",
+        "instruction": "State hard numbers with zero editorializing. Let the reader do the math. No adjectives, no framing verbs. Stack the data and walk away.",
+        "example": "German industrial output -4.2% YoY. Three consecutive quarters. Capacity utilization at 76%. The last time it was here, 2009.",
+        "structural_variants": [
+            "Stack 3 to 4 independent data points on separate lines. No connective tissue. Each line is one number plus the thing it measures.",
+            "Open with the single cleanest number, then one line of context for what it means historically, then back to a raw figure.",
+            "List two numbers from opposite sides of the same trade (e.g. buyer and seller, asset and its funding). Let the asymmetry speak.",
+            "One headline number, then its denominator, then its first derivative. Three lines, three perspectives on the same fact.",
+            "A ratio in line 1, the absolute values it's built from in line 2, the last time that ratio hit that level in line 3.",
+        ],
+    },
+    "buried_lede": {
+        "name": "Buried Lede",
+        "instruction": "Acknowledge the headline briefly, then pivot to what the headline left out. The pivot is the entire post. The headline is just the doorway.",
+        "example": "Yes, the Fed held. The interesting thing is the dot plot: two members moved their 2026 terminal rate up. The market is still pricing cuts.",
+        "structural_variants": [
+            "One concise line that concedes the headline, then three lines elaborating the thing the headline skipped.",
+            "Phrase the headline as a given (short clause), then immediately name the overlooked variable and walk through its mechanics.",
+            "Open with 'The headline is X. The footnote is Y.' Then spend the rest explaining why Y matters more than X.",
+            "Grant the obvious read in one sentence, then expose the assumption it rests on, then note what that assumption requires to hold.",
+            "Two lines: what the story said vs. what the filings / data release actually showed. Finish with which of the two matters for positioning.",
+        ],
+    },
+    "nobody_noticed": {
+        "name": "Nobody Noticed",
+        "instruction": "Surface a real data point that got zero coverage. Don't announce its importance. Drop it like a footnote and trust the reader.",
+        "example": "The yuan fixed 0.4% stronger for 8 straight sessions. Nobody wrote about it. The last time PBOC did this, capital account pressure was the reason.",
+        "structural_variants": [
+            "Drop the overlooked fact in line 1. Line 2: where you'd normally see it covered. Line 3: why it wasn't.",
+            "The quiet data point, then the loud story that was crowding it out of the feed.",
+            "A specific print or fixing, then the historical analogue from another decade, then nothing else.",
+            "The obscure series name and its current value. Then what that value has historically preceded. One-sentence close.",
+            "Lead with the silence itself ('X has moved Y percent this week. No headlines.'), then explain what Y means in that market.",
+        ],
+    },
+    "history_rhyme": {
+        "name": "History Rhyme",
+        "instruction": "Connect the current moment to a specific historical precedent. Give the year. Give the mechanism. No vague 'echoes of' language.",
+        "example": "This is the 1971 playbook, not 2008. Fiscal dominance first, monetary response second. Different disease, different treatment.",
+        "structural_variants": [
+            "Name the year in line 1. Describe the mechanism that year in line 2. Map today's equivalent in line 3.",
+            "Open with 'Not the first time.' Then deliver the specific precedent with year and trigger. Then one line of divergence.",
+            "Two historical precedents side by side. The post is choosing which one fits. Let the reader see both.",
+            "Treat history as a checklist: 'Last time X happened, Y followed. Z followed Y. We're at step two.'",
+            "Describe the policy response in an old crisis, then note what's different in the mechanics this time. End on which direction the difference cuts.",
+        ],
+    },
+    "math_check": {
+        "name": "Math Check",
+        "instruction": "When the story and the numbers diverge, show the divergence. Line the figures up so the gap is impossible to miss. Don't editorialize — arithmetic is the argument.",
+        "example": "They project 3% GDP growth. Real retail sales -1.2%. ISM new orders below 50 for six months. The math wants a number starting with 1.",
+        "structural_variants": [
+            "Line 1: the claim. Line 2: the number that contradicts it. Line 3: the implied gap in plain units.",
+            "Set up an identity (A = B + C). Plug in the reported values. Point at the remainder that has to go somewhere.",
+            "Three lines of numbers that can't all be true at once. Close with the one that's about to give.",
+            "Name the projection, name the current run-rate, name the delta required to close the gap. Let that delta speak.",
+            "Start with a consensus forecast. Walk the reader through the components. Stop when the contradiction is obvious.",
+        ],
+    },
+    "cold_conclusion": {
+        "name": "Cold Conclusion",
+        "instruction": "Build the setup in 2 or 3 short lines, then close with the one sentence nobody wants to say out loud. The close is the reason the post exists.",
+        "example": "Japan's 10-year at 1.1%. BOJ still buying. MoF still issuing. Someone is absorbing duration at negative real yields. Ask who, and why.",
+        "structural_variants": [
+            "Three lines of neutral setup, then one blunt single-sentence close that reframes everything above it.",
+            "Two lines establishing the mechanics, one line asking the question the mechanics force, no answer offered.",
+            "Walk up to the conclusion in descending units — macro, sector, specific actor — and land on that actor's incentive.",
+            "State the official narrative, then the funding flow that contradicts it, then one cold sentence naming what that means.",
+            "Open with the consensus, raise one mechanical objection, then close with the unflattering implication in under ten words.",
+        ],
+    },
+}
+
+# Closer types — the final line's job. Explicitly injected so Sol's
+# closes don't collapse into a single predictable shape.
+CLOSER_TYPES = {
+    "mechanics_reveal": {
+        "instruction": "End by naming the mechanism that makes the situation inevitable. Pipes, plumbing, flows — the boring lever that actually moves the outcome.",
+        "example": "The swap lines exist for a reason. Someone in Frankfurt is going to use them.",
+    },
+    "absent_variable": {
+        "instruction": "End by naming the variable missing from everyone else's analysis. One sentence. Drop it and stop.",
+        "example": "Nobody in this thread is pricing the refinancing wall in 2027.",
+    },
+    "time_compression": {
+        "instruction": "End by collapsing the horizon. Point at a specific window that is shorter than the consensus assumes.",
+        "example": "This isn't a 2028 problem. It's a next-auction problem.",
+    },
+    "cost_in_dollars": {
+        "instruction": "End with the price tag. Put the whole post in dollar terms, in one clean figure.",
+        "example": "Translated: about 340 billion dollars of duration that has to find a home.",
+    },
+    "no_close_at_all": {
+        "instruction": "Do NOT add a closer line. The penultimate analysis line IS the final word. Stop there.",
+        "example": "(no closing line — the post ends on its last analytical beat)",
+    },
+    "question_drop": {
+        "instruction": "End with exactly one cold question. Not rhetorical theater — a real question the numbers force. No answer.",
+        "example": "So who absorbs the duration?",
+    },
+    "historical_echo": {
+        "instruction": "End by naming the closest historical precedent in one short clause. No explanation. Just the year or the episode.",
+        "example": "Last time this shape appeared: 1998.",
+    },
+}
+
+
+def _pick_rhetorical_move(memory, recent_n: int = 8) -> str:
+    """Inverse-square weighted pick over RHETORICAL_MOVES, penalizing recent use."""
+    counts = Counter(memory.get_recent_moves(n=recent_n))
+    keys = list(RHETORICAL_MOVES.keys())
+    weights = [1.0 / (counts.get(k, 0) + 1) ** 2 for k in keys]
+    return random.choices(keys, weights=weights, k=1)[0]
+
+
 MOOD_INSTRUCTIONS = {
     "energetic":  "Punchy, short sentences. Like you just read this and had to say something.",
     "reflective": "Slower pace. One idea per line. Like you've been thinking about this for a week.",
@@ -252,21 +385,30 @@ MOODS = list(MOOD_INSTRUCTIONS.keys())
 
 TWEET_TYPES = ["WIRE", "ANALISIS", "DEBATE", "CONEXION"]
 
+THREADS_POST_MAX_CHARS = 500
+THREADS_LENGTH_GUIDE = {
+    "WIRE": "Target 180-260 characters. Hard max 300.",
+    "DEBATE": "Target 220-340 characters. Hard max 380.",
+    "ANALISIS": "Target 320-460 characters. Hard max 500.",
+    "CONEXION": "Target 300-460 characters. Hard max 500.",
+}
+THREADS_COMBINADA_LENGTH_GUIDE = "Target 360-480 characters. Hard max 500."
+
 
 # ------------------------------------------------------------------
-# Tone modifiers per tweet type
+# Tone modifiers per post format
 # ------------------------------------------------------------------
 
 TONE_MODIFIERS = {
-    "WIRE":     "Tone: urgent, factual, zero opinion. Data + direct impact. Max 2 lines.",
-    "ANALISIS": "Tone: reflective, like an internal memo. Connect dots others miss. 3-5 lines.",
+    "WIRE":     "Tone: urgent, factual, zero opinion. Data + direct impact. Max 2 short lines.",
+    "ANALISIS": "Tone: reflective, like an internal memo. Connect dots others miss. 4-6 short lines.",
     "DEBATE": (
         "Tone: state something the mainstream narrative gets wrong. "
         "Be specific — name the assumption, not just 'the system'. "
         "The ideal reader reaction is 'wait, is that actually true?' "
-        "3 lines. No hedging at the end."
+        "3-4 short lines. No hedging at the end."
     ),
-    "CONEXION": "Tone: detective. You just discovered something. Mix wonder with concern. 3-4 lines.",
+    "CONEXION": "Tone: detective. You just discovered something. Mix wonder with concern. 4-5 short lines.",
 }
 
 
@@ -276,16 +418,17 @@ TONE_MODIFIERS = {
 
 PLATFORM_INSTRUCTIONS = {
     "x": (
-        "Write for X. Be provocative and direct. "
+        "Write for Threads. Be provocative and direct. "
         "Include at least one specific numerical data point when possible. "
-        "Optimize for bookmarks and quote-tweets. Max 280 characters."
+        "Optimize for saves, replies, and reposts. Use the format-specific Threads length guide."
     ),
     "threads": (
         "Write for Threads. Same Sol voice but slightly more accessible — "
         "assume the reader is smart but not a trader. "
-        "Use one more sentence of context than you would on X. "
+        "Use one more sentence of context when it sharpens the insight. "
         "If the insight earns a question, end with one. Don't force it. "
-        "Maximum 500 characters."
+        "As long as needed, no longer. Never pad to hit the limit. "
+        f"Technical maximum: {THREADS_POST_MAX_CHARS} characters."
     ),
 }
 
@@ -321,19 +464,19 @@ def generate_tweet(
     headline: dict,
     tweet_type: str = None,
     hook_angle: str = None,
-    platform: str = "x",
+    platform: str = "threads",
     mood: str = None,
     manual: bool = False,
     model_override: str = None,
 ) -> str:
     """
-    Generate a single tweet/post for the given headline.
+    Generate a single Threads post for the given headline.
 
     Args:
         headline: dict with keys title, summary, source
         tweet_type: WIRE | ANALISIS | DEBATE | CONEXION (random if None)
         hook_angle: one of HOOK_ANGLES (random if None)
-        platform: "x" or "threads"
+        platform: "threads" or "x"
         mood: one of MOODS (random if None)
 
     Returns:
@@ -352,6 +495,7 @@ def generate_tweet(
     topic = _detect_topic(headline)
     tone = TONE_MODIFIERS.get(tweet_type, "")
     platform_instr = PLATFORM_INSTRUCTIONS.get(platform.lower(), PLATFORM_INSTRUCTIONS["x"])
+    length_instr = THREADS_LENGTH_GUIDE.get(tweet_type, "Target 300-460 characters. Hard max 500.")
     model = get_model(tweet_type, manual=manual)
     if model_override and model_override.lower() not in ("auto", ""):
         _is_or = bool(os.getenv("OPENROUTER_API_KEY"))
@@ -392,6 +536,7 @@ Mood: {MOOD_INSTRUCTIONS[mood]}
 
 {tone}
 {platform_instr}
+Length guidance: {length_instr} As long as needed, no longer. Short beats, no filler.
 {avoid_note}
 {instruction_note}
 Generate ONE post. Only the final text. No quotes, no labels.
@@ -403,7 +548,7 @@ IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstan
         system = SYSTEM_PROMPT + "\n\n" + continuity
 
     client, is_or = _get_client()
-    tweet = _call_api(client, model, system, prompt, 200, is_or).strip('"')
+    tweet = _call_api(client, model, system, prompt, 320, is_or).strip('"')
 
     # Save to memory
     memory.add_tweet(tweet, tweet_type, topic, platform)
@@ -411,20 +556,41 @@ IMPORTANT: Write exclusively in English. Do not use Spanish under any circumstan
     return tweet
 
 
-def generate_combinada_tweet(headline: dict, manual: bool = False) -> str:
+def generate_combinada_tweet(
+    headline: dict,
+    manual: bool = False,
+    move_override: str | None = None,
+) -> str:
     """
-    Generate a single fused tweet: raw headline + Sol's hooked analysis.
+    Generate a single fused Threads post: raw headline + Sol's hooked analysis.
 
     Format:
       Line 1: raw news headline (verbatim or near-verbatim)
       Blank line
-      2-3 lines: Sol's analysis using one of his rhetorical moves, opening with a tension hook
-      Total ≤ 280 characters.
+      3-5 lines: Sol's analysis, executed through one explicit rhetorical move,
+      one structural variant of that move, one hook angle for the first analysis
+      line, and one closer type for the final line.
+      Total ≤ 500 characters.
     """
     model = get_model("ANALISIS", manual=manual)
     memory = get_memory()
     continuity = memory.build_continuity_prompt()
     system = SYSTEM_PROMPT + ("\n\n" + continuity if continuity else "")
+
+    if move_override and move_override in RHETORICAL_MOVES:
+        move_key = move_override
+    else:
+        if move_override:
+            logger.warning(f"[generator] Unknown move_override '{move_override}', picking weighted random")
+        move_key = _pick_rhetorical_move(memory)
+    move = RHETORICAL_MOVES[move_key]
+    variant = random.choice(move["structural_variants"])
+
+    hook_angle = random.choice(HOOK_ANGLES)
+    hook_instruction = HOOK_ANGLE_INSTRUCTIONS[hook_angle]
+
+    closer_key = random.choice(list(CLOSER_TYPES.keys()))
+    closer = CLOSER_TYPES[closer_key]
 
     instruction_note = f"\nOwner correction: {headline['instruction']}" if headline.get('instruction') else ""
 
@@ -432,19 +598,69 @@ def generate_combinada_tweet(headline: dict, manual: bool = False) -> str:
 Context: {headline['summary'][:400]}
 Source: {headline['source']}
 
-Write ONE tweet in this exact format:
+Write ONE Threads post in this exact format:
 - Line 1: The raw news headline, verbatim or near-verbatim. No opinion, no framing added.
 - Blank line
-- 2-3 lines of Sol's analysis. Use ONE of Sol's rhetorical moves: THE BURIED LEDE, NOBODY NOTICED, THE MATH CHECK, THE HISTORY RHYME, THE COLD FACT DROP, or THE COLD CONCLUSION. The first line of analysis must create immediate tension or curiosity — it should make the reader stop scrolling. End with the sharpest insight Sol has on this. Cold, no filler.
-- Total must be under 280 characters including the blank line.
+- 3-5 short lines of Sol's analysis. Execute the move and the closer below exactly as specified.
+
+RHETORICAL MOVE: {move['name']}
+{move['instruction']}
+Reference execution: {move['example']}
+STRUCTURAL VARIANT for this post: {variant}
+
+FIRST ANALYSIS LINE (hook angle = {hook_angle}):
+{hook_instruction}
+
+FINAL LINE (closer type = {closer_key}):
+{closer['instruction']}
+Reference close: {closer['example']}
+
+Length guidance: {THREADS_COMBINADA_LENGTH_GUIDE} As long as needed, no longer. Never pad to hit the limit.
 {instruction_note}
 Output only the final text. No quotes, no labels, no explanations.
 Write exclusively in English."""
 
     client, is_or = _get_client()
-    tweet = _call_api(client, model, system, prompt, 200, is_or).strip('"')
+    tweet = _call_api(client, model, system, prompt, 360, is_or).strip('"')
 
     topic = _detect_topic(headline)
-    memory.add_tweet(tweet, "ANALISIS", topic, "x")
+    memory.add_tweet(tweet, "ANALISIS", topic, "threads", rhetorical_move=move_key)
 
     return tweet
+
+
+def generate_thread(headline: dict, num_tweets: int = 5, platform: str = "threads") -> list[str]:
+    """Generate a multi-post thread."""
+    hook_angle = random.choice(HOOK_ANGLES)
+    topic = _detect_topic(headline)
+    mood = random.choice(MOODS)
+    model = get_model("ANALISIS")  # threads are always deep-form
+
+    memory = get_memory()
+    continuity = memory.build_continuity_prompt()
+    system = SYSTEM_PROMPT + ("\n\n" + continuity if continuity else "")
+
+    prompt = f"""News: {headline['title']}
+Context: {headline['summary'][:600]}
+Source: {headline['source']}
+Hook angle: {hook_angle}
+Mood: {MOOD_INSTRUCTIONS[mood]}
+
+Write a thread of {num_tweets} posts:
+Post 1: Strong hook using the "{hook_angle}" angle. End with "Thread 🧵"
+Posts 2-{num_tweets - 1}: One data point or angle per post. Short lines. No filler.
+Post {num_tweets}: One cold conclusion. No summary. No CTA. Just the takeaway Sol would say out loud.
+
+Separate each post with ---
+Text only. No numbers, no labels. Write exclusively in English."""
+
+    client, is_or = _get_client()
+    raw = _call_api(client, model, system, prompt, 900, is_or)
+    posts = [t.strip().strip('"') for t in raw.split("---") if t.strip()]
+    posts = posts[:num_tweets]
+
+    # Save thread opener to memory
+    if posts:
+        memory.add_tweet(posts[0], "ANALISIS", topic, platform)
+
+    return posts

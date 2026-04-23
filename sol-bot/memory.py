@@ -56,6 +56,7 @@ class SolMemory:
         tweet_type: str,
         topic_tag: str,
         platform: str = "x",
+        rhetorical_move: str | None = None,
     ):
         """Append a published tweet to memory, trimming to limit."""
         entry = {
@@ -65,6 +66,8 @@ class SolMemory:
             "tweet_type": tweet_type.upper(),
             "platform": platform.lower(),
         }
+        if rhetorical_move is not None:
+            entry["rhetorical_move"] = rhetorical_move
         self._entries.append(entry)
         # Keep only the most recent N entries
         self._entries = self._entries[-self.limit:]
@@ -106,6 +109,11 @@ class SolMemory:
             except (ValueError, KeyError):
                 continue
         return list(tags)
+
+    def get_recent_moves(self, n: int = 8) -> list[str]:
+        """Returns rhetorical_move values from the last N entries (skipping absent)."""
+        recent = self._entries[-n:] if self._entries else []
+        return [m for m in (e.get("rhetorical_move") for e in recent) if m]
 
     def get_recent_topics(self, hours: int = 12) -> list[str]:
         """Returns topic tags from the last N hours (for deduplication)."""
