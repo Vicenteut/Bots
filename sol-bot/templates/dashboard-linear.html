@@ -13,7 +13,7 @@
      Self-hosted (CSP script-src only allows 'self', not external CDNs). -->
 <script src="/static/vendor/Sortable.min.js"></script>
 
-<link rel="stylesheet" href="/static/dashboard.css?v=1776983614">
+<link rel="stylesheet" href="/static/dashboard.css?v=1776984245">
 </head>
 <body data-side="expanded">
 
@@ -6259,6 +6259,199 @@ startCommandPolling();
       try { localStorage.setItem(LS_KEY, JSON.stringify(order)); }
       catch (e) { console.warn('[cc-sortable] persist failed:', e); }
     },
+  });
+})();
+
+/* ============================================================
+   MOBILE — Long-press multi-select on Monitor (Tarea 3 / v4)
+   ============================================================
+   On phones (<768px), the .feed-select checkbox is hidden (Sprint 5.1).
+   This module adds long-press 500ms on any .feed-row to enter selection
+   mode + a floating top toolbar with Cancel/Ignore. Tap rows to add or
+   remove from the set. Bulk-ignore uses /api/monitor/bulk-ignore. */
+(function monLongPressSelect() {
+  if (window.__MON_LP_BOUND) return;
+  window.__MON_LP_BOUND = true;
+
+  const PRESS_MS = 500;
+  const MOVE_TOLERANCE_PX = 10;
+  const state = {
+    selecting: false,
+    selected: new Set(),
+    pressTimer: null,
+    pressStartX: 0,
+    pressStartY: 0,
+    pressRow: null,
+    suppressClickUntil: 0,
+  };
+
+  function isMobile() { return window.innerWidth < 768; }
+
+  function getRow(target) {
+    return target.closest && target.closest('.mon-feed .feed-row');
+  }
+
+  function rowId(row) {
+    return row && (row.dataset.monId || row.dataset.feedId || '');
+  }
+
+  function clearTimer() {
+    if (state.pressTimer) { clearTimeout(state.pressTimer); state.pressTimer = null; }
+    state.pressRow = null;
+  }
+
+  function showToolbar() {
+    let tb = document.getElementById('mon-select-toolbar');
+    if (!tb) {
+      tb = document.createElement('div');
+      tb.id = 'mon-select-toolbar';
+      tb.className = 'mon-select-toolbar';
+      tb.innerHTML =
+        '<span class="count">0 selected</span>' +
+        '<div class="actions">' +
+          '<button class="btn-cancel" type="button">Cancel</button>' +
+          '<button class="btn-ignore" type="button">Ignore</button>' +
+        '</div>';
+      document.body.appendChild(tb);
+      tb.querySelector('.btn-cancel').addEventListener('click', cancelSelect);
+      tb.querySelector('.btn-ignore').addEventListener('click', bulkIgnore);
+    }
+    requestAnimationFrame(() => tb.classList.add('visible'));
+  }
+
+  function updateToolbar() {
+    const tb = document.getElementById('mon-select-toolbar');
+    if (!tb) return;
+    tb.querySelector('.count').textContent = state.selected.size + ' selected';
+    const ignore = tb.querySelector('.btn-ignore');
+    if (ignore) ignore.disabled = state.selected.size === 0;
+  }
+
+  function hideToolbar() {
+    const tb = document.getElementById('mon-select-toolbar');
+    if (!tb) return;
+    tb.classList.remove('visible');
+    setTimeout(() => { if (tb && !tb.classList.contains('visible')) tb.remove(); }, 220);
+  }
+
+  function enterSelectMode(row) {
+    state.selecting = true;
+    const list = document.getElementById('mon-feed-list');
+    if (list) list.classList.add('is-selecting');
+    showToolbar();
+    if (row) toggleSelect(row);
+  }
+
+  function toggleSelect(row) {
+    const id = rowId(row);
+    if (!id) return;
+    if (state.selected.has(id)) { state.selected.delete(id); row.classList.remove('selected'); }
+    else                        { state.selected.add(id);    row.classList.add('selected'); }
+    updateToolbar();
+  }
+
+  function cancelSelect() {
+    state.selecting = false;
+    state.selected.clear();
+    const list = document.getElementById('mon-feed-list');
+    if (list) {
+      list.classList.remove('is-selecting');
+      list.querySelectorAll('.feed-row.selected').forEach(r => r.classList.remove('selected'));
+    }
+    hideToolbar();
+  }
+
+  async function bulkIgnore() {
+    const ids = Array.from(state.selected);
+    if (!ids.length) return;
+    let confirmed = true;
+    if (typeof apiConfirm === 'function') {
+      confirmed = await apiConfirm(
+        'Ignore ' + ids.length + ' item' + (ids.length > 1 ? 's' : '') + ' from Monitor?',
+        { title: 'Ignore items', confirmText: 'Ignore', kind: 'danger' }
+      );
+    }
+    if (!confirmed) return;
+    try {
+      const r = (typeof apiPost === 'function')
+        ? await apiPost('/api/monitor/bulk-ignore', { ids })
+        : await fetch('/api/monitor/bulk-ignore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+          }).then(x => x.json());
+      const removed = (r && typeof r.removed === 'number') ? r.removed : ids.length;
+      if (typeof apiToast === 'function') apiToast('Ignored ' + removed + ' item(s)', 'ok');
+      cancelSelect();
+      if (typeof loadMonitorQueue === 'function') await loadMonitorQueue();
+      if (typeof loadCcFeed === 'function') loadCcFeed();
+    } catch (e) {
+      if (typeof apiToast === 'function') apiToast('Bulk ignore failed: ' + (e && e.message || e), 'err');
+    }
+  }
+
+  // Event delegation on document so we survive every monitor re-render.
+  document.addEventListener('touchstart', function (e) {
+    if (!isMobile()) return;
+    const row = getRow(e.target);
+    if (!row) return;
+    state.pressRow = row;
+    const t = e.touches[0];
+    state.pressStartX = t.clientX;
+    state.pressStartY = t.clientY;
+    clearTimeout(state.pressTimer);
+    state.pressTimer = setTimeout(() => {
+      // Long-press fired
+      if (!state.pressRow) return;
+      if (!state.selecting) enterSelectMode(state.pressRow);
+      else                  toggleSelect(state.pressRow);
+      // Suppress the synthetic click after long-press
+      state.suppressClickUntil = Date.now() + 600;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+      state.pressTimer = null;
+    }, PRESS_MS);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!state.pressTimer) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientX - state.pressStartX) > MOVE_TOLERANCE_PX ||
+        Math.abs(t.clientY - state.pressStartY) > MOVE_TOLERANCE_PX) {
+      clearTimer();
+    }
+  }, { passive: true });
+
+  ['touchend', 'touchcancel'].forEach(evt => {
+    document.addEventListener(evt, () => { clearTimer(); }, { passive: true });
+  });
+
+  // Tap inside selection mode = toggle (suppress accordion). Capture phase so
+  // we beat the existing accordion-toggle click handler in _renderMonitor.
+  document.addEventListener('click', function (e) {
+    if (!isMobile()) return;
+    if (Date.now() < state.suppressClickUntil) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    if (!state.selecting) return;
+    const row = getRow(e.target);
+    if (!row) return;
+    // Ignore clicks on action buttons inside the accordion
+    if (e.target.closest('.mon-row-detail-btn') || e.target.closest('[data-mon-select]')) return;
+    e.stopPropagation();
+    e.preventDefault();
+    toggleSelect(row);
+  }, true /* capture */);
+
+  // Esc on a paired keyboard cancels selection
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.selecting) cancelSelect();
+  });
+
+  // If the viewport grows past mobile while selecting, exit cleanly
+  window.addEventListener('resize', () => {
+    if (state.selecting && !isMobile()) cancelSelect();
   });
 })();
 </script>

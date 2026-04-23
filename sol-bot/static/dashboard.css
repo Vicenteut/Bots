@@ -3799,3 +3799,97 @@ body[data-side="collapsed"] .lin-search { display: none; }
     padding: 10px 14px;
   }
 }
+
+/* ============================================================
+   MOBILE — Long-press multi-select on Monitor (replaces the
+   .feed-select checkbox that we hide on mobile in Sprint 5.1).
+   Long-press 500ms on any .feed-row enters selection mode;
+   tap rows to add/remove from the set; floating toolbar at the
+   top exposes Cancel + Ignore (bulk).
+   ============================================================ */
+@media (max-width: 768px) {
+  .mon-feed.is-selecting .feed-row {
+    padding-left: 44px;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mon-feed.is-selecting .feed-row::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--border-strong, var(--border));
+    border-radius: 50%;
+    background: var(--surface);
+    transition: background .12s, border-color .12s;
+  }
+  .mon-feed.is-selecting .feed-row.selected::before {
+    background: var(--accent, #5e6ad2);
+    border-color: var(--accent, #5e6ad2);
+  }
+  .mon-feed.is-selecting .feed-row.selected::after {
+    content: '\2713';
+    position: absolute;
+    left: 17px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  /* While selecting, suppress the accordion toggle visual cue */
+  .mon-feed.is-selecting .feed-row { cursor: default; }
+
+  .mon-select-toolbar {
+    position: fixed;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    z-index: 100;
+    transform: translateY(-110%);
+    transition: transform .2s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+  }
+  .mon-select-toolbar.visible { transform: translateY(0); }
+  .mon-select-toolbar .count {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .mon-select-toolbar .actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .mon-select-toolbar button {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface-2, var(--surface));
+    color: var(--text);
+  }
+  .mon-select-toolbar .btn-ignore {
+    background: var(--hue-red, #e5484d);
+    color: white;
+    border-color: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mon-select-toolbar { transition: none; }
+    .mon-feed.is-selecting .feed-row::before { transition: none; }
+  }
+}
