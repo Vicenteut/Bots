@@ -1,4 +1,4 @@
-ORIGINAL_TWEET:
+ORIGINAL_POST:
 {{original_tweet}}
 
 SOL_POSTS_TODAY (do NOT contradict or repeat angles from these):
