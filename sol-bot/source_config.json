@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "name": "Telegram",
+      "type": "telegram",
+      "enabled": true,
+      "base_priority": "normal",
+      "credibility": "medium",
+      "category_defaults": [],
+      "is_official": false,
+      "redistributable": true,
+      "language": "en"
+    },
+    {
+      "name": "n8n-webhook",
+      "type": "webhook",
+      "enabled": true,
+      "base_priority": "normal",
+      "credibility": "medium",
+      "category_defaults": [],
+      "is_official": false,
+      "redistributable": true,
+      "language": "en"
+    },
+    {
+      "name": "Manual",
+      "type": "manual",
+      "enabled": true,
+      "base_priority": "normal",
+      "credibility": "medium",
+      "category_defaults": [],
+      "is_official": false,
+      "redistributable": true,
+      "language": "en"
+    },
+    {
+      "name": "CoinDesk",
+      "type": "rss",
+      "enabled": false,
+      "feed_url": "",
+      "base_priority": "normal",
+      "credibility": "medium",
+      "category_defaults": [
+        "crypto"
+      ],
+      "is_official": false,
+      "redistributable": true,
+      "fetch_interval_minutes": 15,
+      "language": "en"
+    },
+    {
+      "name": "SEC",
+      "type": "rss",
+      "enabled": false,
+      "feed_url": "",
+      "base_priority": "high",
+      "credibility": "high",
+      "category_defaults": [
+        "regulation",
+        "markets"
+      ],
+      "is_official": true,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "language": "en"
+    },
+    {
+      "name": "Federal Reserve",
+      "type": "rss",
+      "enabled": false,
+      "feed_url": "",
+      "base_priority": "high",
+      "credibility": "high",
+      "category_defaults": [
+        "macro",
+        "markets"
+      ],
+      "is_official": true,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "language": "en"
+    },
+    {
+      "name": "BBC World",
+      "type": "rss",
+      "enabled": false,
+      "feed_url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "base_priority": "normal",
+      "credibility": "high",
+      "category_defaults": [
+        "geopolitica",
+        "general"
+      ],
+      "is_official": false,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "download_media_high_only": true,
+      "language": "en"
+    },
+    {
+      "name": "BBC Business",
+      "type": "rss",
+      "enabled": false,
+      "feed_url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "base_priority": "normal",
+      "credibility": "high",
+      "category_defaults": [
+        "markets",
+        "macro"
+      ],
+      "is_official": false,
+      "redistributable": true,
+      "fetch_interval_minutes": 30,
+      "download_media_high_only": true,
+      "language": "en"
+    }
+  ]
+}

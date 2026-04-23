@@ -66,6 +66,7 @@ PID_FILES = {
 BRAIN_HISTORY   = BOT_DIR / "brain_history.json"
 PUBLISH_LOG     = LOGS_DIR / "publish_log.json"
 PENDING_TWEET   = BOT_DIR / "pending_tweet.json"
+PENDING_TWEET_B = BOT_DIR / "pending_tweet_b.json"
 PENDING_COMBO   = BOT_DIR / "pending_combo.json"
 MONITOR_PENDING = BOT_DIR / "monitor_pending.json"
 MONITOR_QUEUE      = BOT_DIR / "monitor_queue.json"
@@ -213,36 +214,128 @@ def _login_page_response() -> Response:
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SOL // LOGIN</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:#080808;color:#e5e5e5;font-family:'Barlow Condensed',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;}
-  .box{background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:36px 40px;width:340px;}
-  h1{font-size:18px;letter-spacing:.12em;color:#e5e5e5;margin-bottom:4px;}
-  h1 span{color:#f59e0b;}
-  .sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4b5563;margin-bottom:28px;}
-  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;margin-bottom:5px;}
-  input{width:100%;background:#1a1a1a;border:1px solid #333;border-radius:3px;color:#e5e5e5;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 11px;outline:none;margin-bottom:14px;}
-  input:focus{border-color:#0e7490;}
-  button{width:100%;background:#f59e0b;color:#000;border:none;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.06em;padding:10px;cursor:pointer;margin-top:4px;}
-  button:hover{filter:brightness(1.1);}
-  .err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#ef4444;margin-bottom:12px;display:none;}
-  .err.show{display:block;}
+  :root{
+    --bg:#08090a; --surface:#131416; --surface-2:#191a1d; --border:#1f2023; --border-strong:#2a2c30;
+    --text:#e6e7e9; --text-muted:#8a8f98; --text-dim:#5c6166;
+    --accent:#5e6ad2; --accent-hover:#6f7be0; --hue-red:#ef4444;
+    --font-sans:"Inter","Inter Variable",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","Berkeley Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:var(--font-sans);font-size:14px;line-height:1.5;
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:24px;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(94,106,210,.08), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 50% 110%, rgba(94,106,210,.05), transparent 60%);
+  }
+  .box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:36px 36px 32px;
+    width:100%;max-width:380px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5),0 4px 14px rgba(0,0,0,.3);
+  }
+  .brand{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .brand-dot{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 12px rgba(94,106,210,.55);
+    flex-shrink:0;
+  }
+  h1{
+    font:600 14px/1.2 var(--font-sans);
+    letter-spacing:.04em;color:var(--text);
+    text-transform:uppercase;
+  }
+  h1 span{color:var(--text-muted);font-weight:400;margin:0 4px}
+  .sub{
+    font:500 11px var(--font-mono);
+    color:var(--text-dim);
+    letter-spacing:.02em;
+    margin:0 0 28px 18px;
+  }
+  label{
+    display:block;
+    font:500 10px var(--font-sans);
+    letter-spacing:.08em;text-transform:uppercase;
+    color:var(--text-muted);
+    margin-bottom:6px;
+  }
+  input{
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    color:var(--text);
+    font:400 13px/1.4 var(--font-mono);
+    padding:10px 12px;outline:none;
+    margin-bottom:16px;
+    transition:border-color .12s,background .12s;
+  }
+  input:hover{border-color:var(--border-strong)}
+  input:focus{border-color:var(--accent);background:var(--surface)}
+  button{
+    width:100%;
+    background:var(--accent);
+    color:#fff;border:1px solid var(--accent);
+    border-radius:6px;
+    font:600 13px/1 var(--font-sans);
+    letter-spacing:.02em;
+    padding:11px 14px;cursor:pointer;
+    margin-top:6px;
+    transition:background .12s,border-color .12s,transform .04s;
+  }
+  button:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+  button:active{transform:translateY(1px)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .err{
+    font:500 12px var(--font-sans);
+    color:var(--hue-red);
+    background:rgba(239,68,68,.08);
+    border:1px solid rgba(239,68,68,.25);
+    border-radius:6px;
+    padding:8px 12px;
+    margin-bottom:16px;
+    display:none;
+  }
+  .err.show{display:block}
+  .footer{
+    text-align:center;
+    font:400 10px var(--font-mono);
+    color:var(--text-dim);
+    margin-top:20px;
+    letter-spacing:.04em;
+  }
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>SOL <span>//</span> COMMAND CENTER</h1>
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <h1>SOL <span>//</span> COMMAND CENTER</h1>
+  </div>
   <div class="sub">dashboard · tier 1</div>
   <div class="err" id="err">Invalid credentials</div>
   <form method="post" action="/login">
-    <label>Username</label>
-    <input type="text" name="username" autocomplete="username" autofocus>
-    <label>Password</label>
-    <input type="password" name="password" autocomplete="current-password">
-    <button type="submit">ENTER</button>
+    <label for="u">Username</label>
+    <input id="u" type="text" name="username" autocomplete="username" autofocus spellcheck="false">
+    <label for="p">Password</label>
+    <input id="p" type="password" name="password" autocomplete="current-password">
+    <button type="submit">Sign in</button>
   </form>
+  <div class="footer">secure session · authenticated</div>
 </div>
 <script>
 if (location.search.includes('error=1')) {
@@ -409,6 +502,8 @@ def _attach_media_to_pending(data: dict) -> dict:
                 data["media_path"] = paths[0]
                 data["media_type"] = mp_data.get("media_type", "photo")
                 print(f"[generate] attached {len(paths)} media file(s) from monitor_pending", flush=True)
+                MONITOR_PENDING.unlink(missing_ok=True)
+                print("[generate] cleared monitor_pending.json after attaching media", flush=True)
         except Exception as e:
             print(f"[generate] monitor_pending media read error: {e}", flush=True)
 
@@ -940,6 +1035,12 @@ async def index(request: Request):
     return HTMLResponse(content=TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
+@app.get("/linear", response_class=HTMLResponse)
+async def index_linear(request: Request):
+    p = BOT_DIR / "templates" / "dashboard-linear.html"
+    return HTMLResponse(content=p.read_text(encoding="utf-8"))
+
+
 @app.get("/api/csrf-token")
 async def api_csrf_token():
     """Return the CSRF token for this session. Dashboard JS fetches this on load."""
@@ -1018,6 +1119,7 @@ async def api_status():
 @app.get("/api/pending")
 async def api_pending():
     tweet   = _read_json_safe(PENDING_TWEET)
+    tweet_b = _read_json_safe(PENDING_TWEET_B)
     combo   = _read_json_safe(PENDING_COMBO)
     monitor = _read_json_safe(MONITOR_PENDING)
 
@@ -1032,15 +1134,29 @@ async def api_pending():
 
     return {
         "tweet": tweet,
+        "tweet_b": tweet_b,
         "combo": combo,
         "monitor": monitor,
         "scheduled": scheduled,
     }
 
 
+@app.get("/api/pending-b")
+async def api_pending_b():
+    return _read_json_safe(PENDING_TWEET_B) or {}
+
+
+@app.delete("/api/pending-b")
+async def api_pending_b_delete(request: Request):
+    _require_csrf(request)
+    existed = PENDING_TWEET_B.exists()
+    PENDING_TWEET_B.unlink(missing_ok=True)
+    return {"success": True, "cleared": existed}
+
+
 class PublishPayload(BaseModel):
     platform: str  # "both" | "x" | "threads"
-    source: str    # "pending" | "combo"
+    source: str    # "pending" | "pending-b" | "combo"
 
 
 class GeneratePayload(BaseModel):
@@ -1068,10 +1184,37 @@ class MonitorActionPayload(BaseModel):
     tweet_type: Optional[str] = None
     edited_title: Optional[str] = None
     edited_summary: Optional[str] = None
+    target_slot: Optional[str] = None  # "a" | "b" — only applies to generate/original; defaults to "a"
 
 
 class MonitorBulkPayload(BaseModel):
     ids: list[str]
+
+
+class ReplyChatNewPayload(BaseModel):
+    orig_post: str
+    replier: str
+    their_reply: str
+    context_extra: Optional[str] = None
+    orig_url: Optional[str] = None
+
+
+class ReplyChatIteratePayload(BaseModel):
+    user_msg: str
+
+
+class ReplyChatPublishPayload(BaseModel):
+    variant_idx: Optional[int] = None
+
+
+class ReplyChatClosePayload(BaseModel):
+    reason: Optional[str] = "discarded"
+
+
+class ReplyChatOutcomePayload(BaseModel):
+    useful: bool
+    note: Optional[str] = None
+
 
 
 class MonitorSavePayload(BaseModel):
@@ -1121,10 +1264,15 @@ async def api_publish(request: Request, payload: PublishPayload):
 
     if platform not in ("both", "x", "threads"):
         raise HTTPException(400, "platform must be both|x|threads")
-    if source not in ("pending", "combo"):
-        raise HTTPException(400, "source must be pending|combo")
+    if source not in ("pending", "pending-b", "combo"):
+        raise HTTPException(400, "source must be pending|pending-b|combo")
 
-    source_file = PENDING_TWEET if source == "pending" else PENDING_COMBO
+    if source == "pending":
+        source_file = PENDING_TWEET
+    elif source == "pending-b":
+        source_file = PENDING_TWEET_B
+    else:
+        source_file = PENDING_COMBO
     data = _read_json_safe(source_file)
     if not data:
         raise HTTPException(404, f"No pending file found at {source_file.name}")
@@ -1228,7 +1376,14 @@ async def api_publish(request: Request, payload: PublishPayload):
     cleared_file = None
     cleared_media_files: list[str] = []
     media_cleanup_error = None
+    cleared_monitor_id = None
     if threads_success and threads_post_id:
+        # v2: persist upstream source channel for analytics attribution
+        try:
+            from threads_analytics import set_post_source
+            set_post_source(threads_post_id, data.get("source_name"))
+        except Exception as _exc:
+            print(f"[publish/{source}] set_post_source failed: {_exc}", flush=True)
         try:
             source_file.unlink(missing_ok=True)
             cleared_pending = True
@@ -1236,6 +1391,18 @@ async def api_publish(request: Request, payload: PublishPayload):
             print(f"[publish/{source}] cleared pending file after Threads confirmation: {cleared_file}", flush=True)
         except Exception as exc:
             print(f"[publish/{source}] failed to clear pending file {source_file.name}: {exc}", flush=True)
+        source_alert_id = data.get("source_alert_id")
+        if source_alert_id:
+            try:
+                q = _read_queue()
+                before = len(q)
+                q = [e for e in q if e.get("id") != source_alert_id]
+                if len(q) < before:
+                    _write_queue(q)
+                    cleared_monitor_id = source_alert_id
+                    print(f"[publish/{source}] removed source monitor item {source_alert_id} from queue", flush=True)
+            except Exception as exc:
+                print(f"[publish/{source}] failed to remove source monitor item {source_alert_id}: {exc}", flush=True)
         cleared_media_files, media_cleanup_error = _clear_temporary_media_paths(data, source)
         if media_cleanup_error:
             print(f"[publish/{source}] temporary media cleanup warning: {media_cleanup_error}", flush=True)
@@ -1259,6 +1426,7 @@ async def api_publish(request: Request, payload: PublishPayload):
         "cleared_media_count": len(cleared_media_files),
         "cleared_media_files": [Path(p).name for p in cleared_media_files],
         "media_cleanup_error": media_cleanup_error,
+        "cleared_monitor_id": cleared_monitor_id,
     }
 
 
@@ -1766,7 +1934,9 @@ def _enrich_monitor_entry(entry: dict) -> dict:
     headline = dict(enriched.get("headline") or {})
     text = f"{headline.get('title', '')}\n{headline.get('summary', '')}".strip()
     paths = _entry_media_paths(enriched)
-    received = enriched.get("received_at")
+    # Prefer ingested_at (always UTC-aware). received_at is naive local time on this VPS,
+    # so treating it as UTC gave a +6h offset (system tz = America/Belize, UTC-6) → bug.
+    received = enriched.get("ingested_at") or enriched.get("received_at") or enriched.get("published_at")
     age_seconds = None
     if received:
         try:
@@ -1850,11 +2020,54 @@ def _attach_entry_media(data: dict, entry: dict, label: str) -> None:
         print(f"[monitor/{label}] attached {len(media_paths)} media file(s)", flush=True)
 
 
+def _parse_iso_safe(value: str) -> Optional[datetime]:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        s = value.strip().replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def _expire_old_monitor_items() -> int:
+    """Remove monitor items older than 24h from disk. Returns number dropped."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    queue = _read_queue()
+    kept = []
+    dropped = 0
+    for e in queue:
+        ts = _parse_iso_safe(e.get("received_at") or e.get("ingested_at"))
+        if ts is None or ts >= cutoff:
+            kept.append(e)
+        else:
+            dropped += 1
+    if dropped:
+        _write_queue(kept)
+        print(f"[monitor/expire] dropped {dropped} items older than 24h", flush=True)
+    return dropped
+
+
 @app.get("/api/monitor/queue")
 async def api_monitor_queue():
-    """Return enriched queue ordered by editorial priority bands."""
+    """Return enriched queue ordered by editorial priority bands. Auto-expires items >24h."""
+    _expire_old_monitor_items()
     enriched = [_enrich_monitor_entry(e) for e in _read_queue()]
     return JSONResponse(sorted(enriched, key=_monitor_sort_key))
+
+
+@app.delete("/api/monitor/clear-all")
+async def api_monitor_clear_all(request: Request):
+    _require_csrf(request)
+    queue = _read_queue()
+    count = len(queue)
+    _write_queue([])
+    print(f"[monitor/clear-all] cleared {count} items", flush=True)
+    return {"success": True, "cleared": count}
 
 
 @app.get("/api/recommendation/alert/{alert_id}")
@@ -2024,8 +2237,10 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                 "source_name": source_name,
             }
             _attach_entry_media(data, entry, "generate")
-            _save_json(PENDING_TWEET, data)
-            pending_target = "pending_tweet"
+            slot = (payload.target_slot or "a").lower()
+            target_path = PENDING_TWEET_B if slot == "b" else PENDING_TWEET
+            _save_json(target_path, data)
+            pending_target = "pending_tweet_b" if slot == "b" else "pending_tweet"
 
         elif action == "mixed":
             loop = asyncio.get_event_loop()
@@ -2057,8 +2272,10 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
                 "source_name": source_name,
             }
             _attach_entry_media(data, entry, "original")
-            _save_json(PENDING_TWEET, data)
-            pending_target = "pending_tweet"
+            slot = (payload.target_slot or "a").lower()
+            target_path = PENDING_TWEET_B if slot == "b" else PENDING_TWEET
+            _save_json(target_path, data)
+            pending_target = "pending_tweet_b" if slot == "b" else "pending_tweet"
 
         elif action == "ignore":
             tweet = None
@@ -2282,10 +2499,205 @@ async def api_replies_regenerate_one(request: Request, payload: ReplyRegenPayloa
     return JSONResponse(parsed)
 
 
+
+
+# ─── REPLY WORKBENCH (persistent chat-based replies) ─────────────────────────
+
+@app.get("/api/replies/chats")
+async def api_replies_chats_list(status: Optional[str] = None):
+    from reply_workbench import list_chats
+    return JSONResponse({"chats": list_chats(status)})
+
+
+@app.post("/api/replies/chats")
+async def api_replies_chats_create(request: Request, payload: ReplyChatNewPayload):
+    _require_csrf(request)
+    from reply_workbench import create_chat, generate_variants, get_chat
+    try:
+        cid = create_chat(
+            orig_post=payload.orig_post,
+            replier=payload.replier,
+            their_reply=payload.their_reply,
+            context_extra=payload.context_extra,
+            orig_url=payload.orig_url,
+        )
+        await asyncio.get_event_loop().run_in_executor(None, lambda: generate_variants(cid))
+    except Exception as e:
+        raise HTTPException(500, f"Create chat failed: {e}")
+    return JSONResponse(get_chat(cid))
+
+
+@app.post("/api/replies/chats/{chat_id}/iterate")
+async def api_replies_chats_iterate(chat_id: str, request: Request, payload: ReplyChatIteratePayload):
+    _require_csrf(request)
+    from reply_workbench import iterate, get_chat
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: iterate(chat_id, payload.user_msg)
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Iterate failed: {e}")
+    return JSONResponse(get_chat(chat_id))
+
+
+@app.post("/api/replies/chats/{chat_id}/publish")
+async def api_replies_chats_publish(chat_id: str, request: Request, payload: ReplyChatPublishPayload):
+    _require_csrf(request)
+    from reply_workbench import publish, set_chosen_variant, get_chat
+    try:
+        if payload.variant_idx is not None:
+            set_chosen_variant(chat_id, int(payload.variant_idx))
+        await asyncio.get_event_loop().run_in_executor(None, lambda: publish(chat_id))
+    except Exception as e:
+        raise HTTPException(500, f"Publish failed: {e}")
+    return JSONResponse(get_chat(chat_id))
+
+
+@app.post("/api/replies/chats/{chat_id}/close")
+async def api_replies_chats_close(chat_id: str, request: Request, payload: ReplyChatClosePayload):
+    _require_csrf(request)
+    from reply_workbench import close_chat, get_chat
+    close_chat(chat_id, payload.reason or "discarded")
+    return JSONResponse(get_chat(chat_id))
+
+
+@app.post("/api/replies/chats/{chat_id}/outcome")
+async def api_replies_chats_outcome(chat_id: str, request: Request, payload: ReplyChatOutcomePayload):
+    _require_csrf(request)
+    from reply_workbench import mark_outcome, get_chat
+    mark_outcome(chat_id, bool(payload.useful), payload.note)
+    return JSONResponse(get_chat(chat_id))
+
+
+@app.get("/api/replies/chats/{chat_id}/analytics")
+async def api_replies_chats_analytics(chat_id: str):
+    from reply_workbench import get_analytics
+    return JSONResponse({"analytics": get_analytics(chat_id)})
+
+
 # ─── SIGNALS ─────────────────────────────────────────────────────────────────
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# ─── Synchronous fetchers (run inside asyncio.to_thread to keep event loop free) ───
+
+def _gdelt_fetch_sync() -> dict:
+    keywords = ["Iran Hormuz", "BRICS", "NATO", "China Taiwan", "oil price"]
+    gd = GdeltDoc()
+    topics = []
+    for kw in keywords:
+        try:
+            f = GdeltFilters(timespan="2h", num_records=10, keyword=kw)
+            df = gd.article_search(f)
+            if df is not None and not df.empty:
+                articles = []
+                for _, row in df.iterrows():
+                    articles.append({
+                        "title": str(row.get("title", "")),
+                        "url": str(row.get("url", "")),
+                        "domain": str(row.get("domain", "")),
+                        "seendate": str(row.get("seendate", "")),
+                    })
+                topics.append({"keyword": kw, "articles": articles, "article_count": len(articles)})
+            else:
+                topics.append({"keyword": kw, "articles": [], "article_count": 0})
+        except Exception:
+            topics.append({"keyword": kw, "articles": [], "article_count": 0})
+    return {"updated_at": _now_iso(), "topics": topics}
+
+
+def _polymarket_fetch_sync() -> dict:
+    keywords = ["iran", "israel", "nato", "china", "russia", "ukraine", "oil", "fed", "bitcoin", "brics"]
+    resp = _requests.get(
+        "https://gamma-api.polymarket.com/markets",
+        params={"active": "true", "closed": "false", "limit": 50},
+        headers={"User-Agent": "sol-dashboard/1.0"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    raw = resp.json()
+    markets = []
+    for m in raw:
+        question = m.get("question") or m.get("title") or ""
+        if not any(re.search(r'\b' + kw + r'\b', question, re.IGNORECASE) for kw in keywords):
+            continue
+        # probability_yes from outcomePrices (JSON string) or lastTradePrice
+        prob = None
+        outcome_prices = m.get("outcomePrices")
+        if outcome_prices:
+            try:
+                parsed_prices = json.loads(outcome_prices) if isinstance(outcome_prices, str) else outcome_prices
+                prob = float(parsed_prices[0])
+            except Exception:
+                pass
+        if prob is None:
+            try:
+                prob = float(m.get("lastTradePrice") or m.get("price") or 0.5)
+            except Exception:
+                prob = 0.5
+        # volume
+        try:
+            volume = float(m.get("volume") or m.get("volumeNum") or 0)
+        except Exception:
+            volume = 0.0
+        # url
+        slug = m.get("slug") or m.get("id") or ""
+        url = m.get("url") or f"https://polymarket.com/event/{slug}"
+        markets.append({
+            "id": str(m.get("id", "")),
+            "question": question,
+            "probability_yes": round(prob, 4),
+            "volume": volume,
+            "url": url,
+        })
+    markets.sort(key=lambda x: x["volume"], reverse=True)
+    return {"updated_at": _now_iso(), "markets": markets[:10]}
+
+
+def _markets_fetch_sync() -> dict:
+    tickers = [
+        ("BTC-USD",   "BTC"),
+        ("CL=F",      "WTI OIL"),
+        ("^GSPC",     "S&P 500"),
+        ("DX-Y.NYB",  "DXY"),
+        ("GC=F",      "GOLD"),
+    ]
+    assets = []
+    for ticker_sym, name in tickers:
+        try:
+            t = _yfinance.Ticker(ticker_sym)
+            info = t.fast_info
+            price = float(info.last_price or 0)
+            prev_close = float(info.previous_close or info.regular_market_previous_close or price)
+            if prev_close and prev_close != 0:
+                change_pct = (price - prev_close) / prev_close * 100
+            else:
+                change_pct = 0.0
+            if change_pct > 0.1:
+                direction = "up"
+            elif change_pct < -0.1:
+                direction = "down"
+            else:
+                direction = "flat"
+            assets.append({
+                "symbol": ticker_sym,
+                "name": name,
+                "price": round(price, 4),
+                "change_pct": round(change_pct, 2),
+                "direction": direction,
+            })
+        except Exception as e:
+            assets.append({
+                "symbol": ticker_sym,
+                "name": name,
+                "price": None,
+                "change_pct": None,
+                "direction": "flat",
+                "error": str(e),
+            })
+    return {"updated_at": _now_iso(), "assets": assets}
 
 
 @app.get("/api/signals/gdelt")
@@ -2295,29 +2707,9 @@ async def signals_gdelt():
         return JSONResponse({"error": "gdeltdoc not installed", "updated_at": _now_iso()})
     if _gdelt_cache["data"] and (time.time() - _gdelt_cache["ts"]) < 900:
         return JSONResponse(_gdelt_cache["data"])
-    keywords = ["Iran Hormuz", "BRICS", "NATO", "China Taiwan", "oil price"]
     try:
-        gd = GdeltDoc()
-        topics = []
-        for kw in keywords:
-            try:
-                f = GdeltFilters(timespan="2h", num_records=10, keyword=kw)
-                df = gd.article_search(f)
-                if df is not None and not df.empty:
-                    articles = []
-                    for _, row in df.iterrows():
-                        articles.append({
-                            "title": str(row.get("title", "")),
-                            "url": str(row.get("url", "")),
-                            "domain": str(row.get("domain", "")),
-                            "seendate": str(row.get("seendate", "")),
-                        })
-                    topics.append({"keyword": kw, "articles": articles, "article_count": len(articles)})
-                else:
-                    topics.append({"keyword": kw, "articles": [], "article_count": 0})
-            except Exception:
-                topics.append({"keyword": kw, "articles": [], "article_count": 0})
-        result = {"updated_at": _now_iso(), "topics": topics}
+        # Offload blocking GDELT HTTP calls to a thread so event loop stays free
+        result = await asyncio.to_thread(_gdelt_fetch_sync)
         _gdelt_cache = {"data": result, "ts": time.time()}
         return JSONResponse(result)
     except Exception as e:
@@ -2331,52 +2723,9 @@ async def signals_polymarket():
         return JSONResponse(_polymarket_cache["data"])
     if _requests is None:
         return JSONResponse({"error": "requests not available", "updated_at": _now_iso()})
-    keywords = ["iran", "israel", "nato", "china", "russia", "ukraine", "oil", "fed", "bitcoin", "brics"]
     try:
-        resp = _requests.get(
-            "https://gamma-api.polymarket.com/markets",
-            params={"active": "true", "closed": "false", "limit": 50},
-            headers={"User-Agent": "sol-dashboard/1.0"},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        raw = resp.json()
-        markets = []
-        for m in raw:
-            question = m.get("question") or m.get("title") or ""
-            if not any(re.search(r'\b' + kw + r'\b', question, re.IGNORECASE) for kw in keywords):
-                continue
-            # probability_yes from outcomePrices (JSON string) or lastTradePrice
-            prob = None
-            outcome_prices = m.get("outcomePrices")
-            if outcome_prices:
-                try:
-                    parsed_prices = json.loads(outcome_prices) if isinstance(outcome_prices, str) else outcome_prices
-                    prob = float(parsed_prices[0])
-                except Exception:
-                    pass
-            if prob is None:
-                try:
-                    prob = float(m.get("lastTradePrice") or m.get("price") or 0.5)
-                except Exception:
-                    prob = 0.5
-            # volume
-            try:
-                volume = float(m.get("volume") or m.get("volumeNum") or 0)
-            except Exception:
-                volume = 0.0
-            # url
-            slug = m.get("slug") or m.get("id") or ""
-            url = m.get("url") or f"https://polymarket.com/event/{slug}"
-            markets.append({
-                "id": str(m.get("id", "")),
-                "question": question,
-                "probability_yes": round(prob, 4),
-                "volume": volume,
-                "url": url,
-            })
-        markets.sort(key=lambda x: x["volume"], reverse=True)
-        result = {"updated_at": _now_iso(), "markets": markets[:10]}
+        # Offload blocking requests.get() to a thread so event loop stays free
+        result = await asyncio.to_thread(_polymarket_fetch_sync)
         _polymarket_cache = {"data": result, "ts": time.time()}
         return JSONResponse(result)
     except Exception as e:
@@ -2390,48 +2739,9 @@ async def signals_markets():
         return JSONResponse(_markets_cache["data"])
     if not _YFINANCE_AVAILABLE:
         return JSONResponse({"error": "yfinance not installed", "updated_at": _now_iso()})
-    tickers = [
-        ("BTC-USD",   "BTC"),
-        ("CL=F",      "WTI OIL"),
-        ("^GSPC",     "S&P 500"),
-        ("DX-Y.NYB",  "DXY"),
-        ("GC=F",      "GOLD"),
-    ]
     try:
-        assets = []
-        for ticker_sym, name in tickers:
-            try:
-                t = _yfinance.Ticker(ticker_sym)
-                info = t.fast_info
-                price = float(info.last_price or 0)
-                prev_close = float(info.previous_close or info.regular_market_previous_close or price)
-                if prev_close and prev_close != 0:
-                    change_pct = (price - prev_close) / prev_close * 100
-                else:
-                    change_pct = 0.0
-                if change_pct > 0.1:
-                    direction = "up"
-                elif change_pct < -0.1:
-                    direction = "down"
-                else:
-                    direction = "flat"
-                assets.append({
-                    "symbol": ticker_sym,
-                    "name": name,
-                    "price": round(price, 4),
-                    "change_pct": round(change_pct, 2),
-                    "direction": direction,
-                })
-            except Exception as e:
-                assets.append({
-                    "symbol": ticker_sym,
-                    "name": name,
-                    "price": None,
-                    "change_pct": None,
-                    "direction": "flat",
-                    "error": str(e),
-                })
-        result = {"updated_at": _now_iso(), "assets": assets}
+        # Offload blocking yfinance calls to a thread so event loop stays free
+        result = await asyncio.to_thread(_markets_fetch_sync)
         _markets_cache = {"data": result, "ts": time.time()}
         return JSONResponse(result)
     except Exception as e:
@@ -2440,14 +2750,30 @@ async def signals_markets():
 
 @app.get("/api/signals")
 async def signals_combined():
-    gdelt = await signals_gdelt()
-    poly = await signals_polymarket()
-    mkts = await signals_markets()
-    return JSONResponse({
-        "gdelt": json.loads(gdelt.body),
-        "polymarket": json.loads(poly.body),
-        "markets": json.loads(mkts.body),
-    })
+    # Run all three sub-fetches in parallel, with a 30s safety cap so degraded
+    # upstream APIs cannot stall the dashboard. On timeout we return whatever
+    # was available from cache (empty dict if cold).
+    try:
+        gdelt, poly, mkts = await asyncio.wait_for(
+            asyncio.gather(
+                signals_gdelt(),
+                signals_polymarket(),
+                signals_markets(),
+            ),
+            timeout=30,
+        )
+        return JSONResponse({
+            "gdelt":      json.loads(gdelt.body),
+            "polymarket": json.loads(poly.body),
+            "markets":    json.loads(mkts.body),
+        })
+    except asyncio.TimeoutError:
+        return JSONResponse({
+            "gdelt":      (_gdelt_cache.get("data") or {"error": "timeout"}),
+            "polymarket": (_polymarket_cache.get("data") or {"error": "timeout"}),
+            "markets":    (_markets_cache.get("data") or {"error": "timeout"}),
+            "error": "signals_combined upstream timeout after 30s",
+        })
 
 
 # ─── N8N INTEGRATION ENDPOINTS ──────────────────────────────────────────────
@@ -2493,3 +2819,161 @@ async def n8n_gdelt_baseline_post(request: Request):
         return JSONResponse({"saved": True, "keyword": keyword, "count": count})
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ─── SETTINGS ENDPOINTS ─────────────────────────────────────────────────────
+
+SETTINGS_PATH = BOT_DIR / "data" / "settings.json"
+SETTINGS_LOCK = BOT_DIR / "data" / "settings.lock"
+
+
+class SettingsPayload(BaseModel):
+    account:      Optional[dict] = None  # handle, timezone, display_name
+    schedule:     Optional[dict] = None  # post_times, days
+    models:       Optional[dict] = None  # generate_model, reply_model, temperature
+    sources:      Optional[dict] = None  # enabled_channels, keyword_filters
+    integrations: Optional[dict] = None  # telegram_chat_id, threads_username
+    appearance:   Optional[dict] = None  # theme, density
+
+
+def _read_settings() -> dict:
+    try:
+        if SETTINGS_PATH.exists():
+            return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _write_settings(data: dict) -> None:
+    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = SETTINGS_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.rename(SETTINGS_PATH)
+
+
+@app.get("/api/settings")
+async def api_settings_get():
+    return JSONResponse(_read_settings())
+
+
+@app.put("/api/settings")
+async def api_settings_put(request: Request, payload: SettingsPayload):
+    _require_csrf(request)
+    try:
+        lock = FileLock(str(SETTINGS_LOCK))
+        with lock:
+            current = _read_settings()
+            incoming = payload.model_dump(exclude_none=True)
+            for section, values in incoming.items():
+                if not isinstance(values, dict):
+                    continue
+                prev = current.get(section, {})
+                if not isinstance(prev, dict):
+                    prev = {}
+                current[section] = {**prev, **values}
+            _write_settings(current)
+        return JSONResponse({"ok": True, "settings": current})
+    except Exception as e:
+        raise HTTPException(500, f"settings save failed: {e}")
+
+# ─── PRICE TICKER ENDPOINT (v2 — sparkline + Brent + DXY) ──────────
+# CoinGecko `/coins/markets` for crypto + PAXG (gold) → price, 24h change, 7d sparkline.
+# Stooq (free, no API key, CSV) for Brent (cb.f) + DXY (^dxy).
+# Cached for 60s; serves stale on upstream error.
+
+_PRICE_CACHE: dict = {"data": None, "ts": 0.0}
+_PRICE_TTL = 60.0  # seconds
+
+
+def _fetch_coingecko_markets() -> dict:
+    """Fetch BTC/ETH/SOL/GOLD with 7d hourly sparkline from CoinGecko free API."""
+    url = (
+        "https://api.coingecko.com/api/v3/coins/markets"
+        "?vs_currency=usd&ids=bitcoin,ethereum,solana,pax-gold"
+        "&sparkline=true&price_change_percentage=24h"
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "sol-dashboard/1.0"})
+    with urllib.request.urlopen(req, timeout=8.0) as resp:
+        rows = json.loads(resp.read().decode("utf-8"))
+    sym_map = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "pax-gold": "GOLD"}
+    out: dict = {}
+    for r in rows:
+        sym = sym_map.get(r.get("id"))
+        if not sym:
+            continue
+        spark = (r.get("sparkline_in_7d") or {}).get("price") or []
+        # Down-sample to ~32 points so payload stays small (~700 bytes per asset)
+        if len(spark) > 32:
+            step = max(1, len(spark) // 32)
+            spark = spark[::step][:32]
+        out[sym] = {
+            "price": r.get("current_price") or 0.0,
+            "ch24":  r.get("price_change_percentage_24h") or 0.0,
+            "spark": [round(float(v), 4) for v in spark if v is not None],
+        }
+    return out
+
+
+def _fetch_stooq(symbol: str) -> dict:
+    """
+    Fetch latest quote from stooq.com (CSV, no key required).
+    Returns {"price": float, "ch24": float, "spark": []} or raises on failure.
+    Symbol examples: 'cb.f' (Brent Crude), '^dxy' (Dollar Index).
+    Stooq columns: Symbol,Date,Time,Open,High,Low,Close,Volume
+    """
+    url = f"https://stooq.com/q/l/?s={urllib.parse.quote(symbol)}&f=sd2t2ohlcv&h&e=csv"
+    req = urllib.request.Request(url, headers={"User-Agent": "sol-dashboard/1.0"})
+    with urllib.request.urlopen(req, timeout=6.0) as resp:
+        text = resp.read().decode("utf-8", errors="ignore").strip()
+    lines = text.splitlines()
+    if len(lines) < 2:
+        raise RuntimeError(f"stooq empty response for {symbol}")
+    parts = lines[1].split(",")
+    # parts: Symbol, Date, Time, Open, High, Low, Close, Volume
+    if len(parts) < 8:
+        raise RuntimeError(f"stooq malformed row for {symbol}: {lines[1]}")
+    try:
+        open_p = float(parts[3])
+        close  = float(parts[6])
+    except ValueError:
+        raise RuntimeError(f"stooq non-numeric price for {symbol}: {lines[1]}")
+    ch24 = ((close - open_p) / open_p * 100.0) if open_p else 0.0
+    return {"price": close, "ch24": round(ch24, 4), "spark": []}
+
+
+@app.get("/api/prices")
+async def api_prices():
+    """
+    Returns: { SYM: {price, ch24, spark[]}, ... } for BTC, ETH, SOL, GOLD, BRENT, DXY.
+    spark[] is ~32 hourly closes from the last 7 days (empty for stooq sources).
+    """
+    now = time.time()
+    if _PRICE_CACHE["data"] and (now - _PRICE_CACHE["ts"]) < _PRICE_TTL:
+        return JSONResponse(_PRICE_CACHE["data"])
+
+    out: dict = {}
+    errors: list = []
+
+    # CoinGecko (crypto + gold)
+    try:
+        out.update(_fetch_coingecko_markets())
+    except Exception as e:
+        errors.append(f"coingecko: {e}")
+
+    # Stooq (Brent + DXY) — independent failures, soft-fail
+    for sym, stooq_id in (("BRENT", "cb.f"), ("DXY", "dx.f")):
+        try:
+            out[sym] = _fetch_stooq(stooq_id)
+        except Exception as e:
+            errors.append(f"stooq[{sym}]: {e}")
+
+    if not out:
+        # Every source failed — serve stale if we have it, else 503
+        if _PRICE_CACHE["data"]:
+            return JSONResponse(_PRICE_CACHE["data"])
+        raise HTTPException(503, f"prices unavailable: {'; '.join(errors)}")
+
+    _PRICE_CACHE["data"] = out
+    _PRICE_CACHE["ts"] = now
+    return JSONResponse(out)
