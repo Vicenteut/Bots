@@ -7,6 +7,12 @@ backups/
 logs/
 __pycache__/
 *.pyc
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
 cookies.json
 *.session
 *.session-journal
@@ -26,3 +32,17 @@ evaluation_history.jsonl
 evaluation_results.json
 gdelt_baseline.json
 .omc/
+
+# Backup files (rely on git history instead)
+*.bak
+*.bak.*
+*.pre-refactor
+*.pre-cssfix
+*.pre-redesign
+.env.bak*
+
+# Tool context dirs (cowork/etc)
+.space/
+
+# n8n workflows (no longer used)
+n8n_*
