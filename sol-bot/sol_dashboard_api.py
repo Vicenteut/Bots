@@ -1381,7 +1381,11 @@ async def api_publish(request: Request, payload: PublishPayload):
         # v2: persist upstream source channel for analytics attribution
         try:
             from threads_analytics import set_post_source
-            set_post_source(threads_post_id, data.get("source_name"))
+            _src_name = data.get("source_name") or (data.get("headline") or {}).get("source")
+            # Skip placeholder "manual" so analytics does not treat manual entries as a real channel
+            if _src_name and _src_name.strip().lower() == "manual":
+                _src_name = None
+            set_post_source(threads_post_id, _src_name)
         except Exception as _exc:
             print(f"[publish/{source}] set_post_source failed: {_exc}", flush=True)
         try:
