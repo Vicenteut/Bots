@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-X-Bot Backup Script
+Sol Bot Backup Script
 Backs up critical bot files, rotates old backups, notifies via Telegram.
 
 Cron recommendation (weekly Sunday 3 AM CST):

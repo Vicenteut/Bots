@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-image_manager.py — Custom image manager for X Bot (@napoleotics)
+image_manager.py — Custom image manager for Sol Threads posts
 
 Manages custom images sent via Telegram, with tag-based matching
-to pair images with tweet headlines. Falls back to Unsplash via
+to pair images with post headlines. Falls back to Unsplash via
 image_fetcher.py when no custom image matches.
 
 Paths:
@@ -281,13 +281,13 @@ def get_image_for_tweet(
     headline_text: str,
     output_name: str = "tweet_image.jpg",
 ) -> str | None:
-    """Get the best image for a tweet headline.
+    """Get the best image for a post headline.
 
     1. Check custom images for a tag-based match.
     2. Fall back to Unsplash via image_fetcher.fetch_image().
 
     Args:
-        headline_text: The headline / tweet text to match against.
+        headline_text: The headline / post text to match against.
         output_name: Filename for the output image (used by Unsplash fallback).
 
     Returns:
@@ -380,7 +380,7 @@ def _cli():
 
 
 def _usage():
-    print("image_manager.py — Custom image manager for X Bot")
+    print("image_manager.py — Custom image manager for Sol Threads posts")
     print()
     print("Commands:")
     print("  save   <path> <tags,comma,separated> [description]")

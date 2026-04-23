@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scheduler.py — Scheduled news scanner + tweet generator for @napoleotics.
+scheduler.py — Scheduled news scanner + Threads post generator for Sol.
 Uses jittered scheduling and variable post counts for organic posting rhythm.
 """
 
@@ -132,7 +132,7 @@ def main():
             f"{tweet_text}{nl}{nl}"
             f"Fuente: {h['source']}{nl}"
             f"Noticia: {h['title'][:100]}{nl}{nl}"
-            f"→ /publica {i}  (X + Threads{', con imagen' if img_path else ''})"
+            f"→ /publica {i}  (Threads{', con imagen' if img_path else ''})"
         )
 
         if img_path:
@@ -142,7 +142,7 @@ def main():
 
         published += 1
 
-    print(f"[{datetime.now()}] Done: {published} tweet(s) previewed")
+    print(f"[{datetime.now()}] Done: {published} post(s) previewed")
 
 
 if __name__ == "__main__":

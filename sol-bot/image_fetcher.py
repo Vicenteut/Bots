@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch relevant images from Unsplash for tweet posts."""
+"""Fetch relevant images from Unsplash for Threads posts."""
 import os, sys, json, urllib.request, urllib.parse, re, random
 
 sys.path.insert(0, '/root/x-bot')
@@ -37,7 +37,7 @@ def extract_keywords(text):
     meaningful = [w for w in words if w not in stop and len(w) > 2]
     return ' '.join(meaningful[:3]) if meaningful else 'world news'
 
-def fetch_image(headline_text, output_name='tweet_image.jpg'):
+def fetch_image(headline_text, output_name='post_image.jpg'):
     if not UNSPLASH_KEY:
         print('No UNSPLASH_API_KEY in .env')
         return None

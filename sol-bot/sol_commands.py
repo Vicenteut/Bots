@@ -2,17 +2,16 @@
 """
 sol_commands.py — Manual command listener for Sol Bot (@napoleotics).
 
-The owner sends news to Sol's Telegram bot; Sol generates a tweet
+The owner sends news to Sol's Telegram bot; Sol generates a Threads post
 using the full copywriting engine and optionally publishes it.
 
 Usage via Telegram (owner only):
-  <any text>              Treat as news title — generate tweet
+  <any text>              Treat as news title — generate post
   <title> | <context>    Title + extra context for richer generation
   /noticia <text>        Explicit news command (same as plain text)
-  /publica               Publish the last generated pending tweet
-  /publica x             Publish to X only
-  /publica threads       Publish to Threads only
-  /regenera              Regenerate last tweet with a different angle
+  /publica               Publish the last generated pending post to Threads
+  /publica threads       Publish to Threads
+  /regenera              Regenerate last post with a different angle
   /wire                  Regenerate as breaking news (WIRE)
   /analisis              Regenerate as deep analysis (ANALISIS)
   /debate                Regenerate as debate/question (DEBATE)
@@ -35,6 +34,7 @@ from config import BASE_DIR, load_environment
 from brain import call_brain, log_brain_action
 from generator import generate_tweet, generate_combinada_tweet
 from telegram_client import send_message
+from topic_utils import classify_topic
 
 load_environment()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -63,8 +63,9 @@ PENDING_NEWS_FILE = BASE_DIR / "pending_news_text.txt"
 MEDIA_DIR = BASE_DIR / "media"
 PID_FILE = BASE_DIR / "sol_commands.pid"
 BOT_DIR = str(BASE_DIR)
+THREADS_POST_MAX_CHARS = 500
 
-# Intent keywords → tweet type (only matched on SHORT text with pending tweet)
+# Intent keywords -> post format (only matched on SHORT text with pending post)
 FORMAT_INTENTS = {
     "WIRE":     ["wire", "ultima hora", "última hora", "breaking", "flash"],
     "ANALISIS": ["analisis", "análisis", "analiza", "analizar", "profundo", "deep", "explica"],
@@ -77,8 +78,8 @@ REGEN_KEYWORDS = ["regenera", "regenerar", "otra vez", "de nuevo", "intenta de n
 
 # Short confirmations that mean "generate from the last monitor headline"
 CONFIRM_KEYWORDS = ["si", "sí", "dale", "ok", "okay", "genera", "generalo", "genéralo",
-                    "genera un tweet", "genera el tweet", "genera un tweet de esto",
-                    "hazlo", "adelante", "procede", "tweet", "twittea"]
+                    "genera un post", "genera el post", "genera un post de esto",
+                    "hazlo", "adelante", "procede", "post", "publica"]
 
 # Feedback phrases that mean "you haven't published" or "that's wrong" — don't treat as news
 FEEDBACK_NEGATIVE = ["no lo has publicado", "no publicaste", "no lo publicaste",
@@ -142,7 +143,7 @@ def send_generation_keyboard(news_preview: str):
 
 
 def send_publish_keyboard(tweet_preview: str = "", media_note: str = ""):
-    """Send the pending tweet with Publish / Regen / Cancel inline buttons."""
+    """Send the pending post with Publish / Regen / Cancel inline buttons."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     text = (
@@ -156,9 +157,7 @@ def send_publish_keyboard(tweet_preview: str = "", media_note: str = ""):
         "reply_markup": {
             "inline_keyboard": [
                 [
-                    {"text": "✅ Publicar ambos", "callback_data": "pub_both"},
-                    {"text": "𝕏 Solo X",          "callback_data": "pub_x"},
-                    {"text": "🧵 Solo Threads",    "callback_data": "pub_threads"},
+                    {"text": "🧵 Publicar en Threads", "callback_data": "pub_threads"},
                 ],
                 [
                     {"text": "🔄 Regenerar", "callback_data": "btn_regen"},
@@ -327,14 +326,14 @@ def cmd_status():
             pending = f"({ts}) {preview}..."
         except Exception:
             pass
-    send_message(f"Sol Bot operativo.\nPendiente: {pending}\nEnvia una noticia para generar un tweet.")
+    send_message(f"Sol Bot operativo.\nPendiente: {pending}\nEnvia una noticia para generar un post.")
 
 
 def detect_format_intent(text: str, has_pending: bool = False):
     """Return tweet_type if text is a format/regen request, else None.
 
     Free-text keyword matching only activates when:
-    - There IS a pending tweet (so the user is clearly requesting a format change), AND
+    - There IS a pending post (so the user is clearly requesting a format change), AND
     - The text is SHORT (< 80 chars) — long text is almost always a news headline.
     Slash commands always work regardless.
     """
@@ -352,7 +351,7 @@ def detect_format_intent(text: str, has_pending: bool = False):
     if lower in ("/regenera", "/regenerar"):
         return "RANDOM"
 
-    # Free-text keywords: only if there's a pending tweet AND text is short
+    # Free-text keywords: only if there's a pending post AND text is short
     if not has_pending or len(text) >= 80:
         return None
 
@@ -375,9 +374,9 @@ def is_monitor_confirm(text: str) -> bool:
 
 
 def cmd_regen(tweet_type: str = "RANDOM", instruction: str = ""):
-    """Regenerate the last pending headline with a specific tweet type."""
+    """Regenerate the last pending headline with a specific post format."""
     if not PENDING_FILE.exists():
-        send_message("No hay tweet pendiente para regenerar.")
+        send_message("No hay post pendiente para regenerar.")
         return
 
     try:
@@ -456,11 +455,11 @@ def cmd_mixed(text: str = "", reply_news: str = None, target: str = "both"):
             "Necesito una noticia. Opciones:\n"
             "  /mixed <titular>\n"
             "  Responde a un titular del monitor con /mixed\n"
-            "  O genera un tweet primero con /noticia"
+            "  O genera un post primero con /noticia"
         )
         return
 
-    target_label = {"both": "X + Threads", "x": "solo X", "threads": "solo Threads"}.get(target, "X + Threads")
+    target_label = "Threads"
     send_message(f"Generando mixed ({target_label})...")
 
     try:
@@ -562,10 +561,7 @@ def cmd_publish_translated(reply_news: str = None):
     media_note = f" + {'video' if media_type == 'video' else 'imagen'}" if media_path else ""
     send_message(f"Publicando traducción{media_note}: {translated[:80]}...")
 
-    if media_path:
-        _publish_both(translated, media_path, media_type)
-    else:
-        _publish_both(translated)
+    _publish_threads(translated, media_path, media_type)
 
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_publish_translated()")
     MONITOR_PENDING_FILE.unlink(missing_ok=True)
@@ -607,14 +603,7 @@ def cmd_publish_original(reply_news: str = None, target: str = "both"):
     media_note = f" + {'video' if media_type == 'video' else 'imagen'}" if media_path else ""
     send_message(f"Publicando original{media_note}: {text[:80]}...")
 
-    if target == "x":
-        _publish_x(text, media_path, media_type)
-    elif target == "threads":
-        _publish_threads(text, media_path, media_type)
-    elif media_path:
-        _publish_both(text, media_path, media_type)
-    else:
-        _publish_both(text)
+    _publish_threads(text, media_path, media_type)
 
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_publish_original()")
     MONITOR_PENDING_FILE.unlink(missing_ok=True)
@@ -660,13 +649,13 @@ def cmd_generate_from_monitor(reply_news: str = None, tweet_type: str = None):
         send_message("No hay noticia pendiente del monitor. Envíame el titular directamente.")
         return
 
-    send_message(f"Generando tweet para:\n{headline['title'][:120]}...")
+    send_message(f"Generando post para:\n{headline['title'][:120]}...")
 
     try:
         tweet = generate_tweet(headline, tweet_type=tweet_type, manual=True)
     except Exception as e:
         logger.error(f"generate_tweet error: {e}")
-        send_message(f"Error generando tweet: {e}")
+        send_message(f"Error generando post: {e}")
         return
 
     pending = {
@@ -692,29 +681,26 @@ def cmd_ayuda():
     send_message(
         "Comandos de Sol Bot:\n\n"
         "GENERAR:\n"
-        "  <noticia>      Genera tweet desde titular\n"
+        "  <noticia>      Genera post desde titular\n"
         "  titulo | contexto  Con contexto extra\n\n"
-        "FORMATO (regenera el ultimo tweet):\n"
+        "FORMATO (regenera el ultimo post):\n"
         "  /wire          Ultima hora / breaking\n"
         "  /analisis      Analisis profundo\n"
         "  /debate        Pregunta / opinion\n"
         "  /conexion      Angulo macro\n"
         "  /regenera      Otro angulo aleatorio\n"
         "  /mixed         WIRE + ANALISIS en secuencia\n"
-        "  /mixed x       Solo X\n"
         "  /mixed threads Solo Threads\n\n"
         "PUBLICAR:\n"
-        "  /publica       X + Threads\n"
-        "  /publica x     Solo X\n"
-        "  /publica threads  Solo Threads\n\n"
+        "  /publica       Publica en Threads\n"
+        "  /publica threads  Publica en Threads\n\n"
         "PUBLICAR SIN GENERAR:\n"
-        "  /original      Publica original en X + Threads\n"
-        "  /xo             Solo X original\n"
+        "  /original      Publica original en Threads\n"
         "  /to             Solo Threads original\n"
         "  /traduce       Traduce al espanol y publica\n\n"
         "SCHEDULER:\n"
-        "  /publica 1  publica tweet 1 del scheduler\n"
-        "  /publica 2  publica tweet 2\n\n"
+        "  /publica 1  publica post 1 del scheduler\n"
+        "  /publica 2  publica post 2\n\n"
         "  /status        Estado del bot\n"
         "  /ayuda         Este menu"
     )
@@ -754,13 +740,13 @@ def _do_generate(text: str):
         "url": "",
     }
 
-    send_message(f"Generando tweet para:\n{title[:120]}...")
+    send_message(f"Generando post para:\n{title[:120]}...")
 
     try:
         tweet = generate_tweet(headline, tweet_type=None, manual=True)
     except Exception as e:
         logger.error(f"generate_tweet error: {e}")
-        send_message(f"Error generando tweet: {e}")
+        send_message(f"Error generando post: {e}")
         return
 
     # Check if monitor_pending has media matching this headline
@@ -814,7 +800,7 @@ def cmd_publish_from_sched(n: int):
     if not sched_file.exists():
         all_sched = sorted(BASE_DIR.glob('pending_sched_*.json'))
         if not all_sched:
-            send_message(f'No hay tweet {n} del scheduler. Espera el proximo ciclo.')
+            send_message(f'No hay post {n} del scheduler. Espera el proximo ciclo.')
         else:
             nums = [f.stem.replace("pending_sched_", "") for f in all_sched]
             send_message(f'No existe tweet {n}. Disponibles: {", ".join(nums)}')
@@ -822,7 +808,7 @@ def cmd_publish_from_sched(n: int):
     try:
         data = json.loads(sched_file.read_text())
     except Exception as e:
-        send_message(f'Error leyendo tweet {n}: {e}')
+        send_message(f'Error leyendo post {n}: {e}')
         return
     PENDING_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
     sched_file.unlink(missing_ok=True)
@@ -836,8 +822,8 @@ def cmd_publish_from_sched(n: int):
         media_note = f" + {label}"
     else:
         media_note = ""
-    send_message(f"Publicando tweet {n}{media_note}: {tweet[:80]}...")
-    _publish_both(tweet, media_path, media_type, media_paths=media_paths)
+    send_message(f"Publicando post {n}{media_note}: {tweet[:80]}...")
+    _publish_threads(tweet, media_path, media_type, media_paths=media_paths)
     PENDING_FILE.unlink(missing_ok=True)
 
 
@@ -847,7 +833,7 @@ def cmd_publish(args: str = ""):
         return
 
     if not PENDING_FILE.exists():
-        send_message("No hay tweet pendiente. Envia una noticia primero.")
+        send_message("No hay post pendiente. Envia una noticia primero.")
         return
 
     try:
@@ -860,10 +846,10 @@ def cmd_publish(args: str = ""):
         media_path = media_paths[0] if media_paths else None
         tg_media_url = pending.get("tg_media_url")
     except Exception as e:
-        send_message(f"Error leyendo tweet pendiente: {e}")
+        send_message(f"Error leyendo post pendiente: {e}")
         return
 
-    # Also check PENDING_MEDIA_FILE as fallback if no media in pending tweet
+    # Also check PENDING_MEDIA_FILE as fallback if no media in pending post
     if not media_path and PENDING_MEDIA_FILE.exists():
         try:
             pm = json.loads(PENDING_MEDIA_FILE.read_text())
@@ -875,7 +861,7 @@ def cmd_publish(args: str = ""):
         except Exception:
             pass
 
-    target = args.strip().lower()  # "x", "threads", or "" (both)
+    target = args.strip().lower()  # Legacy args are ignored; publishing is Threads-only.
 
     if media_paths:
         n = len(media_paths)
@@ -885,12 +871,7 @@ def cmd_publish(args: str = ""):
         media_note = ""
     send_message(f"Publicando{media_note}: {tweet[:80]}...")
 
-    if target == "x":
-        _publish_x(tweet, media_path, media_type, media_paths=media_paths)
-    elif target == "threads":
-        _publish_threads(tweet, media_path, media_type, tg_media_url=tg_media_url)
-    else:
-        _publish_both(tweet, media_path, media_type, media_paths=media_paths, tg_media_url=tg_media_url)
+    _publish_threads(tweet, media_path, media_type, tg_media_url=tg_media_url, media_paths=media_paths)
 
     for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
         try:
@@ -912,8 +893,69 @@ def cmd_publish(args: str = ""):
     PENDING_MEDIA_FILE.unlink(missing_ok=True)
 
 
+def _extract_threads_result(output: str) -> dict:
+    result = {}
+    for line in (output or "").splitlines():
+        if line.startswith("[THREADS_RESULT]"):
+            try:
+                parsed = json.loads(line.split("]", 1)[1].strip())
+                if isinstance(parsed, dict):
+                    result = parsed
+            except Exception:
+                pass
+    return result
+
+
+def _media_kind(media_type: str, media_paths: list) -> str:
+    if media_type == "video" and media_paths:
+        return "video"
+    if len(media_paths) > 1:
+        return "carousel"
+    if len(media_paths) == 1:
+        return "image"
+    return "text"
+
+
+def _classify_publish_result(output: str, returncode: int, media_kind: str) -> dict:
+    parsed = _extract_threads_result(output)
+    post_id = parsed.get("post_id") if parsed else None
+    success = returncode == 0 and bool(post_id or parsed.get("success"))
+    category = parsed.get("category") if parsed else None
+    message = parsed.get("message") if parsed else None
+    if not success and not category:
+        lower = (output or "").lower()
+        if "token" in lower or "permission" in lower or "unauthorized" in lower:
+            category = "AUTH_ERROR"
+        elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
+            category = "MEDIA_ERROR"
+        elif "timed out" in lower or "timeout" in lower:
+            category = "TIMEOUT"
+        elif "http error" in lower or "meta error" in lower or "fbtrace_id" in lower:
+            category = "META_ERROR"
+        else:
+            category = "FAILED"
+    if not message and not success:
+        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
+        interesting = [ln for ln in lines if "[ERROR]" in ln or "[META ERROR]" in ln or "Container failed" in ln]
+        message = (interesting[-1] if interesting else (lines[-1] if lines else "Threads publish failed"))
+    return {
+        "success": success,
+        "post_id": post_id,
+        "status": "OK" if success else (category or "FAILED"),
+        "error_category": None if success else category,
+        "error_message": None if success else message,
+        "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
+        "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
+        "media_kind": parsed.get("media_type") or media_kind,
+    }
+
+
 def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str = None,
-                         tweet_type: str = None, model_used: str = None):
+                         tweet_type: str = None, model_used: str = None,
+                         has_media: bool = False, media_type: str = "text",
+                         media_count: int = 0, status: str = None,
+                         error_category: str = None, error_message: str = None,
+                         fbtrace_id: str = None, public_media_urls: list = None):
     """Append one publish event to logs/publish_log.json. Never raises."""
     try:
         import tempfile
@@ -925,8 +967,17 @@ def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str 
             "tweet_id": tweet_id,
             "text_preview": (tweet or "")[:80],
             "tweet_type": tweet_type,
+            "topic_tag": classify_topic(tweet),
             "model_used": model_used,
             "char_count": len(tweet) if tweet else 0,
+            "has_media": has_media,
+            "media_type": media_type,
+            "media_count": media_count,
+            "status": status or ("OK" if success else "FAILED"),
+            "error_category": error_category,
+            "error_message": (error_message or "")[:500] if error_message else None,
+            "fbtrace_id": fbtrace_id,
+            "public_media_urls": public_media_urls or [],
         }
         if log_path.exists():
             try:
@@ -966,62 +1017,45 @@ def _read_pending_meta() -> tuple:
     return None, None
 
 
-def _publish_x(tweet: str, media_path: str = None, media_type: str = "photo", media_paths: list = None):
+def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None, media_paths: list = None):
     tweet_type, model_used = _read_pending_meta()
-    send_message(_get_media_status(media_path))
-    cmd = ["python3", os.path.join(BOT_DIR, "x_publisher.py")]
-    if media_type == "video" and media_path:
-        cmd += ["--video", media_path]
-    elif media_paths and len(media_paths) > 1:
-        # Multiple images: --images img1.jpg,img2.jpg
-        cmd += ["--images", ",".join(media_paths)]
-    elif media_path:
-        cmd += ["--image", media_path]
-    cmd.append(tweet)
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=BOT_DIR)
-        if r.returncode == 0:
-            m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            tweet_id = m.group(1) if m else None
-            _append_publish_log("x", True, tweet, tweet_id=tweet_id,
-                                 tweet_type=tweet_type, model_used=model_used)
-            send_message("Publicado en X.")
-            for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
-                try:
-                    if f.exists():
-                        f.unlink()
-                except (OSError, FileNotFoundError) as e:
-                    logger.warning(f"[cleanup] Could not delete {f}: {e}")
-        else:
-            _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            send_message(f"Error en X:\n{r.stderr[-400:]}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        send_message("Timeout publicando en X (>3 min).")
-    except Exception as e:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        send_message(f"Error X: {e}")
+    media_paths = media_paths or ([media_path] if media_path else [])
+    media_paths = [p for p in media_paths if p]
+    media_kind = _media_kind(media_type, media_paths)
+    if len(tweet) > THREADS_POST_MAX_CHARS:
+        send_message(f"Post demasiado largo para Threads: {len(tweet)}/{THREADS_POST_MAX_CHARS} chars. Regenera antes de publicar.")
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            media_type=media_kind, media_count=len(media_paths),
+                            status="VALIDATION_ERROR", error_category="VALIDATION_ERROR",
+                            error_message=f"Post too long: {len(tweet)}/{THREADS_POST_MAX_CHARS}")
+        return False
+    primary_media = tg_media_url or (media_paths[0] if media_paths else media_path)
+    send_message(_get_media_status(primary_media, tg_media_url))
 
-
-def _publish_threads(tweet: str, media_path: str = None, media_type: str = "photo", tg_media_url: str = None):
-    tweet_type, model_used = _read_pending_meta()
-    send_message(_get_media_status(media_path, tg_media_url))
-    cmd = ["python3", os.path.join(BOT_DIR, "threads_publisher.py")]
-    # Prefer tg_media_url (already public) over local path (requires catbox upload)
-    threads_media = tg_media_url if tg_media_url else media_path
-    if threads_media:
-        flag = "--video" if media_type == "video" else "--image"
-        cmd += [flag, threads_media]
+    cmd = ["python3", os.path.join(BOT_DIR, "threads_publisher.py"), "--quiet"]
+    if media_type == "video" and primary_media:
+        cmd += ["--video", primary_media]
+    elif tg_media_url:
+        cmd += ["--image", tg_media_url]
+    else:
+        for mp in media_paths:
+            cmd += ["--image", mp]
     cmd.append(tweet)
+
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=BOT_DIR)
-        if r.returncode == 0:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=360 if media_type == "video" else 120, cwd=BOT_DIR)
+        combined_output = (r.stdout or "") + (r.stderr or "")
+        parsed_result = _classify_publish_result(combined_output, r.returncode, media_kind)
+        if r.returncode == 0 and parsed_result["success"]:
             if "[ERROR]" in (r.stdout or ""):
                 logger.warning(f"Threads media issue: {r.stdout[:300]}")
             m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            post_id = m.group(1) if m else None
+            post_id = parsed_result["post_id"] or (m.group(1) if m else None)
             _append_publish_log("threads", True, tweet, tweet_id=post_id,
-                                  tweet_type=tweet_type, model_used=model_used)
+                                  tweet_type=tweet_type, model_used=model_used,
+                                  has_media=bool(media_paths), media_type=parsed_result["media_kind"],
+                                  media_count=len(media_paths), status="OK",
+                                  public_media_urls=parsed_result["public_media_urls"])
             send_message("Publicado en Threads.")
             for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
                 try:
@@ -1029,98 +1063,45 @@ def _publish_threads(tweet: str, media_path: str = None, media_type: str = "phot
                         f.unlink()
                 except (OSError, FileNotFoundError) as e:
                     logger.warning(f"[cleanup] Could not delete {f}: {e}")
-        else:
-            combined = (r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]
-            _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            send_message(f"Error en Threads:\n{combined.strip()[-400:]}")
+            return True
+
+        combined = (r.stdout or "")[-500:] + "\n" + (r.stderr or "")[-500:]
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=parsed_result["media_kind"],
+                            media_count=len(media_paths), status=parsed_result["status"],
+                            error_category=parsed_result["error_category"],
+                            error_message=parsed_result["error_message"],
+                            fbtrace_id=parsed_result["fbtrace_id"],
+                            public_media_urls=parsed_result["public_media_urls"])
+        short_error = parsed_result["error_message"] or combined.strip()[-400:]
+        trace = f"\nfbtrace_id: {parsed_result['fbtrace_id']}" if parsed_result.get("fbtrace_id") else ""
+        send_message(f"Error en Threads [{parsed_result['status']}]:\n{short_error[:400]}{trace}")
+        return False
     except subprocess.TimeoutExpired:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=media_kind,
+                            media_count=len(media_paths), status="TIMEOUT",
+                            error_category="TIMEOUT",
+                            error_message="Timeout publicando en Threads")
         send_message("Timeout publicando en Threads.")
+        return False
     except Exception as e:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
+        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used,
+                            has_media=bool(media_paths), media_type=media_kind,
+                            media_count=len(media_paths), status="FAILED",
+                            error_category="FAILED", error_message=str(e))
         send_message(f"Error Threads: {e}")
+        return False
 
 
 def _publish_both(tweet, media_path=None, media_type="photo", media_paths=None, tg_media_url=None):
-    tweet_type, model_used = _read_pending_meta()
-    if media_path is None and PENDING_MEDIA_FILE.exists():
-        try:
-            pm = json.loads(PENDING_MEDIA_FILE.read_text())
-            lp = pm.get("local_path", "")
-            if os.path.exists(lp):
-                media_path = lp
-                media_paths = [lp]
-                media_type = pm.get("media_type", "photo")
-                tg_media_url = pm.get("tg_file_url") or tg_media_url
-        except Exception:
-            pass
-    send_message(_get_media_status(media_path, tg_media_url))
-    results = []
-    # --- X ---
-    cmd = ["python3", os.path.join(BOT_DIR, "x_publisher.py")]
-    if media_type == "video" and media_path:
-        cmd += ["--video", media_path]
-    elif media_paths and len(media_paths) > 1:
-        cmd += ["--images", ",".join(media_paths)]
-    elif media_path:
-        cmd += ["--image", media_path]
-    cmd.append(tweet)
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=BOT_DIR)
-        if r.returncode == 0:
-            m = re.search(r"ID:\s*(\d+)", r.stdout or "")
-            _append_publish_log("x", True, tweet, tweet_id=m.group(1) if m else None,
-                                 tweet_type=tweet_type, model_used=model_used)
-            results.append("X: Publicado")
-        else:
-            combined = ((r.stdout or "")[-200:] + "\n" + (r.stderr or "")[-200:]).strip()
-            _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            results.append(f"X: Error\n{combined}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append("X: Timeout")
-    except Exception as e:
-        _append_publish_log("x", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append(f"X: Error {e}")
-    # --- Threads ---
-    cmd2 = ["python3", os.path.join(BOT_DIR, "threads_publisher.py"), "--quiet"]
-    # Prefer tg_media_url (already public) over local path (requires catbox upload)
-    threads_media = tg_media_url if tg_media_url else media_path
-    if threads_media:
-        flag = "--video" if media_type == "video" else "--image"
-        cmd2 += [flag, threads_media]
-    cmd2.append(tweet)
-    try:
-        r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=120, cwd=BOT_DIR)
-        if r2.returncode == 0:
-            m2 = re.search(r"ID:\s*(\d+)", r2.stdout or "")
-            _append_publish_log("threads", True, tweet, tweet_id=m2.group(1) if m2 else None,
-                                 tweet_type=tweet_type, model_used=model_used)
-            if "[ERROR]" in (r2.stdout or ""):
-                logger.warning(f"Threads media issue: {r2.stdout[:300]}")
-                results.append(f"Threads: Publicado (advertencia media: {r2.stdout[:150]})")
-            else:
-                results.append("Threads: Publicado")
-        else:
-            combined = ((r2.stdout or "")[-200:] + "\n" + (r2.stderr or "")[-200:]).strip()
-            _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-            results.append(f"Threads: Error\n{combined}")
-    except subprocess.TimeoutExpired:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append("Threads: Timeout")
-    except Exception as e:
-        _append_publish_log("threads", False, tweet, tweet_type=tweet_type, model_used=model_used)
-        results.append(f"Threads: Error {e}")
-    send_message("Publicacion dual:\n- " + "\n- ".join(results))
-    for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
-        try:
-            if f.exists():
-                f.unlink()
-        except (OSError, FileNotFoundError) as e:
-            logger.warning(f"[cleanup] Could not delete {f}: {e}")
+    """Compatibility wrapper: legacy dual calls publish Threads only."""
+    return _publish_threads(tweet, media_path=media_path, media_type=media_type,
+                            tg_media_url=tg_media_url, media_paths=media_paths)
+
 
 def _publish_combo(args: str = ""):
-    """Publish a single mixed tweet from pending_combo.json."""
+    """Publish a single mixed post from pending_combo.json to Threads only."""
     try:
         data = json.loads(COMBO_FILE.read_text())
     except Exception as e:
@@ -1128,29 +1109,13 @@ def _publish_combo(args: str = ""):
         return
 
     tweet = data.get("tweet", "")
-    default_target = data.get("default_target", "both")
     media_paths, media_type = _load_media_from_pending(data)
     media_path = media_paths[0] if media_paths else None
 
-    arg = args.strip().lower()
-    if arg == "x":
-        target = "x"
-    elif arg in ("threads", "thread"):
-        target = "threads"
-    else:
-        target = default_target
-
-    target_label = {"both": "X + Threads", "x": "solo X", "threads": "solo Threads"}.get(target, "X + Threads")
-
-    send_message(_get_media_status(media_path))
-
-    if target in ("both", "x"):
-        _publish_x(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
-    if target in ("both", "threads"):
-        _publish_threads(tweet, media_path=media_path, media_type=media_type)
+    _publish_threads(tweet, media_path=media_path, media_type=media_type, media_paths=media_paths)
 
     COMBO_FILE.unlink(missing_ok=True)
-    send_message(f"Mixed publicado en {target_label}.")
+    send_message("Mixed publicado en Threads.")
     for f in [PENDING_MEDIA_FILE] + list(MEDIA_DIR.glob("owner_*")):
         try:
             if f.exists():
@@ -1176,27 +1141,25 @@ def _dispatch_brain_action(action: str, instruction: str, text: str, reply_news:
     elif action == "generate_original":
         cmd_publish_original(reply_news=reply_news)
 
-    elif action in ("publish", "publish_x_only", "publish_threads_only"):
+    elif action in ("publish", "publish_threads_only"):
         if not pending_exists:
             send_message("No hay nada pendiente para publicar. ¿Querés generar algo primero?")
             return
-        if action == "publish_x_only":
-            target = "x"
-        elif action == "publish_threads_only":
+        if action == "publish_threads_only":
             target = "threads"
         else:
-            target = ""
+            target = "threads"
         cmd_publish(target)
 
     elif action == "regenerate":
         if not PENDING_FILE.exists():
-            send_message("No hay tweet pendiente para regenerar.")
+            send_message("No hay post pendiente para regenerar.")
             return
         cmd_regen("RANDOM")
 
     elif action == "regenerate_with_instruction":
         if not PENDING_FILE.exists():
-            send_message("No hay tweet pendiente para regenerar.")
+            send_message("No hay post pendiente para regenerar.")
             return
         cmd_regen("RANDOM", instruction=instruction)
 
@@ -1220,13 +1183,13 @@ def handle_message(text: str, reply_news: str = None):
         cmd_status()
     elif lower.startswith("/publica"):
         args = text[8:].strip()
-        # /publica 1  or /publica 2 -> publish scheduler tweet
+        # /publica 1  or /publica 2 -> publish scheduler post
         if args.isdigit():
             cmd_publish_from_sched(int(args))
             log_brain_action("publish", text)
         else:
             cmd_publish(args)
-            _pub_action = "publish_x_only" if args.lower() == "x" else ("publish_threads_only" if args.lower() in ("threads", "thread") else "publish")
+            _pub_action = "publish_threads_only"
             log_brain_action(_pub_action, text)
     elif lower.startswith("/noticia"):
         cmd_generate(text)
@@ -1239,9 +1202,6 @@ def handle_message(text: str, reply_news: str = None):
     elif lower in ("/original", "/reenviar", "/asis"):
         cmd_publish_original(reply_news=reply_news)
         log_brain_action("generate_original", text)
-    elif lower in ("/original x", "/publica xo", "/xo"):
-        cmd_publish_original(reply_news=reply_news, target="x")
-        log_brain_action("publish_x_only", text)
     elif lower in ("/original threads", "/publica to", "/to"):
         cmd_publish_original(reply_news=reply_news, target="threads")
         log_brain_action("publish_threads_only", text)
@@ -1250,13 +1210,11 @@ def handle_message(text: str, reply_news: str = None):
         log_brain_action("generate_original", text)
     elif lower.startswith("/mixed"):
         parts = text.split()
-        target = "both"
-        if len(parts) > 1 and parts[1].lower() == "x":
-            target = "x"
-        elif len(parts) > 1 and parts[1].lower() in ("threads", "thread"):
+        target = "threads"
+        if len(parts) > 1 and parts[1].lower() in ("threads", "thread"):
             target = "threads"
         # Any remaining text after the command (and optional platform flag) is the inline headline
-        skip = 1 + (1 if target != "both" else 0)
+        skip = 1 + (1 if len(parts) > 1 and parts[1].lower() in ("threads", "thread") else 0)
         inline = " ".join(parts[skip:]).strip()
         cmd_mixed(inline, reply_news=reply_news, target=target)
         log_brain_action("generate_mixed", text)
@@ -1336,10 +1294,6 @@ def main():
                             send_message("No hay noticia guardada. Envía el titular de nuevo.")
                     elif callback_data == "gen_original":
                         cmd_publish_original()
-                    elif callback_data == "pub_both":
-                        cmd_publish("")
-                    elif callback_data == "pub_x":
-                        cmd_publish("x")
                     elif callback_data == "pub_threads":
                         cmd_publish("threads")
                     elif callback_data == "btn_regen":
