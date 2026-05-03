@@ -22,7 +22,7 @@ ANTHROPIC_KEY = get_env("ANTHROPIC_API_KEY")
 DAY_NAMES_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 # ------------------------------------------------------------------
-# Reactive day weights — probability per post format per day
+# Reactive day weights — probability per tweet type per day
 # ------------------------------------------------------------------
 
 DAY_WEIGHTS = {
@@ -41,7 +41,7 @@ BREAKING_KEYWORDS = [
     "explosión", "crisis", "emergencia", "intervención", "intervencion",
 ]
 
-# Thread-type schedule (which days produce threads vs single posts)
+# Thread-type schedule (which days produce threads vs single tweets)
 THREAD_DAYS = {0, 2, 5}  # Mon, Wed, Sat
 
 
@@ -55,7 +55,7 @@ def is_breaking(headline: dict) -> bool:
 
 
 def get_tweet_type(headline: dict) -> str:
-    """Select post format reactively: breaking -> WIRE, else weighted by day."""
+    """Select tweet type reactively: breaking → WIRE, else weighted by day."""
     if is_breaking(headline):
         logger.info("[calendar] Breaking news detected → forcing WIRE")
         return "WIRE"
@@ -72,7 +72,7 @@ def get_tweet_type(headline: dict) -> str:
 
 def _build_prompt(tipo: str, headlines: list[dict]) -> tuple[str, bool]:
     """
-    Build (user_prompt, is_thread) for a given post format.
+    Build (user_prompt, is_thread) for a given tweet type.
     Returns the prompt and whether to parse as thread.
     """
     def fmt(h, label="Noticia"):
@@ -104,10 +104,10 @@ def _build_prompt(tipo: str, headlines: list[dict]) -> tuple[str, bool]:
         is_thread = day in THREAD_DAYS
         h = random.choice(headlines[:3])
         thread_note = (
-            "Genera un HILO de 4-5 posts separados por ---. "
-            "Post 1: hook. Posts 2-4: datos/ángulos. Post 5: resumen + 🔁"
+            "Genera un HILO de 4-5 tweets separados por ---. "
+            "Tweet 1: hook. Tweets 2-4: datos/ángulos. Tweet 5: resumen + 🔁"
             if is_thread else
-            "Genera UN post de análisis. 3-5 líneas. Conecta puntos que otros no ven."
+            "Genera UN tweet de análisis. 3-5 líneas. Conecta puntos que otros no ven."
         )
         return (f"{fmt(h)}\n\nTipo: ANALISIS\n{thread_note}\nSin hashtags. Solo el texto.", is_thread)
 
@@ -123,7 +123,7 @@ def _build_prompt(tipo: str, headlines: list[dict]) -> tuple[str, bool]:
 
     # Fallback
     h = headlines[0]
-    return (f"{fmt(h)}\n\nGenera un post analítico. Solo el texto.", False)
+    return (f"{fmt(h)}\n\nGenera un tweet analítico. Solo el texto.", False)
 
 
 # ------------------------------------------------------------------
@@ -151,11 +151,11 @@ def generate_content(tipo: str, headlines: list[dict]) -> str:
 
 def parse_content(raw: str, is_thread: bool) -> list[str]:
     if not is_thread:
-        post = raw.replace("---", "").strip()
-        return [post[:500]] if post else [""]
+        tweet = raw.replace("---", "").strip()
+        return [tweet[:280]] if tweet else [""]
 
     parts = [p.strip() for p in raw.split("---") if p.strip()]
-    posts = []
+    tweets = []
     for part in parts:
         clean = part.strip()
         # Strip leading "1/" "2/" markers if present
@@ -163,8 +163,8 @@ def parse_content(raw: str, is_thread: bool) -> list[str]:
             if clean.startswith(prefix):
                 clean = clean[len(prefix):].strip()
                 break
-        posts.append(clean[:500])
-    return posts if posts else [raw[:500]]
+        tweets.append(clean[:280])
+    return tweets if tweets else [raw[:280]]
 
 
 # ------------------------------------------------------------------
@@ -236,8 +236,8 @@ def get_daily_content(headlines: list[dict] = None) -> tuple[str, list[str]]:
     # Save to memory
     memory = get_memory()
     topic = _detect_topic(headlines[0])
-    for post in content_list[:1]:  # only save first post of thread
-        memory.add_tweet(post, tipo, topic, "threads")
+    for tweet in content_list[:1]:  # only save first tweet of thread
+        memory.add_tweet(tweet, tipo, topic, "x")
 
     return (tipo, content_list)
 
