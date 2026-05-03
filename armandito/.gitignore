@@ -1,7 +1,0 @@
-.env
-__pycache__/
-*.pyc
-*.db
-google_token.json
-photos/
-files/

@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Armandito Bot",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["main.py"],
+      "cwd": "armandito-assistant",
+      "port": null
+    },
+    {
+      "name": "Sol Bot Scheduler",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["scheduler.py"],
+      "cwd": "sol-bot",
+      "port": null
+    },
+    {
+      "name": "Sol Content Calendar",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["content_calendar.py"],
+      "cwd": "sol-bot",
+      "port": null
+    }
+  ]
+}

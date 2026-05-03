@@ -286,8 +286,6 @@ async def handle_message(telegram_id, user_name, text):
         else:
             response = f"La carpeta '{fname}' esta vacia o no existe."
 
-
-
     elif intent == INTENT_UNKNOWN:
         # AI fallback
         history = get_conversation_history(user_id)

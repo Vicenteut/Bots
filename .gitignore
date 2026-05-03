@@ -1,30 +1,3 @@
-# Runtime data
-*.db
-context.json
-*.log
-
-# Media
-images/
-media/
-videos/
-photos/
-
-# Duplicates at root
-filter.py
-memory.py
-test_generator.py
-analytics.db
-
-# Old files
-old/
-
-# Python
+# Python bytecode
 __pycache__/
 *.pyc
-*.pyo
-.env
-
-# Data folders
-data/
-files/
-backups/
