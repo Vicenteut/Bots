@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-scheduler.py — Scheduled news scanner + Threads post generator for Sol.
-Uses jittered scheduling and variable post counts for organic posting rhythm.
+scheduler.py — Scheduled news scanner + tweet generator for @napoleotics.
+Implements shadowban mitigation: jittered times + down days simulation.
 """
 
 import json
@@ -22,12 +22,12 @@ load_environment()
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
-# Organic posting rhythm
+# Shadowban mitigation — down days simulation
 # ------------------------------------------------------------------
 
 def get_daily_post_count() -> int:
     """
-    Variable daily post count for natural posting rhythm.
+    Simulate organic posting behavior.
     ~1/30 days: silent (0 posts)
     ~1/14 days: light (1 post)
     else: normal (2-3 posts)
@@ -132,7 +132,7 @@ def main():
             f"{tweet_text}{nl}{nl}"
             f"Fuente: {h['source']}{nl}"
             f"Noticia: {h['title'][:100]}{nl}{nl}"
-            f"→ /publica {i}  (Threads{', con imagen' if img_path else ''})"
+            f"→ /publica {i}  (X + Threads{', con imagen' if img_path else ''})"
         )
 
         if img_path:
@@ -142,7 +142,7 @@ def main():
 
         published += 1
 
-    print(f"[{datetime.now()}] Done: {published} post(s) previewed")
+    print(f"[{datetime.now()}] Done: {published} tweet(s) previewed")
 
 
 if __name__ == "__main__":

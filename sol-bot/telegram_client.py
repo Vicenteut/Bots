@@ -60,7 +60,7 @@ def send_photo(photo_path: str, caption: str, *, timeout: int = DEFAULT_TIMEOUT)
     body += b'Content-Disposition: form-data; name="caption"' + CRLF + CRLF
     body += caption.encode("utf-8") + CRLF
     body += ("--" + boundary).encode() + CRLF
-    body += b'Content-Disposition: form-data; name="photo"; filename="post.jpg"' + CRLF
+    body += b'Content-Disposition: form-data; name="photo"; filename="tweet.jpg"' + CRLF
     body += b"Content-Type: image/jpeg" + CRLF + CRLF
     body += photo_data + CRLF
     body += ("--" + boundary + "--").encode() + CRLF

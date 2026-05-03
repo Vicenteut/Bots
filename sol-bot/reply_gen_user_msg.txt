@@ -1,8 +1,0 @@
-ORIGINAL_POST:
-{{original_tweet}}
-
-SOL_POSTS_TODAY (do NOT contradict or repeat angles from these):
-{{sol_posts_today}}
-
-HEADLINES_IN_QUEUE (additional context):
-{{headlines_in_queue}}

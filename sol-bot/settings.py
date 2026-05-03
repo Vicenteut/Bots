@@ -3,6 +3,7 @@ settings.py — Centralized config for Sol Bot Dashboard.
 All values read from environment variables with safe defaults.
 """
 import os
+import hashlib
 from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────────────────
@@ -16,7 +17,9 @@ CONTEXT_FILE = BASE_DIR / "context.json"
 # ── Auth ──────────────────────────────────────────────────────────────
 # Store a SHA-256 hash of the password in the env var, not the plaintext.
 # Generate: python3 -c "import hashlib; print(hashlib.sha256(b'yourpass').hexdigest())"
-PASSWORD_HASH = os.getenv("DASHBOARD_PASSWORD_HASH", "")
+# Default hash = sha256("sol2026") — CHANGE IN PRODUCTION via DASHBOARD_PASSWORD_HASH
+_DEFAULT_HASH = hashlib.sha256(b"sol2026").hexdigest()
+PASSWORD_HASH = os.getenv("DASHBOARD_PASSWORD_HASH", _DEFAULT_HASH)
 
 # Session TTL in minutes (0 = never expire)
 SESSION_TTL_MIN = int(os.getenv("DASHBOARD_SESSION_TTL_MIN", "60"))
@@ -29,7 +32,7 @@ REFRESH_INTERVAL = int(os.getenv("SOL_REFRESH_INTERVAL", "30"))
 
 # ── Services to monitor ───────────────────────────────────────────────
 MONITORED_SERVICES = os.getenv(
-    "SOL_MONITORED_SERVICES", "xbot-monitor,sol-commands,sol-dashboard,cloudflared,sol-threads-analytics.timer,sol-rss-fetcher.timer"
+    "SOL_MONITORED_SERVICES", "xbot-monitor"
 ).split(",")
 
 # ── Cron schedule (CST = UTC-6, with 5-45 min random delay) ──────────
@@ -78,6 +81,6 @@ def validate() -> list[str]:
         warnings.append(f"context.json not found: {CONTEXT_FILE}")
     if not LOG_DIR.exists():
         warnings.append(f"LOG_DIR not found: {LOG_DIR}")
-    if not PASSWORD_HASH:
-        warnings.append("DASHBOARD_PASSWORD_HASH is not set")
+    if PASSWORD_HASH == _DEFAULT_HASH:
+        warnings.append("Using default password hash — set DASHBOARD_PASSWORD_HASH in .env")
     return warnings

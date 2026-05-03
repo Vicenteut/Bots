@@ -2,33 +2,19 @@ from telethon import TelegramClient, events
 import asyncio
 import json
 import os
-import sys
-import uuid
 from datetime import datetime
 from pathlib import Path
-from filelock import FileLock
 
 from config import BASE_DIR, get_list_env, get_required_env
-from ingestion_utils import append_or_merge_queue, normalize_ingest_payload
 from telegram_client import send_message, send_photo, send_video, send_media_group
 
 API_ID = get_required_env("TELEGRAM_API_ID", cast=int)
 API_HASH = get_required_env("TELEGRAM_API_HASH")
 CANALES = [int(channel_id) for channel_id in get_list_env("TELEGRAM_SOURCE_CHANNEL_IDS")]
 
-# Human-readable names for Telegram channel IDs (add more as needed)
-CHANNEL_NAMES = {
-    "-1002006131201": "BRICSNews",
-    "-1001556054753": "WatcherGuru",
-    "-1003706885368": "Sol Test",
-}
-
 MONITOR_PENDING_FILE = BASE_DIR / "monitor_pending.json"
-MONITOR_QUEUE_FILE   = BASE_DIR / "monitor_queue.json"
-MONITOR_QUEUE_LOCK   = BASE_DIR / "monitor_queue.lock"
 MEDIA_DIR = BASE_DIR / "media"
 MEDIA_DIR.mkdir(exist_ok=True)
-MONITOR_QUEUE_MAX = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
 
 # Videos longer than this will be skipped
 MAX_VIDEO_DURATION_SEC = 60
@@ -36,13 +22,6 @@ MAX_VIDEO_DURATION_SEC = 60
 # Buffer for grouped (album) messages: grouped_id -> list of events
 group_buffer: dict = {}
 group_tasks: dict = {}
-
-
-def _atomic_write_json(path: Path, data) -> None:
-    """Write JSON atomically using a temp file + os.replace to prevent corruption."""
-    tmp = path.parent / f".tmp_{path.name}"
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
 
 
 def get_video_duration(path: str) -> float:
@@ -84,58 +63,20 @@ async def _download_media(event, ts: int, index: int = 0):
     return None, None
 
 
-def send_monitor_keyboard(caption: str):
-    """Send monitor alert text + action buttons as an inline keyboard message."""
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
-    payload = {
-        "chat_id": chat_id,
-        "text": caption,
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {"text": "⚡ Generate",  "callback_data": "mon_generate"},
-                    {"text": "🧩 Mixed",     "callback_data": "mon_mixed"},
-                    {"text": "📰 Original",  "callback_data": "mon_original"},
-                ],
-                [
-                    {"text": "🚫 Ignorar", "callback_data": "mon_ignore"},
-                ],
-            ]
-        },
-    }
-    import urllib.request as _req
-    r = _req.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with _req.urlopen(r, timeout=35):
-            pass
-    except Exception as exc:
-        print(f"send_monitor_keyboard error: {exc}")
-
-
 async def _forward_to_bot(mensaje: str, canal: str, media_paths: list, media_type: str | None):
     """Save monitor_pending.json and send notification to the Sol bot chat."""
     display = mensaje if mensaje else "[Solo media — sin texto]"
-    caption = f"\U0001f4e1 @{canal}:\n\n{display}"
-
-    source_name = CHANNEL_NAMES.get(str(canal), canal)
+    caption = f"\U0001f4e1 @{canal}:\n\n{display}\n\n\u00bfGenero un tweet?"
 
     headline = {
         "title": mensaje,
         "summary": mensaje,
-        "source": source_name,
+        "source": canal,
         "url": "",
     }
     pending_data = {
         "headline": headline,
         "received_at": datetime.now().isoformat(),
-        "source_name": source_name,
-        "source_type": "telegram",
     }
 
     if media_paths:
@@ -143,44 +84,20 @@ async def _forward_to_bot(mensaje: str, canal: str, media_paths: list, media_typ
         pending_data["media_path"] = media_paths[0]        # first (backward compat)
         pending_data["media_type"] = media_type or "photo"
 
-    # ── Backwards compat: keep single-entry file for sol_commands.py ──────────
-    _atomic_write_json(MONITOR_PENDING_FILE, pending_data)
+    MONITOR_PENDING_FILE.write_text(
+        json.dumps(pending_data, ensure_ascii=False, indent=2)
+    )
 
-    # ── Append to persistent queue (filelock prevents TOCTOU race) ────────────
-    with FileLock(str(MONITOR_QUEUE_LOCK), timeout=5):
-        try:
-            queue = json.loads(MONITOR_QUEUE_FILE.read_text()) if MONITOR_QUEUE_FILE.exists() else []
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"[monitor] Corrupt queue file, resetting: {e}")
-            queue = []
-
-        entry = normalize_ingest_payload(
-            {
-                "id": str(uuid.uuid4()),
-                "source_name": source_name,
-                "source_type": "telegram",
-                "received_at": pending_data["received_at"],
-                "headline": headline,
-                "media_paths": media_paths,
-                "media_path": media_paths[0] if media_paths else "",
-                "media_type": media_type or "",
-                "metadata": {"credibility": "medium", "priority": "normal"},
-            }
-        )
-        queue, _stored, status = append_or_merge_queue(queue, entry, max_items=MONITOR_QUEUE_MAX)
-        print(f"[monitor] queued status={status} source={source_name} score={_stored.get('score')}", flush=True)
-
-        _atomic_write_json(MONITOR_QUEUE_FILE, queue)
-
-    # Send media (if any) then always follow with the action keyboard
+    # Send to bot
     if len(media_paths) > 1 and media_type == "photo":
         send_media_group(media_paths, caption)
     elif media_paths and media_type == "photo":
         send_photo(media_paths[0], caption)
     elif media_paths and media_type == "video":
         send_video(media_paths[0], caption)
+    else:
+        send_message(caption)
 
-    send_monitor_keyboard(caption if not media_paths else "¿Qué hago con esta noticia?")
     print(f"Enviada: {mensaje[:80]}")
 
 
@@ -275,25 +192,12 @@ async def handler(event):
 
 
 async def main():
-    MONITOR_PID_FILE = Path(__file__).parent / "monitor.pid"
-    if MONITOR_PID_FILE.exists():
-        try:
-            pid = int(MONITOR_PID_FILE.read_text().strip())
-            os.kill(pid, 0)
-            print(f"Monitor already running (PID {pid}), exiting.")
-            sys.exit(0)
-        except (ProcessLookupError, ValueError):
-            pass  # stale pid file — overwrite
-    MONITOR_PID_FILE.write_text(str(os.getpid()))
-    try:
-        await client.connect()
-        if not await client.is_user_authorized():
-            print("ERROR: Sesion no valida")
-            return
-        print("Monitoreando canales configurados...")
-        await client.run_until_disconnected()
-    finally:
-        MONITOR_PID_FILE.unlink(missing_ok=True)
+    await client.connect()
+    if not await client.is_user_authorized():
+        print("ERROR: Sesion no valida")
+        return
+    print("Monitoreando canales configurados...")
+    await client.run_until_disconnected()
 
 
 asyncio.run(main())
