@@ -277,8 +277,6 @@ def parse_intent(text):
         result["intent"] = INTENT_LIST_NOTES
         return result
 
-
-
     # Add task (catch-all for task-like messages)
     m = re.match(r"(?:agregar? tarea|nueva tarea|tarea|task|añadir|add)\s*:?\s+(.+)", t)
     if m:
