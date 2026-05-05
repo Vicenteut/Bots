@@ -1381,7 +1381,10 @@ body[data-side="collapsed"] .lin-search { display: none; }
     gap: var(--sp-3) !important;
   }
   .anl-chart { height: 200px; }
-  .anl-chart-legend { padding: 0 var(--sp-3) var(--sp-2); flex-wrap: wrap; gap: var(--sp-2); }
+  .anl-chart-hd { flex-wrap: wrap; gap: 8px; padding: var(--sp-2) var(--sp-3); }
+  .anl-chart-total { font-size: 11px; }
+  .anl-chart-total strong { font-size: 13px; }
+  .anl-chart-range-lbl { width: 100%; margin-left: 0; font-size: 10px; }
 
   /* ───── F3.F — Command palette (⌘K) → fullscreen mobile ───── */
   .lin-palette {
@@ -2020,59 +2023,91 @@ body[data-side="collapsed"] .lin-search { display: none; }
 }
 
 .anl-chart-card { padding: 0; }
+
+/* X-style chart header: metric dropdown + total summary + range label */
+.anl-chart-hd {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border-bottom: 0;
+}
+.anl-metric-pick {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 28px 6px 12px;
+  border-radius: var(--r-xs);
+  font: 600 13px var(--font-sans);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1l4 4 4-4' stroke='%237a8294' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color var(--t-fast), background-color var(--t-fast);
+}
+.anl-metric-pick:hover { border-color: var(--border-strong); background-color: var(--surface); }
+.anl-metric-pick:focus { border-color: var(--accent); }
+.anl-chart-total {
+  font: 500 12px var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+.anl-chart-total strong {
+  color: var(--text);
+  font: 700 14px var(--font-sans);
+  margin-right: 4px;
+}
+.anl-chart-total .hl {
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+.anl-chart-range-lbl {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
 .anl-chart-wrap {
   position: relative;
   width: 100%;
-  padding: var(--sp-2) var(--sp-3) 0;
+  padding: 0 var(--sp-3) var(--sp-3);
 }
 .anl-chart {
   width: 100%;
-  height: 260px;
+  height: 240px;
   display: block;
   overflow: visible;
 }
 .anl-chart-hit { cursor: crosshair; }
-.anl-chart-hit:hover { fill: rgba(94, 106, 210, 0.06); }
+.anl-chart-hit:hover { fill: rgba(94, 106, 210, 0.04); }
+
+/* Pill-style tooltip — X analytics aesthetic (single line, rounded) */
 .anl-tip {
   position: absolute;
-  background: var(--surface-2);
+  background: var(--bg-elevated, #0d0e12);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 6px 9px;
-  font: 500 11px var(--font-mono);
-  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
   pointer-events: none;
   z-index: 10;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
   display: none;
-  transform: translate(-50%, -110%);
   top: 0; left: 0;
+  transform: translate(-50%, -100%);
 }
-.anl-tip.show { display: block; }
-.anl-tip .tip-d { color: var(--text-muted); margin-bottom: 4px; font-size: 10px; }
-.anl-tip .tip-r { display: flex; gap: 8px; align-items: center; }
-.anl-tip .tip-r .sw { width: 8px; height: 2px; display: inline-block; }
-.anl-chart-legend {
-  display: flex; gap: var(--sp-4);
-  padding: 0 var(--sp-4) var(--sp-3);
-  font-size: 11px;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
+.anl-tip.show {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
 }
-.anl-chart-legend span {
-  display: flex; align-items: center; gap: 6px;
-}
-.anl-chart-legend i {
-  width: 10px; height: 2px; background: currentColor; display: inline-block;
-}
-.anl-chart-legend em {
-  font-style: normal;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-  font-size: 10px;
-  margin-left: 2px;
-}
+.anl-tip .tip-d { color: var(--text-muted); font: 500 10px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.anl-tip .tip-v { color: var(--text); font: 700 13px var(--font-sans); }
+.anl-tip .tip-l { color: var(--text-muted); font: 500 10px var(--font-sans); }
 
 .anl-range {
   display: flex; gap: 2px;
@@ -2089,6 +2124,31 @@ body[data-side="collapsed"] .lin-search { display: none; }
   font-family: var(--font-sans);
 }
 .anl-range button.active { background: var(--surface-2); color: var(--text); }
+
+/* Sprint 5 — Analytics network filter (All / Threads / X) */
+.anl-net-filter {
+  display: flex; gap: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 3px;
+  margin-right: 6px;
+}
+.anl-net-filter button {
+  background: transparent; color: var(--text-secondary);
+  border: 0; padding: 4px 10px;
+  font-size: 11px; font-weight: 600;
+  border-radius: var(--r-xs); cursor: pointer;
+  font-family: var(--font-sans);
+}
+.anl-net-filter button.active {
+  background: var(--surface-2); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent, #5e6ad2);
+}
+@media (max-width: 600px) {
+  .anl-net-filter { width: 100%; justify-content: stretch; }
+  .anl-net-filter button { flex: 1; min-height: 32px; }
+}
 
 .anl-lane-list { display: flex; flex-direction: column; }
 .anl-lane-row {
@@ -2246,6 +2306,173 @@ body[data-side="collapsed"] .lin-search { display: none; }
   border-bottom: 1px solid var(--border);
 }
 .anl-top-hd > span:nth-child(n+3) { text-align: right; }
+
+/* ============================================================
+   X REPLIES — manual reply tracker (warmup phase, X-only)
+   ============================================================ */
+.xrep-list { display: flex; flex-direction: column; }
+
+.xrep-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.xrep-row:hover     { background: var(--surface-2); }
+.xrep-row:last-child{ border-bottom: 0; }
+
+/* Avatar: ≠ char (Inequaliti's brand mark) on black circle */
+.xrep-av {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #000; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-sans); font-weight: 700; font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.xrep-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.xrep-meta {
+  display: flex; align-items: baseline; gap: 6px; font-size: 12px;
+  color: var(--text-secondary); flex-wrap: wrap;
+}
+.xrep-handle  { color: var(--text); font-weight: 600; }
+.xrep-verified{ color: var(--accent); font-size: 11px; }
+.xrep-sep     { color: var(--text-muted); }
+.xrep-date    { color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; }
+.xrep-replyto {
+  margin-left: 8px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.xrep-text {
+  font-size: 13px; line-height: 1.45; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+.xrep-stats {
+  display: flex; align-items: center; gap: 18px;
+  padding-top: 4px;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.xrep-stat { display: inline-flex; align-items: center; gap: 5px; }
+.xrep-stat .ic {
+  font-size: 12px; opacity: 0.6; font-style: normal;
+  display: inline-block; min-width: 14px; text-align: center;
+}
+.xrep-eng {
+  font-weight: 600; min-width: 52px; text-align: right;
+  color: var(--hue-green);
+  font-family: var(--font-mono); font-size: 12px;
+}
+
+.xrep-empty {
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Pattern analysis strip (Phase 3) */
+.xrep-insights {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+}
+.xrep-insights-hd {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.xrep-insights-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.xrep-insights-meta {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.xrep-takeaways {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.xrep-takeaways li {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  padding-left: 18px;
+  position: relative;
+}
+.xrep-takeaways li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+.xrep-takeaways li.win::before  { content: "✓"; color: var(--hue-green); }
+.xrep-takeaways li.warn::before { content: "✗"; color: var(--hue-red); }
+
+/* Mobile: stats fall below body, chip-style */
+@media (max-width: 600px) {
+  .xrep-row {
+    grid-template-columns: 32px 1fr;
+    grid-template-areas:
+      "av body"
+      ".  stats";
+    gap: 10px;
+  }
+  .xrep-av    { grid-area: av; width: 28px; height: 28px; font-size: 14px; }
+  .xrep-body  { grid-area: body; }
+  .xrep-stats {
+    grid-area: stats;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 8px;
+  }
+  .xrep-stat {
+    background: var(--surface-2);
+    padding: 4px 8px;
+    border-radius: var(--r-xs);
+    font-size: 11px;
+  }
+  .xrep-eng {
+    background: var(--surface-2);
+    padding: 4px 10px;
+    border-radius: var(--r-xs);
+    min-width: auto;
+  }
+  .xrep-text { -webkit-line-clamp: 4; }
+}
 
 /* ============================================================
    BRAIN — character sheet, registries, recent topics, history search
@@ -2536,6 +2763,277 @@ body[data-side="collapsed"] .lin-search { display: none; }
 .set-int-icon.an  { background: #d97757; }
 .set-int-row .nm { font-size: 13px; font-weight: 600; color: var(--text); }
 .set-int-row .ds { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* ============================================================
+   CONNECTED NETWORKS — Sprint 3 (multi-network publishing)
+   Used in Settings → Connected Networks pane
+   ============================================================ */
+.set-networks-list {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.set-net-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 24px;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+/* ── Sprint 4 — composer multi-network chips ───────────────────────── */
+.net-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+  padding: 0;
+}
+.net-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s, border-color .15s, color .15s;
+  min-height: 28px;
+}
+.net-chip:hover { border-color: var(--border-strong, var(--border)); color: var(--text); }
+.net-chip.active {
+  background: var(--surface);
+  border-color: var(--accent, #5e6ad2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent, #5e6ad2);
+}
+.net-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+.net-chip-dot.threads  { background: #ffffff; box-shadow: inset 0 0 0 1px #444; }
+.net-chip-dot.x        { background: #1d9bf0; }
+.net-chip-dot.bluesky  { background: #0085ff; }
+.net-chip-dot.linkedin { background: #0077b5; }
+
+/* Sprint 7 — per-network preview cards */
+.net-previews { margin: 6px 0 2px; }
+.net-previews > summary {
+  cursor: pointer; font-size: 11px; color: var(--text-muted);
+  padding: 4px 0; user-select: none; list-style: none;
+}
+.net-previews > summary::-webkit-details-marker { display: none; }
+.net-previews > summary::before {
+  content: '▸ '; display: inline-block; transition: transform .15s; margin-right: 2px;
+}
+.net-previews[open] > summary::before { transform: rotate(90deg); }
+.net-previews-body {
+  display: grid; gap: 8px; margin-top: 6px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .net-previews-body { grid-template-columns: 1fr 1fr; }
+}
+.net-preview-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 6px);
+  padding: 8px 10px;
+  background: var(--surface-2, var(--surface));
+}
+.net-preview-hd {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.net-preview-label { font-weight: 600; color: var(--text); }
+.net-preview-count { margin-left: auto; font-family: var(--font-mono); }
+.net-preview-count.over { color: var(--hue-red, #e55); }
+.net-preview-warn {
+  color: var(--hue-red, #e55); font-size: 10px;
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(229, 85, 85, .08);
+}
+.net-preview-body {
+  font: 12px/1.4 var(--font-sans);
+  color: var(--text);
+  white-space: pre-wrap; word-wrap: break-word;
+}
+.net-preview-body .dim { color: var(--text-dim); font-style: italic; }
+@media (max-width: 600px) {
+  .net-chip-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+  }
+  .net-chip {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 0 14px;
+    scroll-snap-align: start;
+  }
+}
+
+.net-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  background: var(--surface-2, var(--surface));
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: start;
+}
+.net-card.coming-soon { opacity: 0.55; }
+
+.net-card-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+}
+.net-card-icon.threads  { background: #000; border: 1px solid var(--border-emphasis, var(--border)); }
+.net-card-icon.x        { background: #1d9bf0; }
+.net-card-icon.bluesky  { background: #0085ff; }
+.net-card-icon.linkedin { background: #0077b5; font-size: 14px; }
+
+.net-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.net-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.net-card-title .nm     { font-size: 14px; font-weight: 600; color: var(--text); }
+.net-card-title .handle { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+.net-card-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.net-card-meta .ok   { color: var(--hue-green); }
+.net-card-meta .err  { color: var(--hue-red);   }
+.net-card-meta .warn { color: var(--hue-orange);}
+.net-card-meta .idle { color: var(--text-dim);  }
+
+.net-card-cost {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+.net-card-err {
+  font-size: 11px;
+  color: var(--hue-red);
+  background: rgba(229, 76, 76, 0.07);
+  border-left: 2px solid var(--hue-red);
+  padding: 6px 8px;
+  border-radius: 3px;
+  word-break: break-word;
+}
+
+.net-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.net-card-actions .btn { white-space: nowrap; min-width: 90px; }
+
+.net-status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.net-status-dot.ok   { background: var(--hue-green); box-shadow: 0 0 4px var(--hue-green); }
+.net-status-dot.err  { background: var(--hue-red);   box-shadow: 0 0 6px rgba(229,76,76,.4); }
+.net-status-dot.warn { background: var(--hue-orange);}
+.net-status-dot.idle { background: var(--text-dim);  }
+
+/* X auth modal — input fields */
+.net-auth-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.net-auth-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.net-auth-modal label input {
+  padding: 9px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.net-auth-modal label input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.15);
+}
+.net-auth-help {
+  font-size: 12px;
+  color: var(--text-secondary, var(--text));
+  padding: 10px 12px;
+  background: var(--surface);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  line-height: 1.5;
+}
+.net-auth-help a { color: var(--accent); text-decoration: underline; }
+.net-auth-help strong { color: var(--text); }
+
+@media (max-width: 600px) {
+  .net-card {
+    grid-template-columns: 36px 1fr;
+    gap: 10px;
+  }
+  .net-card-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+  .net-card-actions .btn { min-width: auto; min-height: 40px; padding: 0 14px; }
+  .set-networks-list { padding: 12px; }
+}
 
 /* ============================================================
    INBOX — replies, mentions, DMs (two-pane: list + thread)
@@ -3422,10 +3920,9 @@ body[data-side="collapsed"] .lin-search { display: none; }
     pointer-events: none;
     box-shadow: 0 4px 16px rgba(0,0,0,.5);
   }
-  /* Larger crosshair dots on touch for visibility */
-  #anl-chart-fi { r: 5; }
-  #anl-chart-fe { r: 4; }
-  #anl-chart-fp { r: 3.5; }
+  /* Larger crosshair dot on touch for visibility */
+  #anl-chart-fi      { r: 6; }
+  #anl-chart-fi-halo { r: 12; }
 }
 
 /* Heatmap mobile sizing — 6 cols × 7 rows */
@@ -3891,5 +4388,720 @@ body[data-side="collapsed"] .lin-search { display: none; }
   @media (prefers-reduced-motion: reduce) {
     .mon-select-toolbar { transition: none; }
     .mon-feed.is-selecting .feed-row::before { transition: none; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 1 (added 2026-05-01)
+   Quick wins: motion baseline, hover lift, stagger reveal, button polish
+   All wrapped in prefers-reduced-motion to respect accessibility.
+   ════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* 1.1 — Global motion baseline. Applies to almost every state change. */
+  *, *::before, *::after {
+    transition:
+      background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color    180ms cubic-bezier(0.4, 0, 0.2, 1),
+      color           180ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform       240ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow      240ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity         200ms cubic-bezier(0.4, 0, 0.2, 1),
+      filter          200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Skip transitions on the page wrapper + scroll containers (perf, avoid jitter) */
+  body, html, .lin-app, [class*="-scroll"], canvas, video {
+    transition: none;
+  }
+
+  /* 1.2 — Card lift on hover (depth + breathing) */
+  .lin-card {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+  .lin-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.35),
+      0 12px 32px rgba(0, 0, 0, 0.25);
+  }
+
+  /* 1.3 — Stagger reveal for list rows. Used by #rl-list (Recent Reels),
+     #recent-posts-body (Recent Posts), and any feed-row container. */
+  @keyframes solSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  #rl-list > div,
+  #recent-posts-body > tr,
+  .feed-row,
+  .alerts-list > * {
+    animation: solSlideUp 320ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+  #rl-list > div:nth-child(1),  #recent-posts-body > tr:nth-child(1),  .feed-row:nth-child(1)  { animation-delay: 0ms; }
+  #rl-list > div:nth-child(2),  #recent-posts-body > tr:nth-child(2),  .feed-row:nth-child(2)  { animation-delay: 50ms; }
+  #rl-list > div:nth-child(3),  #recent-posts-body > tr:nth-child(3),  .feed-row:nth-child(3)  { animation-delay: 100ms; }
+  #rl-list > div:nth-child(4),  #recent-posts-body > tr:nth-child(4),  .feed-row:nth-child(4)  { animation-delay: 150ms; }
+  #rl-list > div:nth-child(5),  #recent-posts-body > tr:nth-child(5),  .feed-row:nth-child(5)  { animation-delay: 200ms; }
+  #rl-list > div:nth-child(6),  #recent-posts-body > tr:nth-child(6),  .feed-row:nth-child(6)  { animation-delay: 240ms; }
+  #rl-list > div:nth-child(7),  #recent-posts-body > tr:nth-child(7),  .feed-row:nth-child(7)  { animation-delay: 280ms; }
+  #rl-list > div:nth-child(8),  #recent-posts-body > tr:nth-child(8),  .feed-row:nth-child(8)  { animation-delay: 310ms; }
+  #rl-list > div:nth-child(n+9),#recent-posts-body > tr:nth-child(n+9),.feed-row:nth-child(n+9){ animation-delay: 340ms; }
+
+  /* 1.4 — Button micro-interactions: lift on hover, press on click */
+  button:not(:disabled),
+  .lin-btn,
+  .lin-side-item,
+  .brn-nav-item,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:not(:disabled):hover,
+  .lin-btn:hover,
+  [role="button"]:hover {
+    transform: translateY(-1px);
+  }
+  button:not(:disabled):active,
+  .lin-btn:active,
+  [role="button"]:active {
+    transform: translateY(0);
+    transition-duration: 80ms;
+  }
+
+  /* Sidebar items get a subtle slide on hover */
+  .lin-side-item:hover {
+    transform: translateX(2px);
+  }
+
+  /* 1.5 — Page entry animation (fade in the main shell on load) */
+  @keyframes solFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .lin-app {
+    animation: solFadeIn 360ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* 1.6 — Focus ring polish: smooth outline appearance */
+  :focus-visible {
+    outline: 2px solid var(--accent, #7aa2f7);
+    outline-offset: 2px;
+    border-radius: var(--r-sm, 6px);
+  }
+}
+
+/* Fallback for users with prefers-reduced-motion: reduce — no transforms,
+   only quick fades. Respects accessibility. */
+@media (prefers-reduced-motion: reduce) {
+  #rl-list > div,
+  #recent-posts-body > tr,
+  .feed-row,
+  .alerts-list > * {
+    animation: solFadeIn 200ms ease both;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   END MODERNIZATION — Level 1
+   ════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 2A (Glassmorphism) + 2D (Loading skeletons)
+   Added 2026-05-01
+   ════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ─────────────────────────────────────────────────────
+     2A. GLASSMORPHISM — backdrops + sticky bars
+     ───────────────────────────────────────────────────── */
+
+  /* Modal backdrops: blur + saturate the underlying content */
+  .api-confirm-backdrop,
+  .mb-drawer-backdrop,
+  .lin-lightbox::before,
+  [class*="-backdrop"] {
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    background-color: rgba(8, 9, 11, 0.55) !important;
+  }
+
+  /* Modal containers: glass panel with subtle border + glow */
+  .api-confirm-modal,
+  .lin-drawer,
+  .mon-drawer,
+  .lin-palette,
+  .lin-lightbox {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background-color: rgba(20, 22, 26, 0.82) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 16px 48px rgba(0, 0, 0, 0.5),
+      0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Sticky topbar: glass effect when content scrolls behind */
+  .mb-header,
+  .lin-topbar,
+  [class*="topbar"] {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background-color: rgba(13, 14, 16, 0.82) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* Modal entry animation — slide up + fade with spring feel */
+  @keyframes solModalIn {
+    from {
+      opacity: 0;
+      transform: translateY(16px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .api-confirm-modal,
+  .lin-palette,
+  .lin-lightbox.is-open {
+    animation: solModalIn 280ms cubic-bezier(0.34, 1.3, 0.64, 1) backwards;
+  }
+
+  /* Drawer slide-in (right side) */
+  @keyframes solDrawerIn {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  .lin-drawer.is-open,
+  .mon-drawer.is-open {
+    animation: solDrawerIn 320ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  /* Backdrop fade-in */
+  @keyframes solBackdropIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  [class*="-backdrop"] {
+    animation: solBackdropIn 220ms ease backwards;
+  }
+
+  /* ─────────────────────────────────────────────────────
+     2D. LOADING SKELETONS — shimmer effect for any data-pending state
+     ───────────────────────────────────────────────────── */
+
+  @keyframes solShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Generic skeleton class — apply to any element while data loads */
+  .sol-skel,
+  [data-loading="true"] .sol-skel,
+  .is-loading .sol-skel {
+    background: linear-gradient(
+      90deg,
+      rgba(60, 64, 72, 0.4) 0%,
+      rgba(90, 96, 108, 0.6) 50%,
+      rgba(60, 64, 72, 0.4) 100%
+    );
+    background-size: 200% 100%;
+    animation: solShimmer 1.6s ease-in-out infinite;
+    border-radius: var(--r-sm, 6px);
+    color: transparent !important;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Specific skeleton variants you can drop in */
+  .sol-skel-line { height: 12px; margin: 6px 0; }
+  .sol-skel-line-lg { height: 18px; margin: 8px 0; }
+  .sol-skel-circle { border-radius: 50%; aspect-ratio: 1; }
+  .sol-skel-thumb { width: 48px; height: 84px; border-radius: 4px; }
+
+  /* Common empty states get subtle pulse instead of dead text */
+  @keyframes solPulse {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1.0; }
+  }
+  [data-empty="true"] {
+    animation: solPulse 2s ease-in-out infinite;
+  }
+}
+
+/* Reduced motion fallback for skeletons — show muted bar without animation */
+@media (prefers-reduced-motion: reduce) {
+  .sol-skel,
+  [data-loading="true"] .sol-skel {
+    background: rgba(80, 84, 92, 0.5);
+    color: transparent !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   END MODERNIZATION — Level 2A + 2D
+   ════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 2B (Typography rhythm) + 2C (Radius rhythm)
+   Added 2026-05-01
+
+   Conservative approach: tokens + targeted nudges, no aggressive sweep.
+   Inline 12/11px on dense info (timestamps, tags) stays intentional.
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Typography scale — 5 sizes covering xs (meta) → xl (page titles) */
+  --fs-xs:  11px;   /* meta info, timestamps, captions, badge counts */
+  --fs-sm:  13px;   /* body default, list items, table cells */
+  --fs-md:  15px;   /* card titles, section headings */
+  --fs-lg:  18px;   /* tab/section headers, primary headings */
+  --fs-xl:  24px;   /* page titles, hero numbers */
+  --fs-2xl: 32px;   /* dashboard mega-numbers (analytics) */
+
+  /* Line-height paired with font-size for visual rhythm */
+  --lh-tight:  1.25;   /* headings */
+  --lh-normal: 1.45;   /* body */
+  --lh-relaxed: 1.6;   /* longer prose, descriptions */
+}
+
+/* 2B. Nudge base body size from "implicit" default to explicit 13px.
+   Affects un-styled text only — inline overrides (11/12/14/16px) stay. */
+body {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Section/card title default — matches modern dashboard hierarchy */
+h1, .lin-page-title { font-size: var(--fs-xl); line-height: var(--lh-tight); font-weight: 600; }
+h2, .lin-section-title { font-size: var(--fs-lg); line-height: var(--lh-tight); font-weight: 600; }
+h3, .lin-card h3 { font-size: var(--fs-md); line-height: var(--lh-tight); font-weight: 600; }
+
+/* Sidebar item label — was implicit, now explicit + slightly heavier */
+.lin-side-label { font-size: var(--fs-sm); font-weight: 500; }
+
+/* Tab nav text */
+.brn-nav-item { font-size: var(--fs-sm); }
+
+/* 2C. Radius rhythm — soft override for outlier values via attribute hooks.
+   Catches common inline border-radius values that broke the rhythm
+   (2px, 3px, 5px, 10px) and aligns them to nearest token. */
+
+/* Tighten visual rhythm by mapping odd values to existing tokens */
+[style*="border-radius:2px"],
+[style*="border-radius: 2px"],
+[style*="border-radius:3px"],
+[style*="border-radius: 3px"] {
+  border-radius: var(--r-xs) !important;  /* 4px */
+}
+
+[style*="border-radius:5px"],
+[style*="border-radius: 5px"] {
+  border-radius: var(--r-sm) !important;  /* 6px */
+}
+
+[style*="border-radius:10px"],
+[style*="border-radius: 10px"] {
+  border-radius: var(--r-lg) !important;  /* 12px */
+}
+
+/* Soft-pulse for table/list cells when they update (data refresh feedback) */
+@keyframes solDataRefresh {
+  0%   { background-color: rgba(122, 162, 247, 0.12); }
+  100% { background-color: transparent; }
+}
+[data-just-updated="true"] {
+  animation: solDataRefresh 1.4s ease-out;
+}
+
+/* Improve link readability in copy/captions (longer text) */
+.rl-preview-caption,
+.brn-prose,
+.kb-article-body {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+}
+
+/* Numeric / mono content — keep at fs-sm but with mono font */
+[class*="-num"],
+.lin-num,
+code, pre {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   END MODERNIZATION — Level 2B + 2C
+   ════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 3.1 (Component utility classes)
+   Added 2026-05-01
+
+   Reusable classes for new components. Existing inline styles stay
+   intact — these are ADDITIVE so nothing breaks. Over time, components
+   can migrate from inline to classes.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────
+   BUTTONS — 4 variants + size scale
+   Usage: <button class="btn btn-primary">Save</button>
+          <button class="btn btn-ghost btn-sm">Cancel</button>
+   ───────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-sm { padding: 4px 8px; font-size: var(--fs-xs); }
+.btn-lg { padding: 10px 18px; font-size: var(--fs-md); }
+.btn-block { display: flex; width: 100%; }
+
+.btn-primary {
+  background: #1a3a5c;
+  color: #7aa2f7;
+  border-color: #2a4a6c;
+}
+.btn-primary:hover:not(:disabled) { background: #234a72; border-color: #3a5a82; }
+
+.btn-secondary {
+  background: #1a1c20;
+  color: #c8c9cc;
+  border-color: #2a2d33;
+}
+.btn-secondary:hover:not(:disabled) { background: #25282e; border-color: #3a3d43; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted, #888);
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--text, #e7e8ea); }
+
+.btn-danger {
+  background: #3a1f1f;
+  color: #e88a8a;
+  border-color: #5a2a2a;
+}
+.btn-danger:hover:not(:disabled) { background: #4a2828; border-color: #6a3535; }
+
+.btn-warning {
+  background: #3a2615;
+  color: #ffaa44;
+  border-color: #5a3a20;
+}
+.btn-warning:hover:not(:disabled) { background: #4a3120; border-color: #6a4a30; }
+
+.btn-success {
+  background: #1f3520;
+  color: #7ed99a;
+  border-color: #2a4a30;
+}
+.btn-success:hover:not(:disabled) { background: #2a4a30; border-color: #3a5a40; }
+
+/* ─────────────────────────────────────────────────────
+   BADGES — 6 variants for statuses, tags, counts
+   Usage: <span class="badge badge-success">✓ Published</span>
+          <span class="badge badge-dot badge-error">●</span>
+   ───────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: var(--r-xs);
+  white-space: nowrap;
+}
+.badge-success { background: rgba(126, 217, 154, 0.12); color: #7ed99a; }
+.badge-error   { background: rgba(232, 138, 138, 0.12); color: #e88a8a; }
+.badge-warning { background: rgba(255, 170, 68, 0.12);  color: #ffaa44; }
+.badge-info    { background: rgba(122, 162, 247, 0.12); color: #7aa2f7; }
+.badge-neutral { background: rgba(200, 201, 204, 0.08); color: #c8c9cc; }
+.badge-mono    { font-family: var(--font-mono); }
+.badge-dot::before {
+  content: "●";
+  font-size: 8px;
+  display: inline-block;
+}
+
+/* ─────────────────────────────────────────────────────
+   CARDS — base + variants
+   Usage: <div class="card card-padded">...</div>
+   ───────────────────────────────────────────────────── */
+.card {
+  background: #14161a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.card-padded { padding: 16px; }
+.card-padded-lg { padding: 24px; }
+.card-flush { padding: 0; }
+
+.card-hover { cursor: pointer; }
+.card-hover:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.25);
+  transform: translateY(-2px);
+}
+
+/* ─────────────────────────────────────────────────────
+   INPUTS — text, select, textarea base
+   Usage: <input class="input"> <select class="select">
+   ───────────────────────────────────────────────────── */
+.input, .select, .textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  background: #0d0e10;
+  color: var(--text, #e7e8ea);
+  border: 1px solid #1f2126;
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: #4a6db8;
+  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.1);
+}
+.textarea { resize: vertical; min-height: 80px; line-height: var(--lh-normal); }
+
+.input-sm { padding: 4px 8px; font-size: var(--fs-xs); }
+.input-lg { padding: 10px 14px; font-size: var(--fs-md); }
+
+/* ─────────────────────────────────────────────────────
+   FLEX UTILITIES — common stack patterns
+   Usage: <div class="stack-x gap-2">...</div>
+   ───────────────────────────────────────────────────── */
+.stack-x { display: flex; flex-direction: row; align-items: center; }
+.stack-y { display: flex; flex-direction: column; }
+.stack-x.center, .stack-y.center { align-items: center; justify-content: center; }
+.stack-x.between { justify-content: space-between; }
+
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }
+
+.flex-1 { flex: 1; min-width: 0; }
+.flex-wrap { flex-wrap: wrap; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 3.2 (Gradient backgrounds + accents)
+   ════════════════════════════════════════════════════════════════ */
+
+/* Subtle vertical gradient on body — depth without distraction */
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(122, 162, 247, 0.05) 0%, transparent 60%),
+    linear-gradient(180deg, #0a0b0d 0%, #0f1014 100%);
+  background-attachment: fixed;
+}
+
+/* Sidebar gets a more pronounced surface gradient */
+.lin-side {
+  background: linear-gradient(180deg, #0d0e10 0%, #0a0b0d 100%);
+}
+
+/* Cards in main area get a tiny inner highlight (hairline at top) */
+.lin-card {
+  position: relative;
+  isolation: isolate;
+}
+.lin-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 30%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.06) 70%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Active/selected items get a subtle accent gradient bg */
+.lin-side-item.active,
+.brn-nav-item.active,
+[aria-selected="true"] {
+  background: linear-gradient(
+    90deg,
+    rgba(122, 162, 247, 0.12) 0%,
+    rgba(122, 162, 247, 0.06) 100%
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   MODERNIZATION — Level 3.3 (View Transitions support)
+   The actual JS that triggers transitions is in dashboard.html.
+   This CSS configures the cross-fade timing.
+   ════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: solFadeOut 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  ::view-transition-new(root) {
+    animation: solFadeIn 280ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  @keyframes solFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-4px); }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   END MODERNIZATION — Level 3.1 + 3.2 + 3.3
+   ════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════
+   AGENTIC PHASE INDICATOR (2026-05-02)
+   Replaces flat status text during long-running generate/render/upload.
+   Timer-based phases progress on conservative ETAs; "done" only fires
+   when the server response actually arrives.
+   ════════════════════════════════════════════════════════════════ */
+
+.sol-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.1px;
+}
+
+.sol-phase {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6c6e73;
+  opacity: 0;
+  animation: solPhaseEnter 280ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  transition: color 220ms ease;
+}
+
+.sol-phase[data-state="active"] { color: #e7e8ea; }
+.sol-phase[data-state="done"]   { color: #6fbf73; }
+.sol-phase[data-state="failed"] { color: #e88a8a; }
+
+.sol-phase-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1f2126;
+  border: 1px solid #2a2d33;
+  flex: 0 0 10px;
+  position: relative;
+  transition: background 220ms ease, border-color 220ms ease;
+}
+
+.sol-phase[data-state="active"] .sol-phase-dot {
+  background: #bc9e60;
+  border-color: #bc9e60;
+  animation: solPhasePulse 1.4s ease-in-out infinite;
+}
+
+.sol-phase[data-state="done"] .sol-phase-dot {
+  background: #6fbf73;
+  border-color: #6fbf73;
+}
+
+.sol-phase[data-state="done"] .sol-phase-dot::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0a0b0d;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sol-phase[data-state="failed"] .sol-phase-dot {
+  background: #c25555;
+  border-color: #c25555;
+  animation: none;
+}
+
+.sol-phase[data-state="failed"] .sol-phase-dot::after {
+  content: "✗";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0a0b0d;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@keyframes solPhaseEnter {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes solPhasePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(188, 158, 96, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(188, 158, 96, 0); }
+}
+
+.sol-phases.is-fading-out .sol-phase {
+  animation: solPhaseExit 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes solPhaseExit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sol-phase,
+  .sol-phase-dot,
+  .sol-phases.is-fading-out .sol-phase {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }

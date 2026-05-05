@@ -330,6 +330,18 @@ RHETORICAL_MOVES = {
             "Open with the consensus, raise one mechanical objection, then close with the unflattering implication in under ten words.",
         ],
     },
+    "question_hook": {
+        "name": "Question Hook",
+        "instruction": "Open with a sharp first-person question that the post answers indirectly via numbers. The question is the bait; the body is the trap.",
+        "example": "Who absorbs the duration? Japan now holds 47% of long Treasuries via Tokyo banks. The 2008 buyer base is gone. The new buyer is structurally different.",
+        "structural_variants": [
+            "Open with the question. Body provides 2-3 data points that converge on a single non-obvious answer.",
+            "Question on the hook. Body sets up a contradiction by listing two facts that together imply the answer.",
+            "Use 'Why is X happening?' as the hook. Body lists the structural mechanism nobody is naming.",
+            "Pose the question as a counterfactual ('What does X mean if Y is true?'). Body shows Y is true.",
+            "Frame the hook as a rhetorical 'Who...' or 'What...' that the data forces. Body is the data; the answer stays implicit.",
+        ],
+    },
 }
 
 # Closer types — the final line's job. Explicitly injected so Sol's
@@ -664,3 +676,163 @@ Text only. No numbers, no labels. Write exclusively in English."""
         memory.add_tweet(posts[0], "ANALISIS", topic, platform)
 
     return posts
+
+
+# ------------------------------------------------------------------
+# Reel copy generation — short hook + body for 9:16 video overlay
+# ------------------------------------------------------------------
+
+import json as _json
+import re as _re
+
+REEL_HOOK_MAX_CHARS = 80
+REEL_BODY_MAX_CHARS = 180
+
+REEL_LEXICON_POLICY = """
+HOOK VOCABULARY POLICY (apply to hook field; body has more flexibility):
+
+PREFER:
+- Specific actor + active present-tense verb + number/proper noun
+  e.g. "TEHRAN MOVES 23 FAST ATTACK CRAFT" or "FED HOLDS. DOTS MOVED UP."
+- Time markers: "just", "overnight", "this week", "since {year}", "in 48 hours"
+- Authority markers: "filings show", "data show", "{agency} reports"
+- Asymmetry framers: "vs", "but", "meanwhile", "yet", "while X, Y"
+- Mechanical/plumbing language: "mechanism", "flow", "funding", "absorbing", "duration"
+- Quiet/buried framings (esp. for nobody_noticed): "Nobody noticed", "Quietly"
+
+AVOID (these words erode Sol's analytical credibility):
+- Hedging: may, could, might, seems, possibly, perhaps, likely
+- Tabloid intensifiers: shocking, insane, unbelievable, revealed, exposed,
+  you won\'t believe, mind-blowing, jaw-dropping
+- Filler / clickbait phrases: take a look, here\'s why, what you need to know,
+  the truth about, the reason why, this is why
+- Editorial moralizing: shameful, outrageous, disgraceful, crazy, wild
+- Empty intensifiers: very, really, absolutely, totally, completely
+
+The body has more room to breathe but must still respect: no hashtags, no emojis,
+no \"BREAKING:\" prefix (the label renders separately on screen).
+
+These are PREFERENCES, not absolutes. Move-specific voices override when relevant
+(e.g. history_rhyme can use \"This is the 1971 playbook\" even though it isn\'t
+strictly ACTOR+VERB+NUMBER).
+"""
+
+
+def _extract_reel_json(raw: str) -> dict:
+    """Pull {hook, body} JSON from a model response, tolerating prose around it."""
+    if not raw:
+        return {"hook": "", "body": ""}
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = _re.sub(r"^```[a-zA-Z]*\n", "", raw)
+        raw = _re.sub(r"\n```$", "", raw)
+    try:
+        return _json.loads(raw)
+    except Exception:
+        match = _re.search(r"\{.*\}", raw, _re.DOTALL)
+        if match:
+            try:
+                return _json.loads(match.group(0))
+            except Exception:
+                pass
+    return {"hook": "", "body": ""}
+
+
+def generate_reel_copy(
+    headline: dict,
+    label: str = "BREAKING",
+    move_override: str | None = None,
+) -> dict:
+    """
+    Generate copy for a 9:16 news Reel/TikTok/Short.
+
+    Returns: {
+        "hook": str (<=80 chars, the headline shown big on screen),
+        "body": str (<=180 chars, the subtext under the hook),
+        "label": str (BREAKING / DEVELOPING / ANALYSIS / MARKETS),
+        "rhetorical_move": str,
+        "topic_tag": str,
+    }
+    """
+    topic = _detect_topic(headline)
+    memory = get_memory()
+    move = move_override if move_override in RHETORICAL_MOVES else _pick_rhetorical_move(memory)
+    move_def = RHETORICAL_MOVES[move]
+    continuity = memory.build_continuity_prompt()
+    system = SYSTEM_PROMPT + ("\n\n" + continuity if continuity else "")
+
+    label_norm = (label or "BREAKING").upper()
+    if label_norm not in {"BREAKING", "DEVELOPING", "ANALYSIS", "MARKETS"}:
+        label_norm = "BREAKING"
+
+    prompt = f"""News: {headline.get('title', '')}
+Context: {(headline.get('summary') or '')[:400]}
+Source: {headline.get('source', '')}
+
+Topic: {topic}
+Label on screen: {label_norm}
+Rhetorical move: {move} — {move_def['instruction']}
+
+{REEL_LEXICON_POLICY}
+
+Write copy for a 9:16 news Reel. The video shows your text big over a dark animated map.
+
+Output STRICT JSON (no markdown, no commentary):
+{{"hook": "...", "body": "...", "caption": "...", "numeric_highlights": ["...", "..."]}}
+
+Rules:
+- hook: ≤{REEL_HOOK_MAX_CHARS} chars. The punchline / contradiction / hard fact. ALL CAPS friendly. No quotes, no hashtags.
+- body: ≤{REEL_BODY_MAX_CHARS} chars. One short sentence of context that makes the hook land. No filler, no CTA.
+- caption: 500-1200 chars. The full post description (used as IG/TikTok/YouTube Shorts caption — NOT visible on the video itself). Layered structure:
+    Para 1: Restate hook in lowercase prose + 1-2 sentences expanding the specifics (numbers, actors, timeline).
+    Para 2: The analysis — name the mechanism, the contradiction, the historical analogue, or what the numbers actually imply. This is the part that makes Sol's voice distinct.
+    Para 3 (optional): A closing question, implication, or cold conclusion.
+    End with a blank line then 3-5 hashtags relevant to topic_tag (e.g. #geopolitics #hormuz #brent). No emojis, no "@" mentions.
+- numeric_highlights: list of 0-5 numeric/emphasizable tokens lifted verbatim from hook+body, intended for visual emphasis (animated counters, color flashes, pulse). Examples: ["47%", "$140B", "23", "1988"]. Empty list [] if no notable numbers. Each entry ≤20 chars. No invented numbers.
+- English only.
+- Sol's voice: skeptical, factual, dry. No emojis. No "BREAKING:" prefix (the label renders separately).
+"""
+
+    model = MODEL_MAP_ANTHROPIC.get("WIRE", "claude-haiku-4-5-20251001")
+    if os.getenv("OPENROUTER_API_KEY"):
+        model = MODEL_MAP_AUTO["DEBATE"]
+
+    client, is_or = _get_client()
+    raw = _call_api(client, model, system, prompt, 900, is_or)
+    parsed = _extract_reel_json(raw)
+
+    hook = (parsed.get("hook") or "").strip().strip('"')
+    body = (parsed.get("body") or "").strip().strip('"')
+
+    if len(hook) > REEL_HOOK_MAX_CHARS:
+        hook = hook[: REEL_HOOK_MAX_CHARS].rstrip()
+    if len(body) > REEL_BODY_MAX_CHARS:
+        body = body[: REEL_BODY_MAX_CHARS].rstrip()
+
+    caption = (parsed.get("caption") or "").strip().strip('"')
+    if caption.startswith("```"):
+        caption = caption.lstrip("`").strip()
+    if caption.endswith("```"):
+        caption = caption.rstrip("`").strip()
+
+    nums_raw = parsed.get("numeric_highlights") or []
+    if not isinstance(nums_raw, list):
+        nums_raw = []
+    numeric_highlights = []
+    for n in nums_raw[:5]:
+        s = str(n).strip().strip('"').strip("'")
+        if s and len(s) <= 20:
+            numeric_highlights.append(s)
+
+    if hook:
+        memory.add_tweet(hook, "REEL", topic, "reel")
+
+    return {
+        "hook": hook,
+        "body": body,
+        "caption": caption,
+        "label": label_norm,
+        "rhetorical_move": move,
+        "topic_tag": topic,
+        "numeric_highlights": numeric_highlights,
+    }

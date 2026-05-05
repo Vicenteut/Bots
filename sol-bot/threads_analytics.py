@@ -218,6 +218,20 @@ def init_db(conn: sqlite3.Connection) -> None:
         pass  # column already exists
     conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_source ON posts(source_name)")
 
+    # Sprint 1: multi-network attribution (idempotent ALTER + index + backfill)
+    for _sql in (
+        "ALTER TABLE posts ADD COLUMN network_name TEXT DEFAULT 'threads'",
+        "ALTER TABLE follower_snapshots ADD COLUMN network_name TEXT DEFAULT 'threads'",
+    ):
+        try:
+            conn.execute(_sql)
+        except sqlite3.OperationalError:
+            pass
+    conn.execute("UPDATE posts SET network_name='threads' WHERE network_name IS NULL")
+    conn.execute("UPDATE follower_snapshots SET network_name='threads' WHERE network_name IS NULL")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_network ON posts(network_name)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_followers_network ON follower_snapshots(network_name)")
+
     conn.commit()
 
 
@@ -252,6 +266,7 @@ def _enrich_post(post: dict[str, Any], metadata: dict[str, dict[str, Any]]) -> d
     char_count = int(meta.get("char_count") or len(text))
     media_count = int(meta.get("media_count") or (1 if media_type and media_type.upper() != "TEXT" else 0))
     has_media = 1 if bool(meta.get("has_media") or media_count or media_type.upper() != "TEXT") else 0
+
     return {
         "post_id": post_id,
         "text": text,
@@ -339,15 +354,35 @@ def sync_posts(limit: int = 50, db_path: Path = DB_PATH) -> dict[str, Any]:
 
 
 def _snapshot_followers(conn: sqlite3.Connection) -> None:
-    """Fetch current follower count and persist to follower_snapshots if successful."""
-    res = fetch_followers()
-    if res.get("count") is None:
-        return
+    """Fetch current follower count for every connected network and persist."""
+    now = _now_iso()
+
+    # Threads (Meta Graph API)
     try:
-        conn.execute(
-            "INSERT INTO follower_snapshots(snapshot_at, count) VALUES (?, ?)",
-            (_now_iso(), int(res["count"])),
-        )
+        res = fetch_followers()
+        if res.get("count") is not None:
+            conn.execute(
+                "INSERT INTO follower_snapshots(snapshot_at, count, network_name) VALUES (?, ?, 'threads')",
+                (now, int(res["count"])),
+            )
+    except Exception:
+        pass
+
+    # X (Twitter API v2 via XAdapter — costs ~$0.005 per call)
+    try:
+        from network_adapters import x as _xa  # local import to avoid hard dep at module load
+        xadapter = _xa.XAdapter()
+        if xadapter.is_connected():
+            xres = xadapter.fetch_followers()
+            if xres.get("count") is not None:
+                conn.execute(
+                    "INSERT INTO follower_snapshots(snapshot_at, count, network_name) VALUES (?, ?, 'x')",
+                    (now, int(xres["count"])),
+                )
+    except Exception:
+        pass
+
+    try:
         conn.commit()
     except Exception:
         pass
@@ -400,6 +435,7 @@ def get_analytics(
     format: str | None = None,
     topic: str | None = None,
     media: str | None = None,
+    network: str = "all",
 ) -> dict[str, Any]:
     days = max(1, min(days, 90))
     limit = max(1, min(limit, 50))
@@ -424,6 +460,15 @@ def get_analytics(
         }
 
     cte, since = _latest_snapshot_cte(days)
+    # Sprint v5.1 — universal network filter (applies to ALL aggregation queries)
+    network_norm = (network or "all").strip().lower()
+    if network_norm and network_norm != "all":
+        net_clause = " AND COALESCE(p.network_name, 'threads') = ?"
+        net_params = [network_norm]
+    else:
+        net_clause = ""
+        net_params = []
+
     filters = ["COALESCE(p.timestamp, p.first_seen_at) >= ?"]
     params = [since]
     if fmt_filter and fmt_filter != "ALL":
@@ -436,6 +481,9 @@ def get_analytics(
         filters.append("p.has_media = 1")
     elif media_filter == "text":
         filters.append("COALESCE(p.has_media, 0) = 0")
+    if network_norm and network_norm != "all":
+        filters.append("COALESCE(p.network_name, 'threads') = ?")
+        params.append(network_norm)
     where_sql = " AND ".join(filters)
 
     with _connect(db_path) as conn:
@@ -477,12 +525,12 @@ def get_analytics(
                         SUM(latest.views) AS views
                     FROM posts p
                     JOIN latest ON latest.post_id = p.post_id
-                    WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
+                    WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?{net_clause}
                     GROUP BY label
                     ORDER BY avg_views DESC, posts DESC
                     LIMIT 12
                     """,
-                    (since,),
+                    (since, *net_params),
                 )
             ]
 
@@ -497,11 +545,11 @@ def get_analytics(
                     SUM(latest.views) AS views
                 FROM posts p
                 JOIN latest ON latest.post_id = p.post_id
-                WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
+                WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?""" + net_clause + """
                 GROUP BY label
                 ORDER BY avg_views DESC
                 """,
-                (since,),
+                (since, *net_params),
             )
         ]
 
@@ -511,6 +559,7 @@ def get_analytics(
                 SELECT
                     p.post_id AS id, p.text, p.permalink, p.timestamp, p.media_type,
                     p.tweet_type, p.topic_tag, p.char_count, p.has_media, p.media_count,
+                    p.network_name,
                     latest.views, latest.likes, latest.replies, latest.reposts, latest.quotes,
                     ROUND(latest.engagement_rate, 4) AS engagement_rate,
                     (latest.likes + latest.replies + latest.reposts + latest.quotes) AS total_engagement
@@ -542,9 +591,9 @@ def get_analytics(
             FROM posts p
             JOIN latest ON latest.post_id = p.post_id
             WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
-              AND COALESCE(p.timestamp, p.first_seen_at) <  ?
+              AND COALESCE(p.timestamp, p.first_seen_at) <  ?""" + net_clause + """
             """,
-            (since_prev, since),
+            (since_prev, since, *net_params),
         ).fetchone()
         summary_prev = _row_to_dict(summary_prev_row) if summary_prev_row else {}
 
@@ -560,11 +609,11 @@ def get_analytics(
                     ROUND(COALESCE(AVG(latest.engagement_rate), 0), 4) AS avg_eng_rate
                 FROM posts p
                 JOIN latest ON latest.post_id = p.post_id
-                WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
+                WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?""" + net_clause + """
                 GROUP BY day
                 ORDER BY day
                 """,
-                (since,),
+                (since, *net_params),
             )
         ]
 
@@ -581,31 +630,93 @@ def get_analytics(
                 FROM posts p
                 JOIN latest ON latest.post_id = p.post_id
                 WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
-                  AND p.timestamp IS NOT NULL
+                  AND p.timestamp IS NOT NULL""" + net_clause + """
                 GROUP BY dow, hour
                 """,
-                (since,),
+                (since, *net_params),
             )
         ]
 
-        # Followers: current + prev + small series for sparkline
+        # Followers: current + prev + small series for sparkline (network-aware)
+        # For network='all' we SUM the latest snapshot of each network.
+        # For a specific network we just take the latest row of that network.
         try:
-            cur_row = conn.execute(
-                "SELECT count FROM follower_snapshots ORDER BY snapshot_at DESC LIMIT 1"
-            ).fetchone()
-            prev_row = conn.execute(
-                "SELECT count FROM follower_snapshots WHERE snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1",
-                (since,),
-            ).fetchone()
-            series_rows = conn.execute(
-                "SELECT snapshot_at, count FROM follower_snapshots WHERE snapshot_at >= ? ORDER BY snapshot_at",
-                (since_prev,),
-            ).fetchall()
-            followers = {
-                "current": cur_row["count"] if cur_row else None,
-                "prev":    prev_row["count"] if prev_row else None,
-                "series":  [_row_to_dict(r) for r in series_rows],
-            }
+            if network_norm and network_norm != "all":
+                cur_row = conn.execute(
+                    "SELECT count FROM follower_snapshots WHERE COALESCE(network_name,'threads') = ? "
+                    "ORDER BY snapshot_at DESC LIMIT 1",
+                    (network_norm,),
+                ).fetchone()
+                prev_row = conn.execute(
+                    "SELECT count FROM follower_snapshots WHERE snapshot_at <= ? "
+                    "AND COALESCE(network_name,'threads') = ? ORDER BY snapshot_at DESC LIMIT 1",
+                    (since, network_norm),
+                ).fetchone()
+                series_rows = conn.execute(
+                    "SELECT snapshot_at, count FROM follower_snapshots WHERE snapshot_at >= ? "
+                    "AND COALESCE(network_name,'threads') = ? ORDER BY snapshot_at",
+                    (since_prev, network_norm),
+                ).fetchall()
+                followers = {
+                    "current": cur_row["count"] if cur_row else None,
+                    "prev":    prev_row["count"] if prev_row else None,
+                    "series":  [_row_to_dict(r) for r in series_rows],
+                }
+            else:
+                # ALL: sum latest snapshot per network for current/prev,
+                # and bucket the series by day across networks (sum per day).
+                cur_total = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(c), 0) AS total FROM (
+                        SELECT (
+                            SELECT count FROM follower_snapshots fs2
+                            WHERE COALESCE(fs2.network_name,'threads') = COALESCE(fs.network_name,'threads')
+                            ORDER BY snapshot_at DESC LIMIT 1
+                        ) AS c
+                        FROM follower_snapshots fs
+                        GROUP BY COALESCE(fs.network_name,'threads')
+                    )
+                    """
+                ).fetchone()
+                prev_total = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(c), 0) AS total FROM (
+                        SELECT (
+                            SELECT count FROM follower_snapshots fs2
+                            WHERE COALESCE(fs2.network_name,'threads') = COALESCE(fs.network_name,'threads')
+                              AND fs2.snapshot_at <= ?
+                            ORDER BY snapshot_at DESC LIMIT 1
+                        ) AS c
+                        FROM follower_snapshots fs
+                        GROUP BY COALESCE(fs.network_name,'threads')
+                    )
+                    """,
+                    (since,),
+                ).fetchone()
+                # Series: sum per day across networks
+                series_rows = conn.execute(
+                    """
+                    SELECT MIN(snapshot_at) AS snapshot_at, SUM(count) AS count FROM (
+                        SELECT
+                            COALESCE(network_name,'threads') AS net,
+                            DATE(snapshot_at) AS d,
+                            MAX(snapshot_at) AS snapshot_at,
+                            (SELECT count FROM follower_snapshots fs2
+                              WHERE COALESCE(fs2.network_name,'threads') = COALESCE(fs.network_name,'threads')
+                                AND DATE(fs2.snapshot_at) = DATE(fs.snapshot_at)
+                              ORDER BY fs2.snapshot_at DESC LIMIT 1) AS count
+                        FROM follower_snapshots fs
+                        WHERE snapshot_at >= ?
+                        GROUP BY net, d
+                    ) GROUP BY d ORDER BY d
+                    """,
+                    (since_prev,),
+                ).fetchall()
+                followers = {
+                    "current": int(cur_total["total"]) if cur_total and cur_total["total"] else None,
+                    "prev":    int(prev_total["total"]) if prev_total and prev_total["total"] else None,
+                    "series":  [_row_to_dict(r) for r in series_rows],
+                }
         except Exception:
             followers = {"current": None, "prev": None, "series": []}
 
@@ -621,17 +732,19 @@ def get_analytics(
                         COALESCE(AVG(latest.engagement_rate), 0) AS avg_eng_rate
                     FROM posts p
                     JOIN latest ON latest.post_id = p.post_id
-                    WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?
+                    WHERE COALESCE(p.timestamp, p.first_seen_at) >= ?""" + net_clause + """
                     GROUP BY source
                     ORDER BY views DESC, posts DESC
                     LIMIT 12
                     """,
-                    (since,),
+                    (since, *net_params),
                 )
             ]
         except Exception:
             by_source = []
 
+    # Sprint v5.1 — network filter is now applied in SQL (where_sql + net_clause),
+    # so no post-aggregation pass is needed here.
 
     return {
         "error": last_sync.get("error") if last_sync and last_sync.get("status") != "OK" else None,
@@ -689,3 +802,243 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def sync_x_replies(limit: int = 100) -> dict:
+    """Pull recent X replies for @inequaliti, upsert into posts table, snapshot metrics.
+
+    Returns {ok, fetched, inserted, updated, snapshots, error}.
+    Costs ~$0.01 per call (1 read for user_id + 1 read for tweets list).
+    """
+    try:
+        from network_adapters.x import XAdapter
+    except Exception as exc:
+        return {"ok": False, "fetched": 0, "inserted": 0, "updated": 0,
+                "snapshots": 0, "error": f"adapter import failed: {exc}"}
+
+    x = XAdapter()
+    if not x.is_connected():
+        return {"ok": False, "fetched": 0, "inserted": 0, "updated": 0,
+                "snapshots": 0, "error": "X not connected"}
+
+    res = x.fetch_recent_tweets(limit=limit, only_replies=True)
+    if not res.get("ok"):
+        return {"ok": False, "fetched": 0, "inserted": 0, "updated": 0,
+                "snapshots": 0, "error": res.get("error") or "fetch failed"}
+
+    tweets = res.get("tweets") or []
+    handle = (x.handle or "@inequaliti").lstrip("@")
+    now = _now_iso() if "_now_iso" in globals() else __import__("datetime").datetime.utcnow().isoformat() + "Z"
+
+    inserted = 0
+    updated = 0
+    snapshots = 0
+    with _connect() as conn:
+        for t in tweets:
+            tid = t["tweet_id"]
+            text = t.get("text") or ""
+            permalink = f"https://x.com/{handle}/status/{tid}"
+            created = t.get("created_at") or now
+            is_reply = int(t.get("is_reply") or 0)
+            in_reply_user = t.get("in_reply_to_user_handle")
+            in_reply_tweet = t.get("in_reply_to_tweet_id")
+            metrics = t.get("metrics") or {}
+            views = int(metrics.get("views") or 0)
+            likes = int(metrics.get("likes") or 0)
+            replies = int(metrics.get("replies") or 0)
+            reposts = int(metrics.get("reposts") or 0)
+            quotes = int(metrics.get("quotes") or 0)
+            denom = max(views, 1)
+            engagement = (likes + replies + reposts + quotes) / denom
+
+            existing = conn.execute("SELECT post_id FROM posts WHERE post_id = ?", (tid,)).fetchone()
+            if existing:
+                conn.execute(
+                    """UPDATE posts
+                       SET text = ?, permalink = ?, last_seen_at = ?,
+                           is_reply = ?, in_reply_to_user_handle = ?,
+                           in_reply_to_tweet_id = ?, network_name = 'x',
+                           char_count = ?
+                       WHERE post_id = ?""",
+                    (text, permalink, now, is_reply, in_reply_user,
+                     in_reply_tweet, len(text), tid),
+                )
+                updated += 1
+            else:
+                conn.execute(
+                    """INSERT INTO posts
+                       (post_id, text, permalink, timestamp, media_type, tweet_type,
+                        topic_tag, char_count, has_media, media_count,
+                        first_seen_at, last_seen_at, source_name, network_name,
+                        is_reply, in_reply_to_user_handle, in_reply_to_tweet_id)
+                       VALUES (?, ?, ?, ?, 'TEXT', 'reply', 'general', ?, 0, 0,
+                               ?, ?, NULL, 'x', ?, ?, ?)""",
+                    (tid, text, permalink, created, len(text),
+                     now, now, is_reply, in_reply_user, in_reply_tweet),
+                )
+                inserted += 1
+
+            conn.execute(
+                """INSERT INTO post_snapshots
+                   (post_id, snapshot_at, views, likes, replies, reposts, quotes, engagement_rate)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (tid, now, views, likes, replies, reposts, quotes, round(engagement, 6)),
+            )
+            snapshots += 1
+        conn.commit()
+
+    return {"ok": True, "fetched": len(tweets), "inserted": inserted,
+            "updated": updated, "snapshots": snapshots, "error": None,
+            "synced_at": now}
+
+
+def get_x_replies(limit: int = 50, sort: str = "recent") -> list[dict]:
+    """Read x replies from posts joined to latest snapshot. sort = recent|views|engagement."""
+    sort_sql = {
+        "recent": "p.timestamp DESC",
+        "views": "latest.views DESC",
+        "engagement": "latest.engagement_rate DESC",
+    }.get(sort, "p.timestamp DESC")
+
+    with _connect() as conn:
+        rows = conn.execute(f"""
+            WITH latest AS (
+                SELECT s.post_id,
+                       s.views, s.likes, s.replies, s.reposts, s.quotes, s.engagement_rate,
+                       s.snapshot_at,
+                       ROW_NUMBER() OVER (PARTITION BY s.post_id ORDER BY s.snapshot_at DESC) AS rn
+                FROM post_snapshots s
+            )
+            SELECT p.post_id, p.text, p.permalink, p.timestamp,
+                   p.in_reply_to_user_handle, p.in_reply_to_tweet_id,
+                   p.char_count,
+                   COALESCE(latest.views, 0) AS views,
+                   COALESCE(latest.likes, 0) AS likes,
+                   COALESCE(latest.replies, 0) AS replies,
+                   COALESCE(latest.reposts, 0) AS reposts,
+                   COALESCE(latest.quotes, 0) AS quotes,
+                   COALESCE(latest.engagement_rate, 0) AS engagement_rate,
+                   latest.snapshot_at AS last_synced
+            FROM posts p
+            LEFT JOIN latest ON latest.post_id = p.post_id AND latest.rn = 1
+            WHERE p.network_name = 'x' AND p.is_reply = 1
+            ORDER BY {sort_sql}
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(zip([d[0] for d in conn.execute("SELECT 1").description] or [], r)) if False else dict(r) for r in rows]
+
+
+
+
+# ── X reply insights (pattern analysis) ──────────────────────────────────
+import re as _xrep_re
+
+def _xrep_features(text: str) -> dict:
+    """Extract boolean/numeric features from a reply text."""
+    t = (text or "").strip()
+    tl = t.lower()
+    L = len(t)
+    return {
+        "length": L,
+        "len_short":      0 < L < 80,
+        "len_medium":     80 <= L <= 180,
+        "len_long":       L > 180,
+        "has_question":   "?" in t,
+        "has_data":       bool(_xrep_re.search(r"\$[\d,.]+[BMKbmk]?|\d+(\.\d+)?\s*%|\d+\s*(bps|bp|BTC|ETH|SOL|x)\b|\d{2,}", t)),
+        "has_pct":        "%" in t,
+        "has_dollar":     "$" in t,
+        "opens_counter":  bool(_xrep_re.match(r"^(no\b|not\b|actually\b|wrong\b|false\b|but\b|incorrect\b|nope\b)", tl)),
+        "opens_question": bool(_xrep_re.match(r"^(\?|why\b|how\b|what\b|when\b|who\b|where\b|which\b)", tl)),
+        "has_emoji":      bool(_xrep_re.search(r"[\U0001F300-\U0001FAFF\U00002700-\U000027BF]", t)),
+        "has_link":       "http" in tl or ".com" in tl or ".io" in tl,
+        "has_caps_word":  bool(_xrep_re.search(r"\b[A-Z]{3,}\b", t)),
+    }
+
+
+def get_x_reply_insights() -> dict:
+    """Compare top 20% vs bottom 80% of X replies by engagement_rate."""
+    rows = get_x_replies(limit=500, sort="engagement")
+    if not rows:
+        return {"ok": True, "total_replies": 0, "patterns": [], "takeaways": [],
+                "msg": "No replies tracked yet — sync first."}
+
+    # Filter to replies with at least 1 view (others = dead / hidden)
+    rows = [r for r in rows if (r.get("views") or 0) > 0]
+    n = len(rows)
+    if n < 5:
+        return {"ok": True, "total_replies": n, "patterns": [], "takeaways": [],
+                "msg": f"Only {n} visible replies — need ≥5 for pattern analysis."}
+
+    # Sort by engagement_rate desc, tie-break by views
+    rows.sort(key=lambda r: (r.get("engagement_rate") or 0, r.get("views") or 0), reverse=True)
+    top_n = max(2, n // 5)  # top 20%, min 2
+    top    = rows[:top_n]
+    bottom = rows[top_n:]
+
+    top_feat = [_xrep_features(r.get("text", "")) for r in top]
+    bot_feat = [_xrep_features(r.get("text", "")) for r in bottom]
+
+    avg_len_top = sum(f["length"] for f in top_feat) / max(1, len(top_feat))
+    avg_len_bot = sum(f["length"] for f in bot_feat) / max(1, len(bot_feat))
+
+    bool_features = [
+        ("len_short",      "Short (<80 chars)"),
+        ("len_medium",     "Medium (80–180 chars)"),
+        ("len_long",       "Long (>180 chars)"),
+        ("has_question",   "Contains a question"),
+        ("has_data",       "Cites a number/data point"),
+        ("has_pct",        "Includes %"),
+        ("has_dollar",     "Includes $"),
+        ("opens_counter",  "Opens with counter (no/actually/wrong)"),
+        ("opens_question", "Opens with question word"),
+        ("has_emoji",      "Has emoji"),
+        ("has_link",       "Has link"),
+        ("has_caps_word",  "Uses ALL-CAPS word"),
+    ]
+
+    patterns = []
+    for key, label in bool_features:
+        top_pct = sum(1 for f in top_feat if f[key]) / max(1, len(top_feat))
+        bot_pct = sum(1 for f in bot_feat if f[key]) / max(1, len(bot_feat))
+        lift = (top_pct + 0.01) / (bot_pct + 0.01)  # smoothed
+        patterns.append({
+            "feature":    key,
+            "label":      label,
+            "top_pct":    round(top_pct, 3),
+            "bottom_pct": round(bot_pct, 3),
+            "lift":       round(lift, 2),
+        })
+
+    # Takeaways: length first, then top distinctive features
+    takeaways = []
+    diff_pct = (avg_len_top - avg_len_bot) / max(1.0, avg_len_bot) * 100
+    if abs(diff_pct) >= 10:
+        adj = "shorter" if diff_pct < 0 else "longer"
+        takeaways.append(f"Top replies avg {int(avg_len_top)} chars vs {int(avg_len_bot)} ({abs(int(diff_pct))}% {adj})")
+    else:
+        takeaways.append(f"Length is similar: top avg {int(avg_len_top)} vs bottom {int(avg_len_bot)} chars")
+
+    # Significant patterns: at least 20% presence in either group
+    significant = [p for p in patterns if max(p["top_pct"], p["bottom_pct"]) >= 0.10]
+    significant.sort(key=lambda p: abs(p["lift"] - 1), reverse=True)
+
+    for p in significant[:4]:
+        tp = int(p["top_pct"] * 100)
+        bp = int(p["bottom_pct"] * 100)
+        if p["lift"] >= 1.30:
+            takeaways.append(f"{p['label']}: {tp}% of top vs {bp}% of bottom ({p['lift']}x lift)")
+        elif p["lift"] <= 0.77:
+            takeaways.append(f"Avoid → {p['label']}: only {tp}% of top vs {bp}% of bottom")
+        if len(takeaways) >= 5:
+            break
+
+    return {
+        "ok": True,
+        "total_replies":     n,
+        "top_count":         len(top),
+        "bottom_count":      len(bottom),
+        "avg_length_top":    round(avg_len_top, 1),
+        "avg_length_bottom": round(avg_len_bot, 1),
+        "patterns":          patterns,
+        "takeaways":         takeaways,
+    }

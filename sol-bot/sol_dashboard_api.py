@@ -27,7 +27,7 @@ from typing import Any, Optional
 
 import psutil
 from fastapi import FastAPI, Form, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
@@ -158,12 +158,32 @@ def _require_ingest_rate_limit() -> None:
     _ingest_rate_events.append(now)
 
 
+TIKTOK_VERIFY_RE = re.compile(r"^/(?:terms/|privacy/)?tiktok[A-Za-z0-9]+.txt$")
+
+
+class MediaLandingMiddleware(BaseHTTPMiddleware):
+    """Serve a public landing page when accessed via media.theclamletter.com root.
+
+    The dashboard frontend lives on sol.theclamletter.com. The media.*
+    subdomain is intended for public assets (Reels MP4s, /terms, /privacy,
+    TikTok verification files). Hitting / on media.* shows a brand landing
+    instead of the auth-gated dashboard."""
+
+    async def dispatch(self, request: Request, call_next):
+        host = (request.headers.get("host") or "").lower().split(":")[0]
+        if host == "media.theclamletter.com" and request.url.path in ("/", "/index.html"):
+            return HTMLResponse(content=(BOT_DIR / "static" / "landing.html").read_text(encoding="utf-8"))
+        return await call_next(request)
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # 0. Allow login POST, manifest, and static assets through unauthenticated
         path = request.url.path
+        if TIKTOK_VERIFY_RE.match(path):
+            return await call_next(request)
         if (path == "/login" and request.method == "POST") or \
-           path == "/manifest.json" or path.startswith("/static/") or \
+           path == "/manifest.json" or path == "/robots.txt" or path == "/terms" or path == "/privacy" or path == "/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt" or path == "/terms/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt" or path == "/privacy/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt" or path.startswith("/static/") or \
            path.startswith("/media/"):
             return await call_next(request)
 
@@ -352,6 +372,7 @@ app = FastAPI(title="Sol Dashboard API")
 app.mount("/static", StaticFiles(directory=str(BOT_DIR / "static")), name="static")
 app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 app.add_middleware(AuthMiddleware)
+app.add_middleware(MediaLandingMiddleware)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -1025,6 +1046,57 @@ async def login(username: str = Form(...), password: str = Form(...)):
     return RedirectResponse(url="/?error=1", status_code=303)
 
 
+@app.get("/robots.txt")
+async def robots_txt():
+    return FileResponse(str(BOT_DIR / "static" / "robots.txt"), media_type="text/plain")
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page():
+    return HTMLResponse(content=(BOT_DIR / "static" / "terms.html").read_text(encoding="utf-8"))
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page():
+    return HTMLResponse(content=(BOT_DIR / "static" / "privacy.html").read_text(encoding="utf-8"))
+
+
+@app.get("/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt")
+async def tiktok_verify():
+    """TikTok URL prefix verification file."""
+    return FileResponse(str(BOT_DIR / "static" / "tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt"), media_type="text/plain")
+
+
+@app.get("/terms/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt")
+async def tiktok_verify_terms():
+    return FileResponse(str(BOT_DIR / "static" / "tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt"), media_type="text/plain")
+
+
+@app.get("/privacy/tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt")
+async def tiktok_verify_privacy():
+    return FileResponse(str(BOT_DIR / "static" / "tiktoksQFmuYeeMWSBgv0Xj2FKn1MGzIQUpF4Z.txt"), media_type="text/plain")
+
+
+# Dynamic TikTok verification — content auto-derived from filename token
+def _tiktok_verify_body(token: str) -> str:
+    return "tiktok-developers-site-verification=" + token + chr(10)
+
+
+@app.get("/tiktok{token}.txt")
+async def tiktok_verify_dynamic_root(token: str):
+    return PlainTextResponse(_tiktok_verify_body(token))
+
+
+@app.get("/terms/tiktok{token}.txt")
+async def tiktok_verify_dynamic_terms(token: str):
+    return PlainTextResponse(_tiktok_verify_body(token))
+
+
+@app.get("/privacy/tiktok{token}.txt")
+async def tiktok_verify_dynamic_privacy(token: str):
+    return PlainTextResponse(_tiktok_verify_body(token))
+
+
 @app.get("/manifest.json")
 async def manifest():
     return FileResponse(str(BOT_DIR / "static" / "manifest.json"), media_type="application/manifest+json")
@@ -1052,6 +1124,188 @@ def _require_csrf(request: Request) -> None:
     token = request.headers.get("X-CSRF-Token", "")
     if not secrets.compare_digest(token, CSRF_TOKEN):
         raise HTTPException(status_code=403, detail="CSRF validation failed")
+
+
+@app.get("/api/networks")
+async def api_networks():
+    """List every registered publishing network with connection + auth status.
+
+    Sprint 1: returns base info (name, label, handle, char_limit, connected).
+    Sprint 2 will add: auth_status (live verify), cost_mtd, last_sync.
+    """
+    try:
+        from network_adapters import NETWORKS
+    except Exception as exc:
+        return {"error": f"adapter import failed: {exc}", "networks": []}
+
+    out = []
+    for name, adapter in NETWORKS.items():
+        item = {
+            "name": name,
+            "label": adapter.label,
+            "handle": adapter.handle,
+            "char_limit": adapter.char_limit,
+            "connected": adapter.is_connected(),
+        }
+        # auth_status is cheap for Threads (one HTTP call) and zero-cost for X
+        # in Sprint 1 (no live API hit yet). Safe to include.
+        try:
+            item["auth_status"] = adapter.auth_status()
+        except Exception as exc:
+            item["auth_status"] = {"ok": False, "error": str(exc)[:200]}
+
+        # Sprint 2: per-network cost summary (only X has billing today)
+        if name == "x":
+            try:
+                from network_adapters.x import get_cost_summary
+                item["cost_mtd"] = get_cost_summary(days=30)
+            except Exception as exc:
+                item["cost_mtd"] = {"error": str(exc)[:200]}
+        else:
+            item["cost_mtd"] = {"total_usd": 0.0, "total_calls": 0}
+
+        out.append(item)
+    return {"networks": out}
+
+
+@app.post("/api/networks/x/sync_replies")
+def api_x_sync_replies(request: Request, limit: int = 100):
+    _require_csrf(request)
+    try:
+        from threads_analytics import sync_x_replies
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"sync helper missing: {exc}")
+    res = sync_x_replies(limit=max(5, min(int(limit), 100)))
+    if not res.get("ok"):
+        raise HTTPException(status_code=502, detail=res.get("error") or "sync failed")
+    return res
+
+
+@app.get("/api/networks/x/replies")
+def api_x_replies(limit: int = 50, sort: str = "recent"):
+    try:
+        from threads_analytics import get_x_replies
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"helper missing: {exc}")
+    rows = get_x_replies(limit=max(1, min(int(limit), 200)), sort=sort)
+    return {"ok": True, "count": len(rows), "items": rows}
+
+
+
+@app.get("/api/networks/x/reply_insights")
+def api_x_reply_insights():
+    from threads_analytics import get_x_reply_insights
+    return get_x_reply_insights()
+
+
+@app.post("/api/networks/x/auth")
+async def api_networks_x_auth(request: Request):
+    """Save X OAuth 1.0a credentials to /root/x-bot/sol-bot/.env (line-replace).
+
+    Body (JSON): {X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET}
+    Writes/replaces those 4 keys atomically. chmod 600. Other vars preserved.
+    """
+    _require_csrf(request)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+
+    keys = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
+    new_vals = {}
+    for k in keys:
+        v = payload.get(k)
+        if not isinstance(v, str) or not v.strip():
+            raise HTTPException(status_code=400, detail=f"missing or empty: {k}")
+        new_vals[k] = v.strip()
+
+    import os
+    from pathlib import Path
+    env_path = Path("/root/x-bot/sol-bot/.env")
+
+    # Read existing lines (or start fresh)
+    lines = []
+    if env_path.exists():
+        try:
+            lines = env_path.read_text().splitlines()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"read .env failed: {exc}")
+
+    # Replace or append each key
+    seen = set()
+    out_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            out_lines.append(line)
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key in new_vals:
+            out_lines.append(f"{key}={new_vals[key]}")
+            seen.add(key)
+        else:
+            out_lines.append(line)
+    for k in keys:
+        if k not in seen:
+            out_lines.append(f"{k}={new_vals[k]}")
+
+    new_content = "\n".join(out_lines)
+    if not new_content.endswith("\n"):
+        new_content += "\n"
+
+    try:
+        env_path.write_text(new_content)
+        os.chmod(env_path, 0o600)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"write .env failed: {exc}")
+
+    # Verify by reloading creds + auth check
+    try:
+        from network_adapters import NETWORKS
+        x_adapter = NETWORKS.get("x")
+        auth = x_adapter.auth_status() if x_adapter else {"ok": False, "error": "no adapter"}
+    except Exception as exc:
+        auth = {"ok": False, "error": str(exc)[:200]}
+
+    return {"ok": True, "saved": list(keys), "auth_status": auth}
+
+
+@app.delete("/api/networks/x/auth")
+async def api_networks_x_auth_delete(request: Request):
+    """Remove X OAuth 1.0a credentials from .env. Other vars preserved."""
+    _require_csrf(request)
+    keys = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
+    from pathlib import Path
+    env_path = Path("/root/x-bot/sol-bot/.env")
+    if not env_path.exists():
+        return {"ok": True, "removed": []}
+    try:
+        lines = env_path.read_text().splitlines()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"read .env failed: {exc}")
+
+    removed = []
+    out_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            out_lines.append(line)
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key in keys:
+            removed.append(key)
+            continue  # drop the line
+        out_lines.append(line)
+
+    new_content = "\n".join(out_lines)
+    if new_content and not new_content.endswith("\n"):
+        new_content += "\n"
+    try:
+        env_path.write_text(new_content)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"write .env failed: {exc}")
+
+    return {"ok": True, "removed": removed}
 
 
 @app.get("/api/status")
@@ -1155,8 +1409,9 @@ async def api_pending_b_delete(request: Request):
 
 
 class PublishPayload(BaseModel):
-    platform: str  # "both" | "x" | "threads"
+    platform: str  # legacy: "both" | "x" | "threads" — kept for backward compat
     source: str    # "pending" | "pending-b" | "combo"
+    networks: Optional[list[str]] = None  # Sprint 4: ["threads","x"] etc. preferred over `platform`
 
 
 class GeneratePayload(BaseModel):
@@ -1411,9 +1666,66 @@ async def api_publish(request: Request, payload: PublishPayload):
         if media_cleanup_error:
             print(f"[publish/{source}] temporary media cleanup warning: {media_cleanup_error}", flush=True)
 
+    # ── Sprint 4: multi-network — publish to additional networks (X, etc.) ──
+    # Resolve network list: explicit `networks` > legacy `platform`
+    if payload.networks:
+        RESOLVED_NETWORKS = [n.lower() for n in payload.networks if isinstance(n, str)]
+    elif requested_platform == "both":
+        RESOLVED_NETWORKS = ["threads", "x"]
+    elif requested_platform == "x":
+        RESOLVED_NETWORKS = ["x"]
+    else:
+        RESOLVED_NETWORKS = ["threads"]
+
+    x_success = None
+    x_post_id = None
+    x_permalink = None
+    x_error = None
+
+    # Only attempt X if it's in the network list and Threads succeeded (or was skipped).
+    # MVP: media not yet supported on X — text-only fallback.
+    if "x" in RESOLVED_NETWORKS:
+        try:
+            from network_adapters import NETWORKS as _NETS
+            x_adapter = _NETS.get("x")
+            if x_adapter is None:
+                x_error = "x adapter not registered"
+            elif not x_adapter.is_connected():
+                x_error = "x not configured (missing OAuth 1.0a credentials)"
+            elif media_paths:
+                x_error = "media upload to X not implemented yet (text-only MVP)"
+            elif len(tweet_text) > getattr(x_adapter, "char_limit", 280):
+                x_error = f"text {len(tweet_text)} chars exceeds X limit ({x_adapter.char_limit})"
+            else:
+                x_result = x_adapter.publish(tweet_text)
+                x_success = bool(x_result.get("ok"))
+                x_post_id = x_result.get("network_post_id")
+                x_permalink = x_result.get("permalink")
+                if not x_success:
+                    x_error = x_result.get("error") or "unknown X publish error"
+                # Log to publish_log.json with network=x
+                try:
+                    _append_publish_log("x", x_success, tweet_text, tweet_id=x_post_id,
+                                        tweet_type=tweet_type_log, has_media=False,
+                                        media_type=None, media_count=0,
+                                        status="OK" if x_success else "ERROR",
+                                        error_category=None if x_success else "X_PUBLISH_FAIL",
+                                        error_message=x_error)
+                except Exception as _logexc:
+                    print(f"[publish/{source}] X publish log write failed: {_logexc}", flush=True)
+            print(f"[publish/{source}] x_publish: success={x_success} post_id={x_post_id} err={x_error}", flush=True)
+        except Exception as exc:
+            x_error = f"x publish exception: {str(exc)[:200]}"
+            print(f"[publish/{source}] {x_error}", flush=True)
+
     return {
         "threads_success": threads_success,
         "threads_post_id": threads_post_id,
+        "x_success": x_success,
+        "x_post_id": x_post_id,
+        "x_permalink": x_permalink,
+        "x_error": x_error,
+        "networks_attempted": RESOLVED_NETWORKS,
         "status": "OK" if threads_success else parsed_result["status"],
         "error_category": parsed_result["error_category"],
         "error_message": parsed_result["error_message"],
@@ -2319,12 +2631,16 @@ async def api_threads_analytics(
     format: Optional[str] = None,
     topic: Optional[str] = None,
     media: Optional[str] = None,
+    network: Optional[str] = "all",
 ):
     days = max(1, min(days, 90))
     limit = max(1, min(limit, 50))
     sort = (sort or "date").strip().lower()
     if sort not in {"views", "likes", "replies", "comments", "engagement", "date", "total_engagement"}:
         sort = "date"
+    net = (network or "all").strip().lower()
+    if net not in {"all", "threads", "x", "bluesky", "linkedin"}:
+        net = "all"
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location(
@@ -2332,7 +2648,7 @@ async def api_threads_analytics(
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        data = mod.get_analytics(days=days, limit=limit, sort=sort, format=format, topic=topic, media=media)
+        data = mod.get_analytics(days=days, limit=limit, sort=sort, format=format, topic=topic, media=media, network=net)
         data["learning_summary"] = get_learning_summary(days=days)
         return JSONResponse(data)
     except Exception as e:
@@ -2981,3 +3297,357 @@ async def api_prices():
     _PRICE_CACHE["data"] = out
     _PRICE_CACHE["ts"] = now
     return JSONResponse(out)
+
+
+# ==========================================================================
+# Reels endpoints — generate, preview, publish (Instagram / TikTok / YouTube)
+# Bridge: news_to_reel.py
+# ==========================================================================
+
+import news_to_reel as _ntr  # noqa: E402
+
+
+class ReelsGeneratePayload(BaseModel):
+    alert_id: Optional[str] = None
+    title: Optional[str] = None       # if no alert_id, free-form headline
+    summary: Optional[str] = None
+    source: Optional[str] = "manual"
+    label: str = "BREAKING"
+    background_filename: Optional[str] = None  # if set, override random bg pick           # BREAKING|DEVELOPING|ANALYSIS|MARKETS
+    format_version: Optional[str] = None  # "v2" | "v3" | None (use server default from .env)
+
+
+class ReelsRenderPayload(BaseModel):
+    hook: str
+    body: str = ""
+    label: str = "BREAKING"
+    topic_tag: Optional[str] = None
+    rhetorical_move: Optional[str] = None
+    alert_id: Optional[str] = None
+    background_filename: Optional[str] = None  # if set, override random bg pick
+
+
+class ReelsPublishPayload(BaseModel):
+    reel_id: str
+    networks: list[str]               # subset of {instagram, tiktok, youtube}
+    caption_override: Optional[str] = None  # Phase A: UI textarea edit
+
+
+@app.post("/api/reels/generate-copy")
+async def api_reels_generate_copy(request: Request, payload: ReelsGeneratePayload):
+    """Step 1: produce {hook, body} via generator.generate_reel_copy. No render."""
+    _require_csrf(request)
+
+    if payload.alert_id:
+        entry = next((e for e in _read_queue() if e.get("id") == payload.alert_id), None)
+        if entry is None:
+            raise HTTPException(404, f"alert {payload.alert_id} not found")
+        headline = entry.get("headline") or {}
+    else:
+        if not payload.title:
+            raise HTTPException(422, "alert_id or title required")
+        headline = {"title": payload.title, "summary": payload.summary or "", "source": payload.source or "manual"}
+
+    try:
+        copy = _ntr.generate_reel_copy(
+            {"headline": headline}, label=payload.label, format_version=payload.format_version
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"copy generation failed: {exc}")
+    return {"ok": True, "copy": copy, "alert_id": payload.alert_id}
+
+
+@app.post("/api/reels/render")
+async def api_reels_render(request: Request, payload: ReelsRenderPayload):
+    """Step 2: render the MP4 + thumbnail and persist row in `reels`."""
+    _require_csrf(request)
+    copy = {
+        "hook": payload.hook,
+        "body": payload.body,
+        "label": payload.label,
+        "topic_tag": payload.topic_tag,
+        "rhetorical_move": payload.rhetorical_move,
+    }
+    if not copy["hook"].strip():
+        raise HTTPException(422, "hook is required")
+    try:
+        result = _ntr.render_reel(copy, alert_id=payload.alert_id,
+                                   background_filename=payload.background_filename)
+    except Exception as exc:
+        raise HTTPException(500, f"render failed: {exc}")
+
+    return {
+        "ok": True,
+        "reel_id": result["reel_id"],
+        "preview_url": f"/media/{Path(result['local_path']).name}",
+        "thumbnail_url": (f"/media/{Path(result['thumbnail_path']).name}"
+                          if result.get("thumbnail_path") else None),
+        "duration_sec": result["duration_sec"],
+        "copy": copy,
+    }
+
+
+@app.post("/api/reels/generate")
+async def api_reels_generate(request: Request, payload: ReelsGeneratePayload):
+    """Combined: copy + render in one call (convenience endpoint)."""
+    _require_csrf(request)
+
+    if payload.alert_id:
+        entry = next((e for e in _read_queue() if e.get("id") == payload.alert_id), None)
+        if entry is None:
+            raise HTTPException(404, f"alert {payload.alert_id} not found")
+        headline = entry.get("headline") or {}
+    else:
+        if not payload.title:
+            raise HTTPException(422, "alert_id or title required")
+        headline = {"title": payload.title, "summary": payload.summary or "", "source": payload.source or "manual"}
+
+    try:
+        copy = _ntr.generate_reel_copy(
+            {"headline": headline}, label=payload.label, format_version=payload.format_version
+        )
+        result = _ntr.render_reel(
+            copy,
+            alert_id=payload.alert_id,
+            background_filename=payload.background_filename,
+            format_version=payload.format_version,
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"reel generation failed: {exc}")
+
+    return {
+        "ok": True,
+        "reel_id": result["reel_id"],
+        "preview_url": f"/media/{Path(result['local_path']).name}",
+        "thumbnail_url": (f"/media/{Path(result['thumbnail_path']).name}"
+                          if result.get("thumbnail_path") else None),
+        "duration_sec": result["duration_sec"],
+        "copy": copy,
+        "alert_id": payload.alert_id,
+    }
+
+
+@app.post("/api/reels/publish")
+async def api_reels_publish(request: Request, payload: ReelsPublishPayload):
+    """Step 3: publish a rendered reel to the chosen networks."""
+    _require_csrf(request)
+    if not payload.networks:
+        raise HTTPException(422, "networks list required")
+    valid = {"instagram", "tiktok", "youtube"}
+    bad = [n for n in payload.networks if n not in valid]
+    if bad:
+        raise HTTPException(422, f"unknown networks: {bad}")
+    try:
+        results = _ntr.publish_reel(payload.reel_id, payload.networks,
+                                    caption_override=payload.caption_override)
+    except Exception as exc:
+        raise HTTPException(500, f"publish failed: {exc}")
+    return {"ok": True, "results": results}
+
+
+@app.get("/api/reels/metrics/by_move")
+async def api_reels_metrics_by_move(min_samples: int = 1):
+    """Aggregate the latest metric per reel x network, grouped by rhetorical_move.
+
+    Returns per-bucket: sample_size + avg of views/likes/comments/shares.
+    Buckets with sample_size >= 30 are marked is_significant.
+    """
+    import sqlite3
+    db = str(BOT_DIR / "threads_analytics.db")
+    con = sqlite3.connect(db)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute(
+            """
+            WITH latest AS (
+                SELECT reel_id, network_name, MAX(fetched_at) AS latest_ts
+                FROM reel_metrics
+                GROUP BY reel_id, network_name
+            )
+            SELECT r.rhetorical_move,
+                   rm.network_name,
+                   COUNT(*) AS sample_size,
+                   ROUND(AVG(rm.views), 2) AS avg_views,
+                   ROUND(AVG(rm.likes), 2) AS avg_likes,
+                   ROUND(AVG(rm.comments), 2) AS avg_comments,
+                   ROUND(AVG(rm.shares), 2) AS avg_shares,
+                   ROUND(AVG(rm.saves), 2) AS avg_saves,
+                   MAX(rm.views) AS max_views,
+                   SUM(rm.views) AS total_views
+            FROM reel_metrics rm
+            JOIN latest l ON l.reel_id = rm.reel_id
+                         AND l.network_name = rm.network_name
+                         AND l.latest_ts = rm.fetched_at
+            JOIN reels r ON r.reel_id = rm.reel_id
+            WHERE r.rhetorical_move IS NOT NULL
+            GROUP BY r.rhetorical_move, rm.network_name
+            HAVING sample_size >= ?
+            ORDER BY rm.network_name, avg_views DESC
+            """,
+            (min_samples,),
+        ).fetchall()
+    finally:
+        con.close()
+
+    buckets = []
+    for r in rows:
+        d = dict(r)
+        d["is_significant"] = d["sample_size"] >= 30
+        buckets.append(d)
+    return {"buckets": buckets, "min_samples_filter": min_samples}
+
+
+@app.get("/api/reels/backgrounds")
+async def api_reels_backgrounds():
+    """List all available background videos with tags + thumbnail filenames."""
+    import gen_news_video_v2 as _v2
+    bgs = _v2.list_backgrounds()
+    # Add public-friendly thumbnail URLs (served by /api/reels/backgrounds/thumb/{name})
+    for b in bgs:
+        if b.get("thumbnail_filename"):
+            b["thumbnail_url"] = f"/api/reels/backgrounds/thumb/{b['thumbnail_filename']}"
+        else:
+            b["thumbnail_url"] = None
+    return {"backgrounds": bgs}
+
+
+@app.post("/api/reels/suggest-bg")
+async def api_reels_suggest_bg(req: Request):
+    """Suggest a background video by keyword-matching headline against bg tags."""
+    body = await req.json()
+    headline = {
+        "title": body.get("title", "") or "",
+        "summary": body.get("summary", "") or "",
+    }
+    from reels_generator import _pick_suggested_bg, _load_bg_tags
+    filename, score = _pick_suggested_bg(headline)
+    label = _load_bg_tags().get(filename, {}).get("label", filename)
+    return {"filename": filename, "label": label, "score": score}
+
+
+@app.get("/api/reels/backgrounds/thumb/{filename}")
+async def api_reels_bg_thumb(filename: str):
+    """Serve a thumbnail JPG from the backgrounds folder. Path-traversal safe."""
+    from fastapi import HTTPException
+    safe_name = Path(filename).name  # strips any path traversal
+    if not safe_name.endswith(".jpg"):
+        raise HTTPException(400, "thumbnails must be .jpg")
+    thumb_path = BOT_DIR / "assets" / "reels" / "backgrounds" / safe_name
+    if not thumb_path.exists():
+        raise HTTPException(404, f"thumbnail not found: {safe_name}")
+    return FileResponse(str(thumb_path), media_type="image/jpeg")
+
+
+class BackgroundTagsPayload(BaseModel):
+    label: Optional[str] = None
+    tags: Optional[list[str]] = None
+    notes: Optional[str] = None
+
+
+@app.post("/api/reels/backgrounds/{filename}/tags")
+async def api_reels_bg_set_tags(filename: str, request: Request, payload: BackgroundTagsPayload):
+    """Update tags / label / notes for a single background video."""
+    _require_csrf(request)
+    from fastapi import HTTPException
+    safe_name = Path(filename).name
+    bg_path = BOT_DIR / "assets" / "reels" / "backgrounds" / safe_name
+    if not bg_path.exists() or bg_path.suffix != ".mp4":
+        raise HTTPException(404, f"background not found: {safe_name}")
+
+    tags_file = BOT_DIR / "assets" / "reels" / "backgrounds" / "_tags.json"
+    data: dict = {}
+    if tags_file.exists():
+        try:
+            data = json.loads(tags_file.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+    entry = data.get(safe_name, {})
+    if payload.label is not None:
+        entry["label"] = payload.label.strip() or safe_name
+    if payload.tags is not None:
+        clean = [t.strip().lower() for t in payload.tags if t and t.strip()]
+        entry["tags"] = list(dict.fromkeys(clean))[:20]  # dedupe + cap
+    if payload.notes is not None:
+        entry["notes"] = payload.notes.strip()
+    data[safe_name] = entry
+    tags_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"ok": True, "filename": safe_name, "entry": entry}
+
+
+@app.get("/api/reels/list")
+async def api_reels_list(status: Optional[str] = None, limit: int = 50):
+    """List recent reels with their publish status per network."""
+    rows = _ntr.list_reels(limit=limit, status=status)
+    out = []
+    for r in rows:
+        out.append({
+            "reel_id": r["reel_id"],
+            "alert_id": r.get("alert_id"),
+            "hook": r["hook"],
+            "body": r.get("body", ""),
+            "label": r.get("label"),
+            "topic_tag": r.get("topic_tag"),
+            "rhetorical_move": r.get("rhetorical_move"),
+            "duration_sec": r.get("duration_sec"),
+            "status": r.get("status"),
+            "created_at": r.get("created_at"),
+            "preview_url": f"/media/{Path(r['local_path']).name}" if r.get("local_path") else None,
+            "thumbnail_url": (f"/media/{Path(r['thumbnail_path']).name}"
+                              if r.get("thumbnail_path") else None),
+            "publishes": r.get("publishes") or [],
+        })
+    return {"reels": out}
+
+
+@app.get("/api/reels/{reel_id}")
+async def api_reels_get(reel_id: str):
+    """Single reel detail."""
+    r = _ntr.get_reel(reel_id)
+    if not r:
+        raise HTTPException(404, "reel not found")
+    r["preview_url"] = f"/media/{Path(r['local_path']).name}" if r.get("local_path") else None
+    r["thumbnail_url"] = (f"/media/{Path(r['thumbnail_path']).name}"
+                          if r.get("thumbnail_path") else None)
+    return r
+
+
+@app.delete("/api/reels/{reel_id}")
+async def api_reels_delete(reel_id: str, request: Request):
+    """Discard a reel: remove DB row + reel_publishes + local MP4 + thumbnail.
+
+    Drive uploads (if any) are NOT touched — those are kept as off-site backups.
+    Refuses if status='publishing' to avoid racing the publish flow.
+    """
+    _require_csrf(request)
+    import sys as _sys
+    r = _ntr.get_reel(reel_id)
+    if not r:
+        raise HTTPException(404, "reel not found")
+    if r.get("status") == "publishing":
+        raise HTTPException(409, "cannot discard reel currently publishing")
+
+    deleted_files = []
+    for key in ("local_path", "thumbnail_path"):
+        p = r.get(key)
+        if p:
+            try:
+                Path(p).unlink(missing_ok=True)
+                deleted_files.append(p)
+            except Exception as exc:
+                print(f"[reel_discard] failed to unlink {p}: {exc}", file=_sys.stderr)
+
+    import sqlite3 as _sqlite3
+    db_path = getattr(_ntr, "DB_PATH", None)
+    if db_path is None:
+        raise HTTPException(500, "DB_PATH not configured in news_to_reel")
+    try:
+        with _sqlite3.connect(str(db_path)) as conn:
+            conn.execute("DELETE FROM reel_publishes WHERE reel_id = ?", (reel_id,))
+            conn.execute("DELETE FROM reels WHERE reel_id = ?", (reel_id,))
+            conn.commit()
+    except Exception as exc:
+        print(f"[reel_discard] DB delete failed for {reel_id}: {exc}", file=_sys.stderr)
+        raise HTTPException(500, f"DB delete failed: {exc}")
+
+    print(f"[reel_discard] {reel_id} (files removed: {len(deleted_files)})", file=_sys.stderr)
+    return {"ok": True, "reel_id": reel_id, "files_removed": len(deleted_files)}

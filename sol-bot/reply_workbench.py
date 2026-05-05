@@ -110,7 +110,8 @@ def init_db():
           threads_reply_id TEXT,
           published_body TEXT,
           outcome TEXT,
-          outcome_note TEXT
+          outcome_note TEXT,
+          network_name TEXT DEFAULT 'threads'
         );
         CREATE INDEX IF NOT EXISTS idx_chats_status ON reply_chats(status, expires_at);
         CREATE INDEX IF NOT EXISTS idx_chats_published ON reply_chats(published_at);
@@ -125,6 +126,19 @@ def init_db():
           PRIMARY KEY(threads_reply_id, bucket)
         );
         """)
+        # Sprint 6 — idempotent ALTER for existing DBs
+        try:
+            c.execute("ALTER TABLE reply_chats ADD COLUMN network_name TEXT DEFAULT 'threads'")
+        except Exception:
+            pass
+        try:
+            c.execute("UPDATE reply_chats SET network_name='threads' WHERE network_name IS NULL")
+        except Exception:
+            pass
+        try:
+            c.execute("CREATE INDEX IF NOT EXISTS idx_chats_network ON reply_chats(network_name)")
+        except Exception:
+            pass
 
 
 def _row_to_dict(row):

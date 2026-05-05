@@ -13,7 +13,7 @@
      Self-hosted (CSP script-src only allows 'self', not external CDNs). -->
 <script src="/static/vendor/Sortable.min.js"></script>
 
-<link rel="stylesheet" href="/static/dashboard.css?v=1776984245">
+<link rel="stylesheet" href="/static/dashboard.css?v=1777820000">
 </head>
 <body data-side="expanded">
 
@@ -112,6 +112,10 @@
             <span class="lin-side-icn pink">✉</span>
             <span class="lin-side-label">Reply Workbench</span>
             <span class="lin-side-hint" id="inb-side-hint-2">0</span>
+          </a>
+          <a class="lin-side-item" data-k="reels">
+            <span class="lin-side-icn red">▶</span>
+            <span class="lin-side-label">Reels</span>
           </a>
           <a class="lin-side-item" data-k="settings">
             <span class="lin-side-icn">⌾</span>
@@ -362,6 +366,11 @@
                 <textarea id="combo-edit-text" class="combo-edit-textarea"
                   style="width:100%;min-height:140px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:8px;font:13px/1.4 var(--font-sans);color:var(--text);resize:vertical"></textarea>
                 <div class="post-meta" id="combo-meta">—</div>
+                <div class="net-chip-row" id="combo-net-chips" data-publish-context="combo"></div>
+                <details class="net-previews" id="combo-net-previews">
+                  <summary>Preview by network</summary>
+                  <div class="net-previews-body" id="combo-net-previews-body"></div>
+                </details>
                 <div id="combo-validate-result" style="margin-top:6px"></div>
               </div>
               <div style="display:flex;gap:6px;margin-top:8px">
@@ -569,6 +578,11 @@
           <span class="pill green dot">live</span>
           <span class="pill" id="anl-period-pill">last 7d</span>
           <div class="anl-toolbar">
+            <div class="anl-net-filter" id="anl-net-filter" role="tablist" aria-label="Network filter">
+              <button class="active" data-net="all"     role="tab" aria-selected="true">All</button>
+              <button                data-net="threads" role="tab" aria-selected="false">Threads</button>
+              <button                data-net="x"       role="tab" aria-selected="false">X</button>
+            </div>
             <div class="anl-range" id="anl-range" role="tablist" aria-label="Time range">
               <button class="active" data-r="7"   role="tab" aria-selected="true">7d</button>
               <button             data-r="30"  role="tab" aria-selected="false">30d</button>
@@ -611,18 +625,19 @@
 
         <div class="anl-row">
           <div class="lin-card anl-chart-card">
-            <div class="lin-card-hd">
-              <span>Impressions vs engagement</span>
-              <span style="margin-left:auto; font-size:11px; color:var(--text-muted)" id="anl-chart-range">last 7 days</span>
+            <div class="lin-card-hd anl-chart-hd">
+              <select id="anl-metric-pick" class="anl-metric-pick" aria-label="Metric">
+                <option value="impressions">Impressions</option>
+                <option value="engagements">Engagements</option>
+                <option value="posts">Posts</option>
+                <option value="avg_eng_rate">Engagement rate</option>
+              </select>
+              <span id="anl-chart-total" class="anl-chart-total">—</span>
+              <span id="anl-chart-range" class="anl-chart-range-lbl">last 7 days</span>
             </div>
             <div class="anl-chart-wrap">
-              <svg class="anl-chart" id="anl-chart" viewBox="0 0 800 260" preserveAspectRatio="xMidYMid meet"></svg>
+              <svg class="anl-chart" id="anl-chart" viewBox="0 0 800 240" preserveAspectRatio="xMidYMid meet"></svg>
               <div class="anl-tip" id="anl-chart-tip"></div>
-            </div>
-            <div class="anl-chart-legend">
-              <span style="color:var(--accent-hover)"><i></i> Impressions <em id="anl-lg-imp">—</em></span>
-              <span style="color:var(--hue-green)"><i></i> Engagements <em id="anl-lg-eng">—</em></span>
-              <span style="color:var(--text-muted)"><i></i> Posts <em id="anl-lg-posts">—</em></span>
             </div>
           </div>
           <div class="lin-card">
@@ -642,6 +657,31 @@
           <div class="lin-card">
             <div class="lin-card-hd">Source effectiveness</div>
             <div class="anl-lane-list" id="anl-sources"></div>
+          </div>
+        </div>
+
+        <!-- ── My X Replies (warmup engagement tracker) ── -->
+        <div class="lin-card">
+          <div class="lin-card-hd">
+            <span>My X Replies</span>
+            <span class="net-badge x" style="margin-left:8px; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600; background:#000; color:#fff">X</span>
+            <span id="xrep-meta" style="margin-left:auto; font-size:11px; color:var(--text-muted); font-family:var(--font-mono)">—</span>
+            <select id="xrep-sort" class="btn ghost" style="margin-left:10px; padding:4px 8px; font-size:11px; height:28px">
+              <option value="recent">Recent</option>
+              <option value="views">Top views</option>
+              <option value="engagement">Top eng%</option>
+            </select>
+            <button id="xrep-sync-btn" class="btn primary" style="margin-left:8px; padding:4px 12px; font-size:11px; height:28px">↻ Sync</button>
+          </div>
+          <div id="xrep-insights" class="xrep-insights" style="display:none">
+            <div class="xrep-insights-hd">
+              <span class="xrep-insights-title">Pattern analysis</span>
+              <span class="xrep-insights-meta" id="xrep-insights-meta"></span>
+            </div>
+            <ul class="xrep-takeaways" id="xrep-takeaways"></ul>
+          </div>
+          <div id="xrep-list" class="xrep-list">
+            <div class="xrep-empty">No replies tracked yet — click ↻ Sync to fetch from X.</div>
           </div>
         </div>
 
@@ -805,7 +845,7 @@ POSTURE
       <section class="screen" data-screen="settings">
         <div class="lin-page-hd">
           <h1>Settings</h1>
-          <span class="pill" id="set-env-pill">prod · @napoleotics</span>
+          <span class="pill" id="set-env-pill">prod · @theclamletter</span>
           <span class="pill green dot" id="set-health-pill">healthy</span>
           <div style="margin-left:auto; display:flex; gap:var(--sp-2)">
             <button class="btn ghost">↥ Import config</button>
@@ -818,6 +858,7 @@ POSTURE
             <div class="lin-card-hd">Sections</div>
             <div class="set-nav" id="set-nav">
               <button class="set-nav-item active" data-p="account">◉ Account</button>
+              <button class="set-nav-item" data-p="networks">⚭ Connected Networks</button>
               <button class="set-nav-item" data-p="schedule">📅 Posting schedule</button>
               <button class="set-nav-item" data-p="models">⚡ Model routing</button>
               <button class="set-nav-item" data-p="sources">📡 Sources</button>
@@ -832,9 +873,9 @@ POSTURE
             <div class="set-pane active" data-p="account">
               <div class="brn-section-hd"><h3>Account</h3><span class="sub">connected services and identity</span></div>
               <div class="set-row">
-                <div class="lbl"><div class="t">X / Twitter handle</div><div class="d">Account currently posting. Cookie session expires in 4 days.</div></div>
+                <div class="lbl"><div class="t">Primary handle</div><div class="d">Default account for publishing. See Connected Networks for per-network status.</div></div>
                 <div class="ctl">
-                  <input class="set-input" value="@napoleotics" data-setting="account.handle" />
+                  <input class="set-input" value="@theclamletter" data-setting="account.handle" />
                   <div class="set-pill-row">
                     <span class="set-status"><span class="dot"></span>cookie valid · 4d remaining</span>
                   </div>
@@ -967,6 +1008,14 @@ POSTURE
               <div class="set-row">
                 <div class="lbl"><div class="t">Polymarket contracts</div><div class="d">Tracked for fast price moves on geopolitical contracts.</div></div>
                 <div class="ctl"><div class="switch on" data-sw="poly" data-setting="sources.polymarket_enabled"></div></div>
+              </div>
+            </div>
+
+            <!-- Connected Networks -->
+            <div class="set-pane" data-p="networks">
+              <div class="brn-section-hd"><h3>Connected Networks</h3><span class="sub">publishing destinations · auth · cost tracking</span></div>
+              <div class="set-networks-list" id="set-networks-list">
+                <div class="set-net-empty">Loading networks…</div>
               </div>
             </div>
 
@@ -1110,6 +1159,123 @@ POSTURE
         </div>
       </section>
       <!-- ========== END SCREEN: REPLIES ========== -->
+
+      <!-- ========== SCREEN: REELS ========== -->
+      <section class="screen" data-screen="reels">
+        <div class="lin-page" style="max-width:1200px;margin:0 auto;padding:24px">
+          <h1 style="font-size:22px;font-weight:600;margin:0 0 6px">Reels</h1>
+          <p style="color:var(--lin-tx-2,#888);margin:0 0 24px;font-size:13px">
+            Generate vertical 9:16 news Reels for Instagram, TikTok, and YouTube Shorts.
+          </p>
+
+          <!-- Compose card -->
+          <div class="lin-card" style="padding:20px;margin-bottom:20px">
+            <h3 style="margin:0 0 14px;font-size:14px;font-weight:600">Compose</h3>
+            <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <select id="rl-source" style="flex:1;min-width:240px;padding:8px;background:#0d0e10;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea">
+                <option value="">— Manual title —</option>
+              </select>
+              <select id="rl-label" style="padding:8px;background:#0d0e10;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea">
+                <option>BREAKING</option>
+                <option>DEVELOPING</option>
+                <option>ANALYSIS</option>
+                <option>MARKETS</option>
+              </select>
+              <select id="rl-format" title="Reel format" style="padding:8px;background:#0d0e10;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea">
+                <option value="">Default</option>
+                <option value="v3">v3 — Hyperframes + TTS</option>
+                <option value="v2">v2 — Pillow legacy</option>
+              </select>
+            </div>
+            <input id="rl-title" placeholder="Headline (or pick from queue above)" style="width:100%;padding:8px;margin-bottom:8px;background:#0d0e10;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea">
+            <textarea id="rl-summary" placeholder="Optional context / summary" rows="2" style="width:100%;padding:8px;margin-bottom:10px;background:#0d0e10;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea;resize:vertical"></textarea>
+
+            <!-- Background picker (Phase 7) -->
+            <div style="margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <label style="font-size:12px;color:#888;font-weight:500">Background</label>
+                <span id="rl-bg-selected-label" style="font-size:11px;color:#bc9e60">Random</span>
+              </div>
+              <div id="rl-bg-strip" style="display:flex;gap:8px;overflow-x:auto;padding:6px 2px;scroll-behavior:smooth">
+                <div style="color:#666;font-size:12px;padding:20px">Loading…</div>
+              </div>
+            </div>
+
+            <button id="rl-gen-btn" class="lin-btn primary" style="padding:8px 16px">Generate Reel</button>
+            <span id="rl-gen-status" style="margin-left:12px;color:#888;font-size:12px"></span>
+            <div id="rl-gen-phases" class="sol-phases" style="display:none"></div>
+          </div>
+
+          <!-- Preview card -->
+          <div class="lin-card" id="rl-preview-card" style="padding:20px;margin-bottom:20px;display:none">
+            <h3 style="margin:0 0 14px;font-size:14px;font-weight:600">Preview</h3>
+            <div style="display:flex;gap:24px;flex-wrap:wrap">
+              <div>
+                <video id="rl-preview-video" controls width="270" style="border-radius:8px;background:#000"></video>
+              </div>
+              <div style="flex:1;min-width:280px">
+                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Hook</div>
+                <div id="rl-preview-hook" style="font-size:15px;font-weight:600;margin-bottom:14px"></div>
+                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Body</div>
+                <div id="rl-preview-body" style="font-size:13px;line-height:1.45;margin-bottom:14px;color:#bdbec0"></div>
+                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;display:flex;justify-content:space-between;align-items:baseline">
+                  <span>Caption (post description)</span>
+                  <span style="font-size:10px;color:#666"><span id="rl-cap-count">0</span> / 1200 chars</span>
+                </div>
+                <textarea id="rl-preview-caption" rows="6" style="width:100%;padding:8px;margin-bottom:14px;background:#0a0b0d;border:1px solid #1f2126;border-radius:6px;color:#bdbec0;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5;resize:vertical" placeholder="Long-form caption for IG/TikTok/YouTube descriptions"></textarea>
+                <div style="font-size:11px;color:#888;margin-bottom:18px">
+                  <span id="rl-preview-meta"></span>
+                </div>
+                <div style="margin-bottom:12px;font-size:12px">Publish to:</div>
+                <label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px">
+                  <input type="checkbox" id="rl-pub-instagram" checked> Instagram Reels
+                </label>
+                <label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px">
+                  <input type="checkbox" id="rl-pub-tiktok" checked> TikTok
+                </label>
+                <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px">
+                  <input type="checkbox" id="rl-pub-youtube" checked> YouTube Shorts
+                </label>
+                <div style="margin-top:14px">
+                  <button id="rl-pub-btn" class="lin-btn primary" style="padding:8px 16px">Publish</button>
+                  <span id="rl-pub-status" style="margin-left:12px;color:#888;font-size:12px"></span>
+                  <div id="rl-pub-phases" class="sol-phases" style="display:none"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent reels list -->
+          <div class="lin-card" style="padding:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="margin:0;font-size:14px;font-weight:600">Recent Reels</h3>
+              <button id="rl-refresh-btn" class="lin-btn" style="padding:4px 10px;font-size:12px">Refresh</button>
+            </div>
+            <div id="rl-list" style="display:flex;flex-direction:column;gap:10px">
+              <div style="color:#666;font-size:12px">Loading…</div>
+            </div>
+          </div>
+
+          <!-- Reels — Performance by rhetorical move (Phase 5) -->
+          <div class="lin-card" style="padding:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div>
+                <h3 style="margin:0;font-size:14px;font-weight:600">Performance by Rhetorical Move</h3>
+                <div style="color:#666;font-size:11px;margin-top:2px">
+                  Latest metric per (reel × network), grouped by move. Updated nightly via systemd timer.
+                </div>
+              </div>
+              <button id="rmet-refresh-btn" class="lin-btn" style="padding:4px 10px;font-size:12px">Refresh</button>
+            </div>
+            <div id="rmet-list" style="font-size:12px">
+              <div style="color:#666">Loading…</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+      <!-- ========== END SCREEN: REELS ========== -->
+
 
     </div>
   </main>
@@ -2077,7 +2243,7 @@ async function onPostManagerAction(act, btn) {
     btn.classList.add('is-publishing');
     btn.innerHTML = '<span class="btn-spinner"></span>Publishing…';
     try {
-      const r = await apiPost('/api/publish', { platform: 'threads', source: 'pending' });
+      const r = await apiPost('/api/publish', _publishPayload('pending'));
       apiToast('Published: ' + (r.threads_id || r.id || 'OK'), 'ok');
       await loadPending();
       await _ccRefreshAfterPublish(r);
@@ -2112,7 +2278,97 @@ async function onPostManagerAction(act, btn) {
   }
 }
 
-const THREADS_POST_MAX_CHARS = 500;
+/* Sprint 4: multi-network compose state.
+   ACTIVE_NETWORKS persists in localStorage; defaults to ['threads'] if absent.
+   _charLimit() returns the most-restrictive char limit across active networks.
+   When X is active, limit drops to 280 (with hint "(limited by X)"). */
+const NETWORK_LIMITS = { threads: 500, x: 280, bluesky: 300, linkedin: 3000 };
+const NETWORK_LABELS = { threads: 'Threads', x: 'X', bluesky: 'Bluesky', linkedin: 'LinkedIn' };
+let ACTIVE_NETWORKS = (function() {
+  try {
+    const raw = localStorage.getItem('sol.activeNetworks');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return new Set(arr.filter(n => n in NETWORK_LIMITS));
+    }
+  } catch (_) {}
+  return new Set(['threads']);
+})();
+function _persistActiveNetworks() {
+  try { localStorage.setItem('sol.activeNetworks', JSON.stringify(Array.from(ACTIVE_NETWORKS))); } catch (_) {}
+}
+function _charLimit() {
+  let min = Infinity, who = null;
+  for (const n of ACTIVE_NETWORKS) {
+    const l = NETWORK_LIMITS[n];
+    if (l != null && l < min) { min = l; who = n; }
+  }
+  if (!Number.isFinite(min)) return { limit: 500, restrictedBy: null };
+  return { limit: min, restrictedBy: ACTIVE_NETWORKS.size > 1 ? who : null };
+}
+function _charLimitText(len) {
+  const { limit, restrictedBy } = _charLimit();
+  let txt = len + ' / ' + limit + ' chars';
+  if (restrictedBy) txt += ' (limited by ' + (NETWORK_LABELS[restrictedBy] || restrictedBy) + ')';
+  return { text: txt, over: len > limit, limit };
+}
+/* Backward-compat alias — many code sites still reference THREADS_POST_MAX_CHARS.
+   Now reads dynamically from active networks. */
+Object.defineProperty(window, 'THREADS_POST_MAX_CHARS', {
+  get() { return _charLimit().limit; }
+});
+
+/* Toggle a network in/out of ACTIVE_NETWORKS. Re-renders chips + char counters. */
+function _toggleNetwork(name) {
+  if (ACTIVE_NETWORKS.has(name)) {
+    if (ACTIVE_NETWORKS.size === 1) {
+      apiToast('Keep at least one network selected.', 'err');
+      return;
+    }
+    ACTIVE_NETWORKS.delete(name);
+  } else {
+    ACTIVE_NETWORKS.add(name);
+  }
+  _persistActiveNetworks();
+  _renderNetworkChipsAll();
+  // Re-render char counters in any visible composer
+  if (typeof onComboEditInput === 'function') onComboEditInput();
+  // Sprint 7 — refresh per-network previews after chip toggle
+  const ta = document.getElementById('combo-edit-text');
+  if (ta && typeof _renderNetPreviews === 'function') _renderNetPreviews(ta.value || '');
+}
+
+/* Render a row of chips into a target element. Idempotent. */
+function _renderNetworkChips(targetEl) {
+  if (!targetEl) return;
+  // For MVP we show only registered+connected nets that we know about (threads, x).
+  const names = ['threads', 'x'];
+  targetEl.innerHTML = names.map(n => {
+    const active = ACTIVE_NETWORKS.has(n);
+    return `<button type="button" class="net-chip ${active ? 'active' : ''}" data-net-toggle="${n}">
+      <span class="net-chip-dot ${n}"></span>${NETWORK_LABELS[n] || n}
+    </button>`;
+  }).join('');
+  targetEl.querySelectorAll('[data-net-toggle]').forEach(b => {
+    b.addEventListener('click', () => _toggleNetwork(b.dataset.netToggle));
+  });
+}
+
+/* Refresh all `.net-chip-row` containers in the DOM (used after a toggle). */
+function _renderNetworkChipsAll() {
+  document.querySelectorAll('.net-chip-row').forEach(_renderNetworkChips);
+  if (typeof _refreshPublishButtonLabels === 'function') _refreshPublishButtonLabels();
+}
+
+/* Build the publish payload for /api/publish — includes new `networks` array. */
+function _publishPayload(source) {
+  return {
+    platform: ACTIVE_NETWORKS.has('x') && ACTIVE_NETWORKS.has('threads') ? 'both'
+            : ACTIVE_NETWORKS.has('x') ? 'x' : 'threads',
+    source: source,
+    networks: Array.from(ACTIVE_NETWORKS),
+  };
+}
 
 /* Shared validate handler: hits /api/validate and renders issues into target div.
    targetId: id of the div to render into. btn: button to disable while in flight. */
@@ -2165,8 +2421,9 @@ function renderComboResult() {
     ta.oninput = onComboEditInput;
   }
   if (cnt) {
-    cnt.textContent = txt.length + ' / ' + THREADS_POST_MAX_CHARS + ' chars';
-    cnt.classList.toggle('over', txt.length > THREADS_POST_MAX_CHARS);
+    const cl = _charLimitText(txt.length);
+    cnt.textContent = cl.text;
+    cnt.classList.toggle('over', cl.over);
   }
   if (meta) {
     const tt   = (c.tweet_type || 'COMBINADA').toUpperCase();
@@ -2176,6 +2433,10 @@ function renderComboResult() {
   if (pill) { pill.textContent = 'Pending'; pill.className = 'pill orange dot'; }
   if (save) { save.disabled = true; }
   if (ires) { ires.innerHTML = ''; }
+  // Render network chips inside this card (Sprint 4 multi-network)
+  _renderNetworkChips(document.getElementById('combo-net-chips'));
+  _refreshPublishButtonLabels();
+  _renderNetPreviews(txt);
   // Bind buttons (idempotent — onclick replaces previous)
   document.getElementById('combo-act-save').onclick     = saveComboEdit;
   document.getElementById('combo-act-regen').onclick    = regenerateCombo;
@@ -2185,6 +2446,48 @@ function renderComboResult() {
     doPostValidate('combo-validate-result', ev.currentTarget);
 }
 
+/* Sprint 7: per-network preview cards in composer. Shows the same text rendered
+   with each network's char limit + an over-limit badge if applicable. */
+function _renderNetPreviews(text) {
+  const body = document.getElementById('combo-net-previews-body');
+  if (!body) return;
+  const txt = String(text || '');
+  const cards = Array.from(ACTIVE_NETWORKS).map(n => {
+    const limit = NETWORKS_LIMITS_GET(n);
+    const label = NETWORK_LABELS[n] || n;
+    const over = txt.length > limit;
+    const truncated = over ? txt.slice(0, limit) + '…' : txt;
+    return `
+      <div class="net-preview-card net-${n}">
+        <div class="net-preview-hd">
+          <span class="net-chip-dot ${n}"></span>
+          <span class="net-preview-label">${label}</span>
+          <span class="net-preview-count ${over ? 'over' : ''}">${txt.length}/${limit}</span>
+          ${over ? '<span class="net-preview-warn">over limit · will truncate</span>' : ''}
+        </div>
+        <div class="net-preview-body">${_escAnl(truncated) || '<em class="dim">empty</em>'}</div>
+      </div>`;
+  }).join('') || '<div class="dim" style="padding:10px">Select at least one network above.</div>';
+  body.innerHTML = cards;
+}
+function NETWORKS_LIMITS_GET(n) { return NETWORK_LIMITS[n] || 500; }
+
+/* Sprint 4: dynamic publish button label based on ACTIVE_NETWORKS. */
+function _publishButtonLabel() {
+  const arr = Array.from(ACTIVE_NETWORKS).map(n => NETWORK_LABELS[n] || n);
+  if (arr.length === 0) return '⚡ Publish';
+  if (arr.length === 1) return '⚡ Publish to ' + arr[0];
+  return '⚡ Publish to ' + arr.join(' + ');
+}
+function _refreshPublishButtonLabels() {
+  const ids = ['combo-act-publish'];
+  const lbl = _publishButtonLabel();
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.publishing) el.textContent = lbl;
+  });
+}
+
 function onComboEditInput() {
   const ta   = document.getElementById('combo-edit-text');
   const cnt  = document.getElementById('combo-char-count');
@@ -2192,13 +2495,16 @@ function onComboEditInput() {
   if (!ta) return;
   const v = ta.value || '';
   if (cnt) {
-    cnt.textContent = v.length + ' / ' + THREADS_POST_MAX_CHARS + ' chars';
-    cnt.classList.toggle('over', v.length > THREADS_POST_MAX_CHARS);
+    const cl = _charLimitText(v.length);
+    cnt.textContent = cl.text;
+    cnt.classList.toggle('over', cl.over);
   }
   if (save) {
     const orig = ta.dataset.original || '';
     save.disabled = (v === orig) || v.trim().length === 0;
   }
+  // Sprint 7 — refresh per-network previews live as user types
+  _renderNetPreviews(v);
 }
 
 async function saveComboEdit() {
@@ -2251,16 +2557,23 @@ async function regenerateCombo() {
 
 async function publishCombo() {
   const btn = document.getElementById('combo-act-publish');
-  if (!(await apiConfirm('Publish combo to Threads?', { title: 'Confirm publish', confirmText: 'Publish', kind: 'primary' }))) return;
+  const targets = Array.from(ACTIVE_NETWORKS).map(n => NETWORK_LABELS[n] || n).join(' + ') || 'Threads';
+  if (!(await apiConfirm('Publish combo to ' + targets + '?', { title: 'Confirm publish', confirmText: 'Publish', kind: 'primary' }))) return;
   const _orig = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
+    btn.dataset.publishing = '1';
     btn.classList.add('is-publishing');
     btn.innerHTML = '<span class="btn-spinner"></span>Publishing…';
   }
   try {
-    const r = await apiPost('/api/publish', { platform: 'threads', source: 'combo' });
-    apiToast('Published combo: ' + (r.threads_id || r.id || 'OK'), 'ok');
+    const r = await apiPost('/api/publish', _publishPayload('combo'));
+    // Sprint 4: surface multi-network result detail
+    const parts = [];
+    if (r.threads_post_id || r.threads_id) parts.push('Threads ' + (r.threads_post_id || r.threads_id));
+    if (r.x_success) parts.push('X ' + (r.x_post_id || 'ok'));
+    if (r.x_error) apiToast('X publish: ' + r.x_error, 'err');
+    apiToast('Published: ' + (parts.join(' · ') || 'OK'), 'ok');
     await loadPending();
     await loadRecentPosts();
     await _ccRefreshAfterPublish(r);
@@ -2270,7 +2583,8 @@ async function publishCombo() {
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('is-publishing');
-      btn.innerHTML = _orig || '⚡ Publish';
+      delete btn.dataset.publishing;
+      btn.innerHTML = _orig || _publishButtonLabel();
     }
   }
 }
@@ -2656,7 +2970,7 @@ function _ccGetActiveSeg(rowKey) {
       await loadPending();
       if (id === 'btn-genpub') {
         appendChatLine('[publishing] sending to Threads…');
-        const pub = await apiPost('/api/publish', { platform: 'threads', source: 'pending' });
+        const pub = await apiPost('/api/publish', _publishPayload('pending'));
         appendChatLine('[published] ' + (pub.threads_id || pub.id || 'OK'), 'ok');
         await loadPending();
         await _ccRefreshAfterPublish(pub);
@@ -2870,6 +3184,7 @@ async function refreshActiveScreen() {
         break;
       case 'settings':
         if (typeof loadSettingsStatus === 'function') await loadSettingsStatus();
+        if (typeof loadNetworks === 'function') await loadNetworks();
         break;
       default:
         await loadCommandData();
@@ -3115,18 +3430,33 @@ const SCREEN_TITLES = {
   brain:     'Brain',
   settings:  'Settings',
   inbox:     'Replies',
+  reels:     'Reels',
 };
+
+/* View Transitions API helper (Level 3.3 — JS hooks, 2026-05-02).
+   Wraps DOM updates in a native cross-fade. Falls back to plain
+   updates when the API is unsupported or user prefers reduced motion. */
+function _withViewTransition(updateFn) {
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reduce) {
+    return updateFn();
+  }
+  return document.startViewTransition(updateFn);
+}
 
 function switchScreen(key) {
   if (!SCREEN_TITLES[key]) return;
-  document.querySelectorAll('.screen').forEach(s => {
-    s.classList.toggle('active', s.dataset.screen === key);
+  _withViewTransition(() => {
+    document.querySelectorAll('.screen').forEach(s => {
+      s.classList.toggle('active', s.dataset.screen === key);
+    });
+    document.querySelectorAll('.lin-side-item[data-k]').forEach(it => {
+      it.classList.toggle('active', it.dataset.k === key);
+    });
+    const leaf = document.querySelector('.crumb-leaf');
+    if (leaf) leaf.textContent = SCREEN_TITLES[key];
   });
-  document.querySelectorAll('.lin-side-item[data-k]').forEach(it => {
-    it.classList.toggle('active', it.dataset.k === key);
-  });
-  const leaf = document.querySelector('.crumb-leaf');
-  if (leaf) leaf.textContent = SCREEN_TITLES[key];
+  // Side effects — keep OUTSIDE the transition so heavy mounts don't delay it.
   // Close monitor drawer when leaving monitor
   if (key !== 'monitor') closeMonDrawer();
   // Close scheduled drawer when leaving scheduled
@@ -3160,6 +3490,11 @@ function switchScreen(key) {
   if (key === 'inbox' && !window.__inbMounted) {
     mountInbox();
     window.__inbMounted = true;
+  }
+  // Mount reels lazily on first visit
+  if (key === 'reels' && !window.__rlMounted) {
+    mountReels();
+    window.__rlMounted = true;
   }
 }
 
@@ -4308,7 +4643,7 @@ async function mountScheduled() {
     try {
       // Source mapping: pending-b → 'pending-b'; scheduled → 'pending'
       const source = it._source === 'pending-b' ? 'pending-b' : 'pending';
-      const pubR = await apiPost('/api/publish', { platform: 'threads', source });
+      const pubR = await apiPost('/api/publish', _publishPayload(source));
       apiToast('Published', 'ok');
       closeSchDrawer();
       await loadScheduled();
@@ -4568,6 +4903,13 @@ window.addEventListener('keydown', e => {
    ANALYTICS — KPI sparks, time-series chart, lane perf, heatmap, top posts
    ============================================================ */
 let ANL_RANGE = 7;
+let ANL_METRIC = 'impressions';  // X-style: chart shows one metric at a time
+const ANL_METRICS = [
+  { k: 'impressions',  lbl: 'Impressions',     fmt: v => _fmtCount(v) },
+  { k: 'engagements',  lbl: 'Engagements',     fmt: v => _fmtCount(v) },
+  { k: 'posts',        lbl: 'Posts',           fmt: v => String(Math.round(v)) },
+  { k: 'avg_eng_rate', lbl: 'Engagement rate', fmt: v => (v * 100).toFixed(2) + '%' },
+];
 
 function _seed(n) { let x = Math.sin(n) * 10000; return x - Math.floor(x); }
 
@@ -4707,13 +5049,151 @@ function _escAnl(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* ── X Replies (manual reply tracker — warmup phase) ── */
+let XREP_DATA = [];
+let XREP_SORT = 'recent';
+let XREP_LAST_SYNC = null;
+let XREP_INSIGHTS = null;
+
+function _xrepFmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const diffMs = Date.now() - d.getTime();
+    const diffH  = diffMs / 36e5;
+    if (diffH < 1)   return Math.max(1, Math.round(diffH * 60)) + 'm';
+    if (diffH < 24)  return Math.round(diffH) + 'h';
+    if (diffH < 168) return Math.round(diffH / 24) + 'd';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch { return '—'; }
+}
+
+async function loadXReplyInsights() {
+  try {
+    const r = await apiGet('/api/networks/x/reply_insights');
+    XREP_INSIGHTS = r;
+  } catch (e) {
+    XREP_INSIGHTS = null;
+    console.warn('[xrep insights] load failed:', e.message || e);
+  }
+}
+
+function renderXReplyInsights() {
+  const el   = document.getElementById('xrep-insights');
+  const ul   = document.getElementById('xrep-takeaways');
+  const meta = document.getElementById('xrep-insights-meta');
+  if (!el || !ul) return;
+  const tk = (XREP_INSIGHTS && XREP_INSIGHTS.takeaways) || [];
+  if (!tk.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if (meta) {
+    const tc = XREP_INSIGHTS.top_count || 0;
+    const bc = XREP_INSIGHTS.bottom_count || 0;
+    meta.textContent = 'top ' + tc + ' vs bottom ' + bc + ' · by eng%';
+  }
+  ul.innerHTML = tk.map(t => {
+    let cls = '';
+    if (/^Avoid|↓|0% of top/i.test(t))            cls = 'warn';
+    else if (/lift|cite|short|number|%|\$/i.test(t)) cls = 'win';
+    return '<li class="' + cls + '">' + _escAnl(t) + '</li>';
+  }).join('');
+}
+
+async function loadXReplies() {
+  try {
+    const r = await apiGet('/api/networks/x/replies?limit=50&sort=' + encodeURIComponent(XREP_SORT));
+    XREP_DATA = (r && r.items) || [];
+    if (XREP_DATA.length && !XREP_LAST_SYNC) {
+      // best-effort: use the most recent snapshot timestamp as last sync proxy
+      const latest = XREP_DATA
+        .map(x => x.snapshot_at || x.last_seen_at || x.first_seen_at)
+        .filter(Boolean)
+        .sort()
+        .pop();
+      if (latest) XREP_LAST_SYNC = latest;
+    }
+  } catch (e) {
+    XREP_DATA = [];
+    console.warn('[xrep] load failed:', e.message || e);
+  }
+}
+
+function renderXReplies() {
+  const listEl = document.getElementById('xrep-list');
+  const metaEl = document.getElementById('xrep-meta');
+  if (metaEl) {
+    const last = XREP_LAST_SYNC ? ('synced ' + _xrepFmtDate(XREP_LAST_SYNC) + ' ago') : 'never synced';
+    metaEl.textContent = (XREP_DATA.length || 0) + ' replies · ' + last;
+  }
+  if (!listEl) return;
+  if (!XREP_DATA.length) {
+    listEl.innerHTML = '<div class="xrep-empty">No replies tracked yet — click ↻ Sync to fetch from X.</div>';
+    return;
+  }
+  listEl.innerHTML = XREP_DATA.map(r => {
+    const handle  = r.in_reply_to_user_handle ? '@' + r.in_reply_to_user_handle : '';
+    const date    = _xrepFmtDate(r.created_at || r.timestamp || r.first_seen_at);
+    const text    = _escAnl(r.text || '(no text)');
+    const views   = Number(r.views) || 0;
+    const likes   = Number(r.likes) || 0;
+    const reps    = Number(r.replies) || 0;
+    const rps     = Number(r.reposts) || 0;
+    const er      = ((Number(r.engagement_rate) || 0) * 100).toFixed(2);
+    const tweetId = r.tweet_id || r.post_id || '';
+    const url     = r.permalink || ('https://x.com/i/web/status/' + tweetId);
+    return `
+      <a class="xrep-row" href="${_escAnl(url)}" target="_blank" rel="noopener">
+        <span class="xrep-av" aria-hidden="true">≠</span>
+        <div class="xrep-body">
+          <div class="xrep-meta">
+            <span class="xrep-handle">Inequaliti</span>
+            <span class="xrep-verified" title="verified">✓</span>
+            <span class="xrep-sep">·</span>
+            <span class="xrep-date">${date}</span>
+            ${handle ? `<span class="xrep-replyto">↳ ${_escAnl(handle)}</span>` : ''}
+          </div>
+          <div class="xrep-text">${text}</div>
+        </div>
+        <div class="xrep-stats">
+          <span class="xrep-stat" title="Impressions"><i class="ic">📊</i>${_fmtCount(views)}</span>
+          <span class="xrep-stat" title="Likes"><i class="ic">♥</i>${likes.toLocaleString()}</span>
+          <span class="xrep-stat" title="Replies"><i class="ic">💬</i>${reps.toLocaleString()}</span>
+          <span class="xrep-stat" title="Reposts"><i class="ic">🔁</i>${rps.toLocaleString()}</span>
+          <span class="xrep-eng" title="Engagement rate">${er}%</span>
+        </div>
+      </a>
+    `;
+  }).join('');
+}
+
+async function syncXReplies() {
+  const btn = document.getElementById('xrep-sync-btn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '… syncing'; }
+  try {
+    const res = await apiPost('/api/networks/x/sync_replies?limit=100', {});
+    XREP_LAST_SYNC = (res && res.synced_at) || new Date().toISOString();
+    apiToast('X replies: ' + (res.fetched || 0) + ' fetched · ' + (res.inserted || 0) + ' new · ' + (res.updated || 0) + ' updated', 'ok');
+    await Promise.all([loadXReplies(), loadXReplyInsights()]);
+    renderXReplyInsights();
+    renderXReplies();
+  } catch (e) {
+    apiToast('X reply sync failed: ' + (e.message || e), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig || '↻ Sync'; }
+  }
+}
+
 // ── Load + mount + render ──
+let ANL_NETWORK = 'all';  // Sprint 5: 'all' | 'threads' | 'x'
 async function loadAnalytics() {
   // Show skeletons while fetching
   const kpisEl = document.querySelector('.anl-kpis');
   if (kpisEl) kpisEl.classList.add('is-loading');
   try {
-    const data = await apiGet('/api/threads/analytics?days=' + ANL_RANGE + '&limit=20&sort=engagement');
+    const url = '/api/threads/analytics?days=' + ANL_RANGE + '&limit=20&sort=engagement&network=' + encodeURIComponent(ANL_NETWORK);
+    const data = await apiGet(url);
     ANL_DATA = data;
 
     // Top posts
@@ -4768,10 +5248,32 @@ async function loadAnalytics() {
     const kpisEl = document.querySelector('.anl-kpis');
     if (kpisEl) kpisEl.classList.remove('is-loading');
   }
+
+  // Pull X replies + pattern insights (best-effort, never blocks main analytics)
+  await Promise.all([loadXReplies(), loadXReplyInsights()]);
 }
 
 async function mountAnalytics() {
   await loadAnalytics();
+
+  // Sprint 5 — network filter chips (All / Threads / X)
+  let _anlNetT;
+  document.querySelectorAll('#anl-net-filter button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#anl-net-filter button').forEach(x => {
+        x.classList.remove('active');
+        x.setAttribute('aria-selected', 'false');
+      });
+      b.classList.add('active');
+      b.setAttribute('aria-selected', 'true');
+      ANL_NETWORK = b.dataset.net || 'all';
+      clearTimeout(_anlNetT);
+      _anlNetT = setTimeout(async () => {
+        await loadAnalytics();
+        renderAnalytics();
+      }, 150);
+    });
+  });
 
   // Range toggle (7d / 30d / 90d / All) — debounced to avoid request stampede
   let _anlRangeT;
@@ -4802,6 +5304,17 @@ async function mountAnalytics() {
     });
   });
 
+  // X-style metric switcher (Impressions / Engagements / Posts / Engagement rate)
+  const metricPick = document.getElementById('anl-metric-pick');
+  if (metricPick && !metricPick._wired) {
+    metricPick.value = ANL_METRIC;
+    metricPick.addEventListener('change', () => {
+      ANL_METRIC = metricPick.value || 'impressions';
+      renderAnalytics();
+    });
+    metricPick._wired = true;
+  }
+
   // Refresh button
   const refreshBtn = document.getElementById('anl-btn-refresh');
   if (refreshBtn) {
@@ -4831,6 +5344,24 @@ async function mountAnalytics() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
+  }
+
+  // X Replies — Sync button + sort dropdown
+  const xrepSyncBtn = document.getElementById('xrep-sync-btn');
+  if (xrepSyncBtn && !xrepSyncBtn._wired) {
+    xrepSyncBtn.addEventListener('click', syncXReplies);
+    xrepSyncBtn._wired = true;
+  }
+  const xrepSort = document.getElementById('xrep-sort');
+  if (xrepSort && !xrepSort._wired) {
+    xrepSort.value = XREP_SORT;
+    xrepSort.addEventListener('change', async () => {
+      XREP_SORT = xrepSort.value || 'recent';
+      await loadXReplies();
+      renderXReplies();
+      // insights are independent of sort but refresh in case data shifted
+    });
+    xrepSort._wired = true;
   }
 
   // Re-render on resize (heatmap re-buckets, chart tooltip re-positions).
@@ -4877,160 +5408,132 @@ function renderAnalytics() {
   _setKpi('anl-kpi-posts', String(postsCount), { txt: `${perDay} / day avg`, cls: '' });
   _renderSparkSeries('anl-spark-posts', padded.map(d => d.posts || 0), 'var(--text-secondary)');
 
-  // ── Main chart: real time_series + hover tooltips ──
+  // ── Main chart: X-style single-metric with smooth curve + pill tooltip ──
   const chart = document.getElementById('anl-chart');
   if (chart) {
     const days = padded.length || 1;
-    const impSeries  = padded.map(d => d.impressions || 0);
-    const engSeries  = padded.map(d => d.engagements || 0);
-    const postSeries = padded.map(d => d.posts || 0);
-    const W = 800, H = 260, PAD_L = 44, PAD_R = 14, PAD_T = 14, PAD_B = 28;
+    const M = ANL_METRICS.find(m => m.k === ANL_METRIC) || ANL_METRICS[0];
+    const series = padded.map(d => Number(d[M.k]) || 0);
+    const W = 800, H = 240, PAD_L = 48, PAD_R = 16, PAD_T = 22, PAD_B = 28;
     const innerW = W - PAD_L - PAD_R;
     const innerH = H - PAD_T - PAD_B;
 
-    // Update legend with peak values (so user knows the auto-scaling)
-    const setLg = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = 'peak ' + _fmtCount(n); };
-    setLg('anl-lg-imp',   Math.max(0, ...impSeries));
-    setLg('anl-lg-eng',   Math.max(0, ...engSeries));
-    setLg('anl-lg-posts', Math.max(0, ...postSeries));
+    const maxV = Math.max(M.k === 'avg_eng_rate' ? 0.001 : 1, ...series);
 
-    // Scale engagements/posts up so they share the chart axis with impressions
-    const maxImp  = Math.max(1, ...impSeries);
-    const maxEng  = Math.max(1, ...engSeries);
-    const maxPost = Math.max(1, ...postSeries);
-    const engScale  = maxImp / maxEng;
-    const postScale = maxImp / maxPost;
-    const allMax = maxImp;
-
-    const x = i => PAD_L + (days === 1 ? innerW / 2 : (i / (days - 1)) * innerW);
-    const y = v => PAD_T + innerH - (v / allMax) * innerH;
-
-    const lineFor = (series, scale) => series.map((v, i) =>
-      (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(v * scale).toFixed(1)
-    ).join(' ');
-
-    const areaFor = (series, scale) => {
-      const top = lineFor(series, scale);
-      return top + ` L${(PAD_L + innerW).toFixed(1)},${(PAD_T + innerH).toFixed(1)} L${PAD_L.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`;
-    };
-
-    let gridLines = '';
-    for (let i = 0; i <= 4; i++) {
-      const yy = PAD_T + (i / 4) * innerH;
-      gridLines += `<line x1="${PAD_L}" y1="${yy}" x2="${PAD_L + innerW}" y2="${yy}" stroke="var(--border)" stroke-width="1"/>`;
-      const v = allMax * (1 - i / 4);
-      gridLines += `<text x="${PAD_L - 6}" y="${yy + 3}" fill="var(--text-muted)" font-family="var(--font-mono)" font-size="10" text-anchor="end">${_fmtCount(v)}</text>`;
+    // Header summary: total + peak (X-style above-chart KPI line)
+    const totalEl = document.getElementById('anl-chart-total');
+    if (totalEl) {
+      const total = M.k === 'avg_eng_rate'
+        ? (series.reduce((a, b) => a + b, 0) / Math.max(1, series.length))
+        : series.reduce((a, b) => a + b, 0);
+      let peakI = 0, peakV = 0;
+      series.forEach((v, i) => { if (v > peakV) { peakV = v; peakI = i; } });
+      const peakDay = (padded[peakI] && padded[peakI].day) ? padded[peakI].day.slice(5) : '—';
+      totalEl.innerHTML = `<strong>${M.fmt(total)}</strong>${M.k === 'avg_eng_rate' ? 'avg' : 'total'} · peak <span class="hl">${M.fmt(peakV)}</span> on ${_escAnl(peakDay)}`;
     }
 
+    const x = i => PAD_L + (days === 1 ? innerW / 2 : (i / (days - 1)) * innerW);
+    const y = v => PAD_T + innerH - (v / maxV) * innerH;
+
+    // Smooth path using Catmull-Rom → cubic bezier (X-style soft curves)
+    const smoothPath = (pts) => {
+      if (!pts.length) return '';
+      if (pts.length === 1) return `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[Math.min(pts.length - 1, i + 2)];
+        const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+        const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+        const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+        const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+        d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+      }
+      return d;
+    };
+
+    const pts = series.map((v, i) => [x(i), y(v)]);
+    const linePath = smoothPath(pts);
+    const areaPath = linePath
+      + ` L${(PAD_L + innerW).toFixed(1)},${(PAD_T + innerH).toFixed(1)}`
+      + ` L${PAD_L.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`;
+
+    // 3 subtle horizontal gridlines (X minimal style)
+    let gridLines = '';
+    for (let i = 0; i <= 2; i++) {
+      const yy = PAD_T + (i / 2) * innerH;
+      gridLines += `<line x1="${PAD_L}" y1="${yy.toFixed(1)}" x2="${PAD_L + innerW}" y2="${yy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.55"/>`;
+      const v = maxV * (1 - i / 2);
+      gridLines += `<text x="${(PAD_L - 8).toFixed(1)}" y="${(yy + 3).toFixed(1)}" fill="var(--text-muted)" font-family="var(--font-mono)" font-size="10" text-anchor="end" opacity="0.7">${M.fmt(v)}</text>`;
+    }
+
+    // X-axis labels (max 6 ticks)
     const tickEvery = Math.max(1, Math.floor(days / 6));
     let xTicks = '';
     for (let i = 0; i < days; i += tickEvery) {
-      xTicks += `<text x="${x(i).toFixed(1)}" y="${H - 8}" fill="var(--text-muted)" font-family="var(--font-mono)" font-size="10" text-anchor="middle">${(padded[i].day || '').slice(5)}</text>`;
+      xTicks += `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" fill="var(--text-muted)" font-family="var(--font-mono)" font-size="10" text-anchor="middle" opacity="0.75">${(padded[i].day || '').slice(5)}</text>`;
     }
 
-    // Hover hit-rects (one per day) + invisible dots that highlight on hover.
+    // Hover hit-rects (one per day)
     const hitW = days > 1 ? innerW / (days - 1) : innerW;
     let hitRects = '';
     for (let i = 0; i < days; i++) {
-      const cx = x(i);
-      const rectX = Math.max(PAD_L, cx - hitW / 2);
-      const rectW = hitW;
-      hitRects += `<rect class="anl-chart-hit" data-i="${i}" x="${rectX.toFixed(1)}" y="${PAD_T}" width="${rectW.toFixed(1)}" height="${innerH}" fill="transparent"/>`;
+      const cxh = x(i);
+      const rectX = Math.max(PAD_L, cxh - hitW / 2);
+      hitRects += `<rect class="anl-chart-hit" data-i="${i}" x="${rectX.toFixed(1)}" y="${PAD_T}" width="${hitW.toFixed(1)}" height="${innerH}" fill="transparent"/>`;
     }
-    // Crosshair line + focus dots (initially hidden)
+
+    // Crosshair line + focus dot (with halo) — single point, X-style
     const focusGroup = `
-      <line   id="anl-chart-cx" x1="0" y1="${PAD_T}" x2="0" y2="${PAD_T + innerH}" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="3,3" opacity="0"/>
-      <circle id="anl-chart-fi" r="3.5" fill="var(--accent-hover)" stroke="var(--bg)" stroke-width="1.5" opacity="0"/>
-      <circle id="anl-chart-fe" r="3"   fill="var(--hue-green)"    stroke="var(--bg)" stroke-width="1.5" opacity="0"/>
-      <circle id="anl-chart-fp" r="2.5" fill="var(--text-muted)"   stroke="var(--bg)" stroke-width="1.5" opacity="0"/>
+      <line   id="anl-chart-cx"      x1="0" y1="${PAD_T}" x2="0" y2="${PAD_T + innerH}" stroke="var(--accent-hover)" stroke-width="1" stroke-dasharray="3,3" opacity="0"/>
+      <circle id="anl-chart-fi-halo" r="9" fill="var(--accent-hover)" opacity="0"/>
+      <circle id="anl-chart-fi"      r="4.5" fill="var(--accent-hover)" stroke="var(--bg, #0a0b0e)" stroke-width="2" opacity="0"/>
     `;
 
     chart.innerHTML = `
       <defs>
         <linearGradient id="anl-imp-grad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.35"/>
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          <stop offset="0%"   stop-color="var(--accent-hover)" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="var(--accent-hover)" stop-opacity="0"/>
         </linearGradient>
       </defs>
       ${gridLines}
       ${xTicks}
-      <path d="${areaFor(impSeries, 1)}" fill="url(#anl-imp-grad)"/>
-      <path d="${lineFor(impSeries, 1)}" fill="none" stroke="var(--accent-hover)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="${lineFor(engSeries, engScale)}" fill="none" stroke="var(--hue-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="${lineFor(postSeries, postScale)}" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3,3"/>
+      <path d="${areaPath}" fill="url(#anl-imp-grad)"/>
+      <path d="${linePath}" fill="none" stroke="var(--accent-hover)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
       ${focusGroup}
       ${hitRects}
     `;
 
-    // Wire hover handlers
-    const tip = document.getElementById('anl-chart-tip');
-    const wrap = chart.parentElement;
-    const cx = chart.querySelector('#anl-chart-cx');
-    const fi = chart.querySelector('#anl-chart-fi');
-    const fe = chart.querySelector('#anl-chart-fe');
-    const fp = chart.querySelector('#anl-chart-fp');
+    // Hover handlers — pill tooltip with date + value + label
+    const tip   = document.getElementById('anl-chart-tip');
+    const wrap  = chart.parentElement;
+    const cxEl  = chart.querySelector('#anl-chart-cx');
+    const fiEl  = chart.querySelector('#anl-chart-fi');
+    const haloEl= chart.querySelector('#anl-chart-fi-halo');
 
-    chart.querySelectorAll('.anl-chart-hit').forEach(r => {
-      r.addEventListener('mouseenter', ev => {
-        const i = Number(ev.currentTarget.dataset.i);
-        const d = padded[i] || {};
-        const px = x(i);
-        const yi = y(impSeries[i] || 0);
-        const ye = y((engSeries[i] || 0) * engScale);
-        const yp = y((postSeries[i] || 0) * postScale);
-        if (cx) { cx.setAttribute('x1', px); cx.setAttribute('x2', px); cx.setAttribute('opacity', '0.7'); }
-        if (fi) { fi.setAttribute('cx', px); fi.setAttribute('cy', yi); fi.setAttribute('opacity', '1'); }
-        if (fe) { fe.setAttribute('cx', px); fe.setAttribute('cy', ye); fe.setAttribute('opacity', '1'); }
-        if (fp) { fp.setAttribute('cx', px); fp.setAttribute('cy', yp); fp.setAttribute('opacity', '1'); }
-        if (tip && wrap) {
-          const dayLabel = (d.day || '').slice(5);
-          tip.innerHTML = `
-            <div class="tip-d">${_escAnl(d.day || '')}</div>
-            <div class="tip-r"><span class="sw" style="background:var(--accent-hover)"></span>${_fmtCount(d.impressions || 0)} imp</div>
-            <div class="tip-r"><span class="sw" style="background:var(--hue-green)"></span>${_fmtCount(d.engagements || 0)} eng</div>
-            <div class="tip-r"><span class="sw" style="background:var(--text-muted)"></span>${d.posts || 0} posts</div>
-          `;
-          // Position: convert SVG x to wrap-relative px
-          const wrapRect = wrap.getBoundingClientRect();
-          const svgRect = chart.getBoundingClientRect();
-          const xRatio = px / W;
-          const tipX = (svgRect.left - wrapRect.left) + xRatio * svgRect.width;
-          const tipY = (svgRect.top  - wrapRect.top)  + (yi / H) * svgRect.height;
-          tip.style.left = tipX + 'px';
-          tip.style.top  = (tipY - 8) + 'px';
-          tip.classList.add('show');
-        }
-      });
-      r.addEventListener('mouseleave', () => {
-        if (tip) tip.classList.remove('show');
-        if (cx) cx.setAttribute('opacity', '0');
-        if (fi) fi.setAttribute('opacity', '0');
-        if (fe) fe.setAttribute('opacity', '0');
-        if (fp) fp.setAttribute('opacity', '0');
-      });
-    });
+    const _fmtTipDate = (iso) => {
+      if (!iso) return '';
+      const dt = new Date(iso + 'T00:00:00Z');
+      if (isNaN(dt)) return iso;
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return months[dt.getUTCMonth()] + ' ' + dt.getUTCDate();
+    };
 
-    // ── Touch handlers (mobile) — map touchX to nearest day, pin tooltip top ──
     const _showAt = i => {
       const d = padded[i] || {};
       const px = x(i);
-      const yi = y(impSeries[i] || 0);
-      const ye = y((engSeries[i] || 0) * engScale);
-      const yp = y((postSeries[i] || 0) * postScale);
-      if (cx) { cx.setAttribute('x1', px); cx.setAttribute('x2', px); cx.setAttribute('opacity', '0.7'); }
-      if (fi) { fi.setAttribute('cx', px); fi.setAttribute('cy', yi); fi.setAttribute('opacity', '1'); }
-      if (fe) { fe.setAttribute('cx', px); fe.setAttribute('cy', ye); fe.setAttribute('opacity', '1'); }
-      if (fp) { fp.setAttribute('cx', px); fp.setAttribute('cy', yp); fp.setAttribute('opacity', '1'); }
+      const yi = y(series[i] || 0);
+      if (cxEl)   { cxEl.setAttribute('x1', px); cxEl.setAttribute('x2', px); cxEl.setAttribute('opacity', '0.55'); }
+      if (fiEl)   { fiEl.setAttribute('cx', px); fiEl.setAttribute('cy', yi); fiEl.setAttribute('opacity', '1'); }
+      if (haloEl) { haloEl.setAttribute('cx', px); haloEl.setAttribute('cy', yi); haloEl.setAttribute('opacity', '0.25'); }
       if (tip && wrap) {
-        tip.innerHTML = `
-          <div class="tip-d">${_escAnl(d.day || '')}</div>
-          <div class="tip-r"><span class="sw" style="background:var(--accent-hover)"></span>${_fmtCount(d.impressions || 0)} imp</div>
-          <div class="tip-r"><span class="sw" style="background:var(--hue-green)"></span>${_fmtCount(d.engagements || 0)} eng</div>
-          <div class="tip-r"><span class="sw" style="background:var(--text-muted)"></span>${d.posts || 0} posts</div>
-        `;
+        const dayLabel = _fmtTipDate(d.day);
+        tip.innerHTML = `<span class="tip-d">${_escAnl(dayLabel)}</span><span class="tip-v">${M.fmt(series[i] || 0)}</span><span class="tip-l">${_escAnl(M.lbl)}</span>`;
         const isMobile = window.innerWidth < 768;
         if (isMobile) {
-          // Pin tooltip top-center of chart wrapper for mobile
           tip.style.left = '50%';
           tip.style.top  = '6px';
           tip.style.transform = 'translateX(-50%)';
@@ -5041,25 +5544,30 @@ function renderAnalytics() {
           const tipX = (svgRect.left - wrapRect.left) + xRatio * svgRect.width;
           const tipY = (svgRect.top  - wrapRect.top)  + (yi / H) * svgRect.height;
           tip.style.left = tipX + 'px';
-          tip.style.top  = (tipY - 8) + 'px';
-          tip.style.transform = '';
+          tip.style.top  = (tipY - 14) + 'px';
+          tip.style.transform = 'translate(-50%, -100%)';
         }
         tip.classList.add('show');
       }
     };
     const _hide = () => {
-      if (tip) tip.classList.remove('show');
-      if (cx) cx.setAttribute('opacity', '0');
-      if (fi) fi.setAttribute('opacity', '0');
-      if (fe) fe.setAttribute('opacity', '0');
-      if (fp) fp.setAttribute('opacity', '0');
+      if (tip)    tip.classList.remove('show');
+      if (cxEl)   cxEl.setAttribute('opacity', '0');
+      if (fiEl)   fiEl.setAttribute('opacity', '0');
+      if (haloEl) haloEl.setAttribute('opacity', '0');
     };
+
+    chart.querySelectorAll('.anl-chart-hit').forEach(r => {
+      r.addEventListener('mouseenter', ev => _showAt(Number(ev.currentTarget.dataset.i)));
+      r.addEventListener('mouseleave', _hide);
+    });
+
+    // Touch (mobile) — map touchX to nearest day, pin tooltip top
     const _touchToIdx = (touch) => {
       const svgRect = chart.getBoundingClientRect();
       const tx = touch.clientX - svgRect.left;
       const xRatio = tx / svgRect.width;
       const svgX = xRatio * W;
-      // Find nearest day index
       let bestI = 0, bestDist = Infinity;
       for (let i = 0; i < days; i++) {
         const dist = Math.abs(x(i) - svgX);
@@ -5077,9 +5585,7 @@ function renderAnalytics() {
       e.preventDefault();
       _showAt(_touchToIdx(e.touches[0]));
     }, { passive: false });
-    chart.addEventListener('touchend', () => {
-      setTimeout(_hide, 1500);
-    });
+    chart.addEventListener('touchend', () => setTimeout(_hide, 1500));
     document.addEventListener('touchstart', e => {
       if (!chart.contains(e.target)) _hide();
     }, { passive: true });
@@ -5227,6 +5733,10 @@ function renderAnalytics() {
       `;
     }).join('');
   }
+
+  // ── X Replies + insights ──
+  renderXReplyInsights();
+  renderXReplies();
 }
 
 /* ============================================================
@@ -5311,11 +5821,13 @@ async function mountBrain() {
   // Section nav
   document.querySelectorAll('#brn-nav .brn-nav-item').forEach(b => {
     b.addEventListener('click', () => {
-      document.querySelectorAll('#brn-nav .brn-nav-item').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      const k = b.dataset.p;
-      document.querySelectorAll('.brn-pane').forEach(p => {
-        p.classList.toggle('active', p.dataset.p === k);
+      _withViewTransition(() => {
+        document.querySelectorAll('#brn-nav .brn-nav-item').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const k = b.dataset.p;
+        document.querySelectorAll('.brn-pane').forEach(p => {
+          p.classList.toggle('active', p.dataset.p === k);
+        });
       });
     });
   });
@@ -5397,7 +5909,7 @@ async function loadSettingsStatus() {
   try {
     const data = await apiGet('/api/status');
     // Backend shape is loose — pull whatever common fields exist
-    const handle  = data.handle || data.x_handle || data.username || '@napoleotics';
+    const handle  = data.handle || data.x_handle || data.username || '@theclamletter';
     const env     = data.env || data.environment || 'prod';
     const healthy = (data.healthy ?? data.ok ?? true);
     if (envPill)    envPill.textContent = env + ' · ' + handle;
@@ -5469,14 +5981,300 @@ async function applySavedSettings() {
   });
 }
 
+/* ============================================================
+   CONNECTED NETWORKS — Sprint 3
+   Multi-network publishing destinations (Threads, X, future Bluesky/LinkedIn)
+   Reads /api/networks · Auth via /api/networks/{name}/auth
+   ============================================================ */
+function _escNet(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _netTimeAgo(iso) {
+  if (!iso) return '';
+  try {
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return '';
+    const d = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (d < 60)    return d + 's ago';
+    if (d < 3600)  return Math.round(d / 60) + 'm ago';
+    if (d < 86400) return Math.round(d / 3600) + 'h ago';
+    return Math.round(d / 86400) + 'd ago';
+  } catch (e) { return ''; }
+}
+
+async function loadNetworks() {
+  const list = document.getElementById('set-networks-list');
+  if (!list) return;
+  list.innerHTML = '<div class="set-net-empty">Loading networks…</div>';
+  try {
+    const data = await apiGet('/api/networks');
+    const networks = data.networks || [];
+    renderNetworks(networks);
+  } catch (e) {
+    list.innerHTML = '<div class="set-net-empty">Failed to load networks: '
+      + _escNet(e?.message || String(e)) + '</div>';
+  }
+}
+
+function _netIconChar(name) {
+  if (name === 'threads') return '✦';
+  if (name === 'x')       return '𝕏';
+  if (name === 'bluesky') return '🦋';
+  if (name === 'linkedin')return 'in';
+  return '◇';
+}
+
+function _renderNetworkCard(n) {
+  const auth = n.auth_status || {};
+  const cost = n.cost_mtd    || {};
+  const connected = !!n.connected;
+  const authOk    = !!auth.ok;
+  const handle    = n.handle || '';
+  const label     = n.label  || n.name || '';
+
+  let statusClass = 'idle', statusText = 'Not configured';
+  if (connected && authOk)        { statusClass = 'ok';  statusText = 'Connected'; }
+  else if (connected && !authOk)  { statusClass = 'err'; statusText = 'Auth failed'; }
+
+  const username  = auth.username ? '@' + auth.username : handle;
+  const checkedAt = _netTimeAgo(auth.checked_at);
+
+  // Cost row (X has real billing, Threads is free)
+  let costRow = '';
+  if (n.name === 'x') {
+    const totalUsd   = (cost.total_usd != null) ? Number(cost.total_usd).toFixed(2) : '0.00';
+    const totalCalls = cost.total_calls || 0;
+    const errMsg     = cost.error ? ' · err: ' + _escNet(String(cost.error).slice(0, 60)) : '';
+    costRow = `<div class="net-card-cost">$${_escNet(totalUsd)} this month · ${totalCalls} API calls${errMsg}</div>`;
+  } else if (n.name === 'threads') {
+    costRow = `<div class="net-card-cost">Free (Meta Graph API)</div>`;
+  }
+
+  // Action buttons depending on state
+  let actions;
+  if (!connected) {
+    actions = `<button class="btn sm primary" data-net="${_escNet(n.name)}" data-net-action="connect">Connect</button>`;
+  } else if (!authOk) {
+    actions = `
+      <button class="btn sm primary" data-net="${_escNet(n.name)}" data-net-action="reconnect">Reconnect</button>
+      <button class="btn sm ghost"   data-net="${_escNet(n.name)}" data-net-action="disconnect">Disconnect</button>`;
+  } else {
+    actions = `
+      <button class="btn sm ghost" data-net="${_escNet(n.name)}" data-net-action="recheck">Re-check</button>
+      <button class="btn sm ghost" data-net="${_escNet(n.name)}" data-net-action="disconnect">Disconnect</button>`;
+  }
+
+  // Error detail (truncated)
+  let errDetail = '';
+  if (connected && !authOk && auth.error) {
+    errDetail = `<div class="net-card-err">⚠ ${_escNet(String(auth.error).slice(0, 200))}</div>`;
+  }
+
+  const lastCheck = checkedAt ? `<span>last check ${_escNet(checkedAt)}</span>` : '';
+
+  return `
+    <div class="net-card">
+      <div class="net-card-icon ${_escNet(n.name)}">${_netIconChar(n.name)}</div>
+      <div class="net-card-body">
+        <div class="net-card-title">
+          <span class="nm">${_escNet(label)}</span>
+          <span class="handle">${_escNet(username)}</span>
+        </div>
+        <div class="net-card-meta">
+          <span><span class="net-status-dot ${statusClass}"></span><span class="${statusClass}">${_escNet(statusText)}</span></span>
+          <span>${n.char_limit || 0} char limit</span>
+          ${lastCheck}
+        </div>
+        ${errDetail}
+        ${costRow}
+      </div>
+      <div class="net-card-actions">${actions}</div>
+    </div>
+  `;
+}
+
+function renderNetworks(networks) {
+  const list = document.getElementById('set-networks-list');
+  if (!list) return;
+  if (!networks.length) {
+    list.innerHTML = '<div class="set-net-empty">No networks registered.</div>';
+    return;
+  }
+  const cards = networks.map(_renderNetworkCard).join('');
+  // Coming-soon placeholders for V2 networks
+  const comingSoon = `
+    <div class="net-card coming-soon">
+      <div class="net-card-icon bluesky">🦋</div>
+      <div class="net-card-body">
+        <div class="net-card-title"><span class="nm">Bluesky</span><span class="handle">tbd</span></div>
+        <div class="net-card-meta"><span>300 char limit</span><span>Free tier · ATProtocol</span></div>
+        <div class="net-card-cost">Coming in v2</div>
+      </div>
+      <div class="net-card-actions"><button class="btn sm ghost" disabled>Soon</button></div>
+    </div>
+    <div class="net-card coming-soon">
+      <div class="net-card-icon linkedin">in</div>
+      <div class="net-card-body">
+        <div class="net-card-title"><span class="nm">LinkedIn</span><span class="handle">tbd</span></div>
+        <div class="net-card-meta"><span>3000 char limit</span><span>Marketing API</span></div>
+        <div class="net-card-cost">Coming in v2</div>
+      </div>
+      <div class="net-card-actions"><button class="btn sm ghost" disabled>Soon</button></div>
+    </div>
+  `;
+  list.innerHTML = cards + comingSoon;
+
+  // Wire action buttons
+  list.querySelectorAll('[data-net-action]').forEach(btn => {
+    btn.addEventListener('click', () => _onNetAction(btn.dataset.net, btn.dataset.netAction));
+  });
+}
+
+async function _onNetAction(name, action) {
+  if (action === 'connect' || action === 'reconnect') {
+    return _showXAuthModal(name);
+  }
+  if (action === 'disconnect') {
+    if (!(await apiConfirm('Disconnect ' + name + '? Stored credentials will be removed from the server.', {
+      title: 'Disconnect ' + name, confirmText: 'Disconnect', kind: 'danger'
+    }))) return;
+    try {
+      await apiDelete('/api/networks/' + encodeURIComponent(name) + '/auth');
+      apiToast(name + ' disconnected.', 'ok');
+      loadNetworks();
+    } catch (e) {
+      apiToast('Disconnect failed: ' + (e?.message || e), 'err');
+    }
+    return;
+  }
+  if (action === 'recheck') {
+    apiToast('Re-checking ' + name + '…');
+    loadNetworks();
+    return;
+  }
+}
+
+/* Custom modal for X auth — apiConfirm escapes HTML so we build our own.
+   Returns Promise<boolean> resolved on save/cancel. */
+function _showXAuthModal(name) {
+  if (name !== 'x') {
+    apiToast('Auth flow for ' + name + ' not implemented yet.', 'err');
+    return Promise.resolve(false);
+  }
+  return new Promise(resolve => {
+    const isMobile = window.innerWidth < 768;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'api-confirm-backdrop' + (isMobile ? ' is-sheet' : '');
+    const modal = document.createElement('div');
+    modal.className = 'api-confirm-modal' + (isMobile ? ' is-sheet' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    const handle = isMobile ? '<div class="api-confirm-handle" aria-hidden="true"></div>' : '';
+    modal.innerHTML = `
+      ${handle}
+      <div class="api-confirm-hd">Connect X (Twitter)</div>
+      <div class="api-confirm-body">
+        <div class="net-auth-help">
+          Generate <strong>OAuth 1.0a User Context</strong> credentials in
+          <a href="https://developer.x.com/en/portal/projects-and-apps" target="_blank" rel="noopener">X Developer Portal</a>
+          → your app → <strong>Keys and tokens</strong>:<br>
+          • <strong>Consumer Keys</strong> (regenerate if needed) → API Key + API Secret<br>
+          • <strong>Access Token and Secret</strong> → Generate<br>
+          App must have <strong>Read and Write</strong> permissions and be linked to <strong>@inequaliti</strong>.
+        </div>
+        <div class="net-auth-modal">
+          <label>API Key (Consumer Key)
+            <input id="netauth-x-api-key" type="text" autocomplete="off" spellcheck="false" placeholder="Cz...">
+          </label>
+          <label>API Secret (Consumer Secret)
+            <input id="netauth-x-api-secret" type="password" autocomplete="off" spellcheck="false">
+          </label>
+          <label>Access Token
+            <input id="netauth-x-access-token" type="text" autocomplete="off" spellcheck="false" placeholder="123456789-...">
+          </label>
+          <label>Access Token Secret
+            <input id="netauth-x-access-token-secret" type="password" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      </div>
+      <div class="api-confirm-actions">
+        <button type="button" class="api-confirm-btn api-confirm-cancel">Cancel</button>
+        <button type="button" class="api-confirm-btn api-confirm-ok api-confirm-primary">Save credentials</button>
+      </div>
+    `;
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+
+    const okBtn     = modal.querySelector('.api-confirm-ok');
+    const cancelBtn = modal.querySelector('.api-confirm-cancel');
+    const prevFocus = document.activeElement;
+
+    let settled = false;
+    const close = (result) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKey, true);
+      backdrop.classList.add('is-closing');
+      setTimeout(() => {
+        if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        if (prevFocus && typeof prevFocus.focus === 'function') {
+          try { prevFocus.focus(); } catch (_) {}
+        }
+        resolve(result);
+      }, isMobile ? 200 : 120);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(false); }
+    };
+    cancelBtn.addEventListener('click', () => close(false));
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(false); });
+    document.addEventListener('keydown', onKey, true);
+
+    okBtn.addEventListener('click', async () => {
+      const payload = {
+        X_API_KEY:             document.getElementById('netauth-x-api-key')?.value?.trim() || '',
+        X_API_SECRET:          document.getElementById('netauth-x-api-secret')?.value?.trim() || '',
+        X_ACCESS_TOKEN:        document.getElementById('netauth-x-access-token')?.value?.trim() || '',
+        X_ACCESS_TOKEN_SECRET: document.getElementById('netauth-x-access-token-secret')?.value?.trim() || '',
+      };
+      const missing = Object.entries(payload).filter(([k, v]) => !v).map(([k]) => k);
+      if (missing.length) {
+        apiToast('Missing: ' + missing.join(', '), 'err');
+        return;
+      }
+      okBtn.disabled = true;
+      const orig = okBtn.textContent;
+      okBtn.textContent = 'Saving…';
+      try {
+        await apiPost('/api/networks/x/auth', payload);
+        apiToast('X credentials saved. Re-checking…', 'ok');
+        close(true);
+        loadNetworks();
+      } catch (e) {
+        apiToast('Save failed: ' + (e?.message || e), 'err');
+        okBtn.disabled = false;
+        okBtn.textContent = orig;
+      }
+    });
+
+    // Focus first input after open
+    setTimeout(() => document.getElementById('netauth-x-api-key')?.focus(), 50);
+  });
+}
+
 function mountSettings() {
   // Section nav
   document.querySelectorAll('#set-nav .set-nav-item').forEach(b => {
     b.addEventListener('click', () => {
-      document.querySelectorAll('#set-nav .set-nav-item').forEach(x => x.classList.remove('active'));
-      b.classList.add('active');
-      const k = b.dataset.p;
-      document.querySelectorAll('.set-pane').forEach(p => p.classList.toggle('active', p.dataset.p === k));
+      _withViewTransition(() => {
+        document.querySelectorAll('#set-nav .set-nav-item').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const k = b.dataset.p;
+        document.querySelectorAll('.set-pane').forEach(p => p.classList.toggle('active', p.dataset.p === k));
+      });
     });
   });
 
@@ -5563,6 +6361,9 @@ function mountSettings() {
 
   // Pull live status into header pills
   loadSettingsStatus();
+
+  // Load Connected Networks pane (Sprint 3)
+  if (typeof loadNetworks === 'function') loadNetworks();
 }
 
 /* ============================================================
@@ -6454,6 +7255,640 @@ startCommandPolling();
     if (state.selecting && !isMobile()) cancelSelect();
   });
 })();
+
+/* ============================================================
+   REELS — generate / preview / publish 9:16 videos
+   ============================================================ */
+async function mountReels() {
+  const $ = (id) => document.getElementById(id);
+
+  async function getCsrf() {
+    if (typeof getCsrfToken === 'function') return getCsrfToken();
+    const r = await fetch('/api/csrf-token');
+    const j = await r.json();
+    return j.token || j.csrf_token || '';
+  }
+  async function postJson(url, payload) {
+    const csrf = await getCsrf();
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(payload),
+      credentials: 'same-origin',
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+    }
+    return r.json();
+  }
+
+  // Populate alerts dropdown from monitor queue
+  try {
+    const q = await fetch('/api/monitor/queue').then(r => r.json());
+    const sel = $('rl-source');
+    const items = q.queue || q.alerts || q.items || [];
+    items.slice(0, 30).forEach(it => {
+      const id = it.id || it.alert_id;
+      const title = (it.headline && it.headline.title) || it.title || id;
+      if (!id) return;
+      const o = document.createElement('option');
+      o.value = id;
+      o.textContent = (title || '').slice(0, 90);
+      sel.appendChild(o);
+    });
+  } catch (e) { /* queue not critical */ }
+
+  // Auto-fill title/summary when a queue alert is picked
+  $('rl-source').addEventListener('change', async (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    try {
+      const q = await fetch('/api/monitor/queue').then(r => r.json());
+      const items = q.queue || q.alerts || q.items || [];
+      const hit = items.find(it => (it.id || it.alert_id) === id);
+      if (hit && hit.headline) {
+        $('rl-title').value = hit.headline.title || '';
+        $('rl-summary').value = hit.headline.summary || '';
+      }
+    } catch (e) {}
+  });
+
+  // ----- Agentic phase indicator (2026-05-02) -----
+  // Generic helper: renders {label, state} list inside any element.
+  function _renderPhasesEl(rootEl, phases) {
+    if (!rootEl) return;
+    if (!phases) {
+      rootEl.style.display = 'none';
+      rootEl.innerHTML = '';
+      rootEl.classList.remove('is-fading-out');
+      return;
+    }
+    rootEl.style.display = '';
+    rootEl.innerHTML = phases.map((p, i) => `
+      <div class="sol-phase" data-state="${p.state}" style="animation-delay:${i * 80}ms">
+        <span class="sol-phase-dot"></span>
+        <span>${p.label}</span>
+      </div>
+    `).join('');
+  }
+
+  // Generic timeline runner. advanceAtMs[i] = ms (since start) when phase i becomes active.
+  // Returns {finishOk, finishWithResults, fail}.
+  function _runPhaseTimeline(rootEl, phases, advanceAtMs) {
+    if (phases[0]) phases[0].state = 'active';
+    _renderPhasesEl(rootEl, phases);
+    const timers = [];
+    for (let i = 1; i < phases.length; i++) {
+      timers.push(setTimeout(() => {
+        if (phases[i - 1].state !== 'failed') phases[i - 1].state = 'done';
+        phases[i].state = 'active';
+        _renderPhasesEl(rootEl, phases);
+      }, advanceAtMs[i] || 0));
+    }
+    function _fadeOutThenClear(holdMs) {
+      setTimeout(() => {
+        if (rootEl) rootEl.classList.add('is-fading-out');
+        setTimeout(() => _renderPhasesEl(rootEl, null), 360);
+      }, holdMs);
+    }
+    return {
+      finishOk: () => {
+        timers.forEach(clearTimeout);
+        phases.forEach(p => { if (p.state !== 'failed') p.state = 'done'; });
+        _renderPhasesEl(rootEl, phases);
+        _fadeOutThenClear(1200);
+      },
+      finishWithResults: (results) => {
+        timers.forEach(clearTimeout);
+        const arr = Array.isArray(results) ? results : Object.entries(results || {}).map(([k, v]) => ({network_name: k, ok: v.ok, error: v.error}));
+        arr.forEach((r, i) => {
+          if (phases[i]) phases[i].state = r.ok ? 'done' : 'failed';
+        });
+        _renderPhasesEl(rootEl, phases);
+        _fadeOutThenClear(1800);
+      },
+      fail: () => {
+        timers.forEach(clearTimeout);
+        _renderPhasesEl(rootEl, null);
+      }
+    };
+  }
+
+  // Factory: 3-phase timeline for the generate flow (copy → render → upload).
+  function _startPhaseSequence(formatVersion) {
+    const isV3 = (formatVersion || 'v3') === 'v3';
+    const etas = isV3
+      ? { copy: 5000, render: 120000 }
+      : { copy: 3000, render: 15000 };
+    const phases = [
+      { label: 'Generating copy with Haiku', state: 'pending' },
+      { label: 'Rendering MP4 with Hyperframes', state: 'pending' },
+      { label: 'Uploading to Drive', state: 'pending' },
+    ];
+    const advanceAtMs = [0, etas.copy, etas.copy + etas.render];
+    const t = _runPhaseTimeline($('rl-gen-phases'), phases, advanceAtMs);
+    return { finish: t.finishOk, fail: t.fail };
+  }
+
+  // Factory: per-network phases for publish/re-publish flows.
+  function _startPublishPhases(rootEl, networks) {
+    const labels = {
+      instagram: 'Publishing to Instagram',
+      tiktok: 'Publishing to TikTok',
+      youtube: 'Publishing to YouTube',
+      threads: 'Publishing to Threads',
+      x: 'Publishing to X',
+    };
+    const phases = (networks || []).map(n => ({
+      label: labels[n] || `Publishing to ${n}`,
+      state: 'pending',
+    }));
+    // Server publishes sequentially, ~10-15s per network. Use 12s as conservative ETA.
+    const advanceAtMs = phases.map((_, i) => i * 12000);
+    return _runPhaseTimeline(rootEl, phases, advanceAtMs);
+  }
+
+  // DELETE helper (mirrors postJson for CSRF + credentials).
+  async function deleteJson(url) {
+    const csrf = await getCsrf();
+    const r = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': csrf },
+      credentials: 'same-origin',
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`${r.status}: ${txt.slice(0, 200)}`);
+    }
+    return r.json();
+  }
+
+  $('rl-gen-btn').addEventListener('click', async () => {
+    const status = $('rl-gen-status');
+    status.textContent = 'Working…';
+    $('rl-gen-btn').disabled = true;
+    const seq = _startPhaseSequence($('rl-format').value);
+    try {
+      const payload = {
+        alert_id: $('rl-source').value || null,
+        title: $('rl-title').value || null,
+        summary: $('rl-summary').value || null,
+        label: $('rl-label').value,
+        background_filename: _bgSelected || null,
+        format_version: $('rl-format').value || null,  // null = use server default
+      };
+      const r = await postJson('/api/reels/generate', payload);
+      seq.finish();
+      $('rl-preview-card').style.display = '';
+      $('rl-preview-video').src = r.preview_url;
+      $('rl-preview-hook').textContent = r.copy.hook;
+      $('rl-preview-body').textContent = r.copy.body;
+      const captionTa = $('rl-preview-caption');
+      captionTa.value = r.copy.caption || '';
+      $('rl-cap-count').textContent = captionTa.value.length;
+      captionTa.oninput = () => { $('rl-cap-count').textContent = captionTa.value.length; };
+      $('rl-preview-meta').textContent =
+        `${r.copy.label} · ${r.copy.topic_tag || ''} · ${r.copy.rhetorical_move || ''} · ${r.duration_sec}s`;
+      $('rl-pub-btn').dataset.reelId = r.reel_id;
+      status.textContent = `Reel ${r.reel_id} ready.`;
+      loadList();
+    } catch (e) {
+      seq.fail();
+      status.textContent = `Error: ${e.message}`;
+    } finally {
+      $('rl-gen-btn').disabled = false;
+    }
+  });
+
+  $('rl-pub-btn').addEventListener('click', async () => {
+    const reelId = $('rl-pub-btn').dataset.reelId;
+    const captionOverride = $('rl-preview-caption').value || null;
+    if (!reelId) return;
+    const networks = [];
+    if ($('rl-pub-instagram').checked) networks.push('instagram');
+    if ($('rl-pub-tiktok').checked) networks.push('tiktok');
+    if ($('rl-pub-youtube').checked) networks.push('youtube');
+    if (!networks.length) { $('rl-pub-status').textContent = 'Pick a network.'; return; }
+    $('rl-pub-status').textContent = 'Working…';
+    $('rl-pub-btn').disabled = true;
+    const seq = _startPublishPhases($('rl-pub-phases'), networks);
+    try {
+      const r = await postJson('/api/reels/publish', { reel_id: reelId, networks, caption_override: captionOverride });
+      // Server returns either array of {network_name, ok, error} or dict-of-dict.
+      // Normalize and build per-network summary text.
+      const resArr = Array.isArray(r.results)
+        ? r.results
+        : Object.entries(r.results || {}).map(([k, v]) => ({network_name: k, ok: v.ok, error: v.error}));
+      seq.finishWithResults(resArr);
+      const summary = resArr
+        .map(x => `${x.network_name}: ${x.ok ? '✓' : '✗ ' + (x.error || '')}`)
+        .join(' · ');
+      $('rl-pub-status').textContent = summary || 'Done.';
+      loadList();
+    } catch (e) {
+      seq.fail();
+      $('rl-pub-status').textContent = `Error: ${e.message}`;
+    } finally {
+      $('rl-pub-btn').disabled = false;
+    }
+  });
+
+  async function loadList() {
+    try {
+      const data = await fetch('/api/reels/list?limit=20').then(r => r.json());
+      const list = $('rl-list');
+      const reels = data.reels || [];
+      if (!reels.length) { list.innerHTML = '<div style="color:#666;font-size:12px">No reels yet.</div>'; return; }
+      list.innerHTML = '';
+      reels.forEach(r => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:12px;padding:10px;border:1px solid #1f2126;border-radius:6px;align-items:center';
+        const publishes = r.publishes || [];
+        const pubBadges = publishes
+          .map(p => `<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:${p.permalink ? '#1f3520' : '#3a1f1f'};color:${p.permalink ? '#7ed99a' : '#e88a8a'}">${p.network_name}${p.permalink ? ' ✓' : ' ✗'}</span>`)
+          .join(' ');
+
+        // Detect networks that failed (or were never attempted) — used by the Re-publish button
+        const successfulNetworks = new Set(publishes.filter(p => p.permalink).map(p => p.network_name));
+        const failedNetworks = publishes.filter(p => !p.permalink).map(p => p.network_name);
+        const hasFailures = failedNetworks.length > 0;
+        const allValidNetworks = ['instagram', 'tiktok', 'youtube'];
+        const networksToRetry = hasFailures ? failedNetworks : allValidNetworks.filter(n => !successfulNetworks.has(n));
+        const showRepublish = networksToRetry.length > 0;
+
+        row.innerHTML = `
+          ${r.thumbnail_url ? `<img src="${r.thumbnail_url}" style="width:48px;height:84px;object-fit:cover;border-radius:4px">` : '<div style="width:48px;height:84px;background:#1a1c20;border-radius:4px"></div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.hook || ''}</div>
+            <div style="font-size:11px;color:#888;margin-top:3px">${r.label} · ${r.status} · ${(r.created_at || '').slice(0, 16)}</div>
+            <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">${pubBadges}</div>
+            <div class="rl-row-phases sol-phases" data-reel-id="${r.reel_id}" style="display:none;margin-top:8px"></div>
+          </div>
+          <div class="rl-row-actions" style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+            <a href="${r.preview_url}" target="_blank"
+               title="Open preview in new tab"
+               style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#1a3a5c;color:#7aa2f7;border:1px solid #2a4a6c;border-radius:5px;font-size:12px;font-weight:500;text-decoration:none;cursor:pointer;justify-content:center;transition:background 0.15s"
+               onmouseover="this.style.background='#234a72'"
+               onmouseout="this.style.background='#1a3a5c'">
+              <span style="font-size:13px">▶</span> Open
+            </a>
+            ${showRepublish ? `
+              <button class="rl-btn-retry"
+                      data-reel-id="${r.reel_id}"
+                      data-networks="${networksToRetry.join(',')}"
+                      title="Re-publish to: ${networksToRetry.join(', ')}"
+                      style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#3a2615;color:#ffaa44;border:1px solid #5a3a20;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;justify-content:center;transition:background 0.15s"
+                      onmouseover="this.style.background='#4a3120'"
+                      onmouseout="this.style.background='#3a2615'">
+                <span style="font-size:13px">↻</span> Re-publish
+              </button>
+            ` : `
+              <span title="All networks published"
+                    style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#1f3520;color:#7ed99a;border:1px solid #2a4a30;border-radius:5px;font-size:12px;font-weight:500;justify-content:center">
+                <span style="font-size:13px">✓</span> All done
+              </span>
+            `}
+            <button class="rl-btn-discard"
+                    data-reel-id="${r.reel_id}"
+                    data-reel-hook="${(r.hook || '').replace(/"/g, '&quot;').slice(0, 60)}"
+                    title="Discard this reel (deletes local MP4 + DB row, Drive copy stays)"
+                    ${r.status === 'publishing' ? 'disabled' : ''}
+                    style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;background:#2a1518;color:#e88a8a;border:1px solid #4a2025;border-radius:5px;font-size:12px;font-weight:500;cursor:${r.status === 'publishing' ? 'not-allowed' : 'pointer'};justify-content:center;transition:background 0.15s;opacity:${r.status === 'publishing' ? '0.5' : '1'}"
+                    onmouseover="if(!this.disabled)this.style.background='#3a1f25'"
+                    onmouseout="this.style.background='#2a1518'">
+              <span style="font-size:13px">🗑</span> Discard
+            </button>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+
+      // Wire up the new Re-publish buttons
+      list.querySelectorAll('.rl-btn-retry').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const reelId = btn.dataset.reelId;
+          const networks = btn.dataset.networks.split(',').filter(n => n);
+          const ok = await apiConfirm(
+            `This will re-attempt publishing to: ${networks.join(', ')}.`,
+            { title: `Re-publish ${reelId.slice(0, 8)}`, confirmText: 'Re-publish' }
+          );
+          if (!ok) return;
+          const row = btn.closest('div[style*="border:1px solid"]');
+          const phasesEl = row ? row.querySelector('.rl-row-phases') : null;
+          btn.disabled = true;
+          const seq = phasesEl ? _startPublishPhases(phasesEl, networks) : null;
+          try {
+            const r = await postJson('/api/reels/publish', { reel_id: reelId, networks });
+            const resArr = Array.isArray(r.results)
+              ? r.results
+              : Object.entries(r.results || {}).map(([k, v]) => ({network_name: k, ok: v.ok, error: v.error}));
+            if (seq) seq.finishWithResults(resArr);
+            // Toast per network with its individual status
+            for (const x of resArr) {
+              const msg = x.ok
+                ? `${x.network_name}: ✓ published`
+                : `${x.network_name}: ✗ ${(x.error || 'failed').slice(0, 100)}`;
+              apiToast(msg, x.ok ? 'ok' : 'err');
+            }
+            // Refresh after the phase fade-out completes
+            setTimeout(() => loadList(), 2200);
+          } catch (e) {
+            if (seq) seq.fail();
+            apiToast('Re-publish error: ' + e.message, 'err');
+            btn.disabled = false;
+          }
+        });
+      });
+
+      // Wire up Discard buttons (deletes DB row + local MP4; Drive copy untouched)
+      list.querySelectorAll('.rl-btn-discard').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (btn.disabled) return;
+          const reelId = btn.dataset.reelId;
+          const hook = btn.dataset.reelHook || reelId.slice(0, 8);
+          const ok = await apiConfirm(
+            `Delete local MP4 and DB row for "${hook}"? Drive copy (if any) stays as backup.`,
+            { title: `Discard ${reelId.slice(0, 8)}`, confirmText: 'Discard', kind: 'danger' }
+          );
+          if (!ok) return;
+          btn.disabled = true;
+          btn.innerHTML = '<span style="font-size:13px">⏳</span> Discarding...';
+          try {
+            await deleteJson(`/api/reels/${encodeURIComponent(reelId)}`);
+            apiToast(`Discarded ${reelId.slice(0, 8)}`, 'ok');
+            loadList();
+          } catch (e) {
+            apiToast('Discard failed: ' + e.message, 'err');
+            btn.disabled = false;
+            btn.innerHTML = '<span style="font-size:13px">🗑</span> Discard';
+          }
+        });
+      });
+    } catch (e) {
+      $('rl-list').innerHTML = `<div style="color:#e88a8a;font-size:12px">${e.message}</div>`;
+    }
+  }
+  $('rl-refresh-btn').addEventListener('click', loadList);
+
+  // ----- Phase 7: Background picker -----
+  let _bgsCache = [];
+  let _bgSelected = null;  // null = random; otherwise filename string
+  let _bgSuggested = null;  // {filename, label, score} when LLM-pick endpoint matches headline
+  let _bgUserOverride = false;  // true once the user explicitly clicks a card
+
+  function _renderBgStrip(bgs) {
+    const strip = $('rl-bg-strip');
+    if (!bgs || !bgs.length) {
+      strip.innerHTML = '<div style="color:#888;font-size:12px;padding:12px">No backgrounds in pool. Upload .mp4 files to /root/x-bot/sol-bot/assets/reels/backgrounds/</div>';
+      return;
+    }
+
+    let html = '';
+
+    // First card: "Random" option
+    const randomSel = (_bgSelected === null) ? '#bc9e60' : '#1f2126';
+    html += `<div data-bg="" class="rl-bg-card" style="flex:0 0 90px;cursor:pointer;border:2px solid ${randomSel};border-radius:8px;padding:6px;background:#0a0b0d;text-align:center">
+      <div style="width:78px;height:138px;background:linear-gradient(135deg,#1a1a1a,#2a2a2a);border-radius:4px;display:flex;align-items:center;justify-content:center;color:#bc9e60;font-size:24px">🎲</div>
+      <div style="font-size:10px;font-weight:600;color:#e7e8ea;margin-top:4px">Random</div>
+      <div style="font-size:9px;color:#666">all bgs</div>
+    </div>`;
+
+    // One card per bg
+    for (const b of bgs) {
+      const sel = (_bgSelected === b.filename) ? '#bc9e60' : '#1f2126';
+      const thumb = b.thumbnail_url
+        ? `<img src="${b.thumbnail_url}" style="width:78px;height:138px;object-fit:cover;border-radius:4px;background:#000">`
+        : `<div style="width:78px;height:138px;background:#1a1a1a;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#666;font-size:10px">no preview</div>`;
+      const tagPills = (b.tags || []).slice(0,2).map(t => `<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f1c14;color:#bc9e60;margin-right:2px">${t}</span>`).join('');
+      const suggestedBadge = (_bgSuggested && _bgSuggested.filename === b.filename)
+        ? `<div class="rl-bg-suggested-badge" style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);background:#bc9e60;color:#0a0b0d;font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;letter-spacing:0.4px;box-shadow:0 1px 4px rgba(0,0,0,0.5);z-index:2">✨ SUGGESTED</div>`
+        : '';
+      html += `<div data-bg="${b.filename}" class="rl-bg-card" style="flex:0 0 90px;cursor:pointer;border:2px solid ${sel};border-radius:8px;padding:6px;background:#0a0b0d;text-align:center;position:relative">
+        ${suggestedBadge}
+        ${thumb}
+        <div style="font-size:10px;font-weight:600;color:#e7e8ea;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.label}</div>
+        <div style="font-size:9px;margin-top:2px;height:14px;overflow:hidden">${tagPills}</div>
+        <button data-edit="${b.filename}" class="rl-bg-edit-btn" title="Edit tags" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);border:0;border-radius:50%;width:20px;height:20px;color:#bc9e60;font-size:11px;cursor:pointer;line-height:1">✎</button>
+      </div>`;
+    }
+    strip.innerHTML = html;
+
+    // Wire selection clicks
+    strip.querySelectorAll('.rl-bg-card').forEach(card => {
+      card.addEventListener('click', (ev) => {
+        if (ev.target && ev.target.classList && ev.target.classList.contains('rl-bg-edit-btn')) return;
+        const fname = card.getAttribute('data-bg') || null;
+        _bgSelected = fname || null;
+        _bgUserOverride = true;  // explicit pick — auto-suggest no longer overrides
+        const lbl = fname ? (bgs.find(x => x.filename === fname) || {}).label || fname : 'Random';
+        $('rl-bg-selected-label').textContent = lbl;
+        _renderBgStrip(bgs);  // re-render to update selection ring
+      });
+    });
+
+    // Wire edit-tag buttons
+    strip.querySelectorAll('.rl-bg-edit-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const fname = btn.getAttribute('data-edit');
+        const bg = bgs.find(x => x.filename === fname);
+        if (bg) _openTagModal(bg);
+      });
+    });
+  }
+
+  async function loadBackgrounds() {
+    try {
+      const r = await fetch('/api/reels/backgrounds');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      _bgsCache = data.backgrounds || [];
+      _renderBgStrip(_bgsCache);
+    } catch(e) {
+      $('rl-bg-strip').innerHTML = '<div style="color:#e88a8a;font-size:12px;padding:12px">'+e.message+'</div>';
+    }
+  }
+
+  // ----- Auto-pick bg via headline keywords (item #7 of 2026-05-02 pending) -----
+  let _bgSuggestTimer = null;
+  function _bindBgSuggest() {
+    ['rl-title', 'rl-summary'].forEach(id => {
+      const el = $(id);
+      if (!el || el._bgSuggestBound) return;
+      el._bgSuggestBound = true;
+      el.addEventListener('input', () => {
+        clearTimeout(_bgSuggestTimer);
+        _bgSuggestTimer = setTimeout(async () => {
+          const title = ($('rl-title').value || '').trim();
+          if (title.length < 5) {
+            if (_bgSuggested) {
+              _bgSuggested = null;
+              _renderBgStrip(_bgsCache);
+            }
+            return;
+          }
+          try {
+            const resp = await fetch('/api/reels/suggest-bg', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                title,
+                summary: $('rl-summary').value || ''
+              }),
+            });
+            if (!resp.ok) return;
+            const r = await resp.json();
+            if (r.score > 0) {
+              _bgSuggested = {filename: r.filename, label: r.label, score: r.score};
+              if (!_bgUserOverride) {
+                _bgSelected = r.filename;
+                $('rl-bg-selected-label').textContent = r.label + ' ✨';
+              }
+            } else {
+              _bgSuggested = null;
+            }
+            _renderBgStrip(_bgsCache);
+          } catch (e) { /* silent — suggestion is best-effort */ }
+        }, 600);
+      });
+    });
+  }
+  _bindBgSuggest();
+
+  function _openTagModal(bg) {
+    $('rl-bg-tag-preview').src = bg.thumbnail_url || '';
+    $('rl-bg-tag-filename').textContent = bg.filename;
+    $('rl-bg-tag-label').value = bg.label || '';
+    $('rl-bg-tag-tags').value = (bg.tags || []).join(', ');
+    $('rl-bg-tag-notes').value = bg.notes || '';
+    $('rl-bg-tag-status').textContent = '';
+    $('rl-bg-tag-modal').dataset.editing = bg.filename;
+    $('rl-bg-tag-modal').style.display = 'flex';
+  }
+  function _closeTagModal() {
+    $('rl-bg-tag-modal').style.display = 'none';
+  }
+
+  $('rl-bg-tag-close').addEventListener('click', _closeTagModal);
+  $('rl-bg-tag-cancel').addEventListener('click', _closeTagModal);
+  $('rl-bg-tag-save').addEventListener('click', async () => {
+    const fname = $('rl-bg-tag-modal').dataset.editing;
+    if (!fname) return;
+    const payload = {
+      label: $('rl-bg-tag-label').value || null,
+      tags: $('rl-bg-tag-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+      notes: $('rl-bg-tag-notes').value || null,
+    };
+    $('rl-bg-tag-status').textContent = 'Saving...';
+    try {
+      const csrf = await fetch('/api/csrf-token').then(r => r.json());
+      const r = await fetch('/api/reels/backgrounds/'+encodeURIComponent(fname)+'/tags', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf.token},
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      $('rl-bg-tag-status').textContent = 'Saved.';
+      await loadBackgrounds();
+      setTimeout(_closeTagModal, 600);
+    } catch(e) {
+      $('rl-bg-tag-status').textContent = 'Error: ' + e.message;
+    }
+  });
+
+  loadBackgrounds();
+
+
+  // ----- Phase 5: Performance by Rhetorical Move -----
+  async function loadMetrics() {
+    const cont = $('rmet-list');
+    cont.innerHTML = '<div style="color:#666">Loading…</div>';
+    try {
+      const r = await fetch('/api/reels/metrics/by_move');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      const buckets = data.buckets || [];
+      if (!buckets.length) {
+        cont.innerHTML = '<div style="color:#888">No metrics yet. Publish reels and wait for nightly ETL (or run <code>python3 reel_metrics_etl.py</code> manually on the VPS).</div>';
+        return;
+      }
+      // Group by network for display
+      const byNet = {};
+      for (const b of buckets) {
+        (byNet[b.network_name] = byNet[b.network_name] || []).push(b);
+      }
+      const networks = Object.keys(byNet).sort();
+      let html = '';
+      for (const net of networks) {
+        html += '<div style="margin-bottom:18px">';
+        html += '<div style="font-weight:600;font-size:12px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;color:#999">'+net+'</div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+        html += '<thead><tr style="text-align:left;color:#888;border-bottom:1px solid #333">';
+        html += '<th style="padding:6px 8px">Move</th>';
+        html += '<th style="padding:6px 8px;text-align:right">N</th>';
+        html += '<th style="padding:6px 8px;text-align:right">Avg views</th>';
+        html += '<th style="padding:6px 8px;text-align:right">Avg likes</th>';
+        html += '<th style="padding:6px 8px;text-align:right">Avg comments</th>';
+        html += '<th style="padding:6px 8px;text-align:right">Avg shares</th>';
+        html += '<th style="padding:6px 8px;text-align:right">Total views</th>';
+        html += '</tr></thead><tbody>';
+        for (const b of byNet[net]) {
+          const sig = b.is_significant ? '✓' : '';
+          html += '<tr style="border-bottom:1px solid #1f1f1f">';
+          html += '<td style="padding:6px 8px"><span style="font-weight:500">'+b.rhetorical_move+'</span> <span style="color:#666;margin-left:4px">'+sig+'</span></td>';
+          html += '<td style="padding:6px 8px;text-align:right;color:'+(b.is_significant?'#9ec':'#888')+'">'+b.sample_size+'</td>';
+          html += '<td style="padding:6px 8px;text-align:right">'+(b.avg_views ?? '—')+'</td>';
+          html += '<td style="padding:6px 8px;text-align:right">'+(b.avg_likes ?? '—')+'</td>';
+          html += '<td style="padding:6px 8px;text-align:right">'+(b.avg_comments ?? '—')+'</td>';
+          html += '<td style="padding:6px 8px;text-align:right">'+(b.avg_shares ?? '—')+'</td>';
+          html += '<td style="padding:6px 8px;text-align:right;color:#bc9e60">'+(b.total_views ?? '—')+'</td>';
+          html += '</tr>';
+        }
+        html += '</tbody></table></div>';
+      }
+      html += '<div style="color:#666;font-size:11px;margin-top:8px">✓ = sample size ≥ 30 (statistically meaningful)</div>';
+      cont.innerHTML = html;
+    } catch(e) {
+      cont.innerHTML = '<div style="color:#e88a8a">'+e.message+'</div>';
+    }
+  }
+  $('rmet-refresh-btn').addEventListener('click', loadMetrics);
+  loadMetrics();
+
+  loadList();
+}
+
 </script>
+
+<!-- Background Tags Editor Modal (Phase 7) -->
+<div id="rl-bg-tag-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0d0e10;border:1px solid #1f2126;border-radius:10px;padding:24px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="margin:0;font-size:14px;font-weight:600;color:#e7e8ea">Edit Background Tags</h3>
+      <button id="rl-bg-tag-close" style="background:none;border:0;color:#888;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <img id="rl-bg-tag-preview" src="" style="width:100%;max-height:240px;object-fit:cover;border-radius:6px;background:#000">
+    </div>
+    <div style="font-size:11px;color:#666;margin-bottom:6px">Filename</div>
+    <div id="rl-bg-tag-filename" style="font-size:12px;color:#bc9e60;margin-bottom:12px;font-family:monospace"></div>
+
+    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Display label</label>
+    <input id="rl-bg-tag-label" type="text" placeholder="e.g. Trump · control room" style="width:100%;padding:8px;margin-bottom:12px;background:#0a0b0d;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea;font-size:13px">
+
+    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Tags (comma-separated)</label>
+    <input id="rl-bg-tag-tags" type="text" placeholder="trump, us, control_room, geopolitics" style="width:100%;padding:8px;margin-bottom:12px;background:#0a0b0d;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea;font-size:13px">
+
+    <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Notes</label>
+    <textarea id="rl-bg-tag-notes" rows="2" placeholder="Brief description (optional)" style="width:100%;padding:8px;margin-bottom:14px;background:#0a0b0d;border:1px solid #1f2126;border-radius:6px;color:#e7e8ea;font-size:12px;resize:vertical"></textarea>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button id="rl-bg-tag-cancel" class="lin-btn" style="padding:8px 14px;font-size:12px">Cancel</button>
+      <button id="rl-bg-tag-save" class="lin-btn primary" style="padding:8px 14px;font-size:12px">Save</button>
+    </div>
+    <div id="rl-bg-tag-status" style="font-size:11px;color:#888;margin-top:10px;text-align:right"></div>
+  </div>
+</div>
 </body>
 </html>
