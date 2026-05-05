@@ -7426,7 +7426,7 @@ async function mountReels() {
 
   $('rl-gen-btn').addEventListener('click', async () => {
     const status = $('rl-gen-status');
-    status.textContent = 'Working…';
+    status.textContent = 'Generating copy…';
     $('rl-gen-btn').disabled = true;
     const seq = _startPhaseSequence($('rl-format').value);
     try {
@@ -7436,27 +7436,65 @@ async function mountReels() {
         summary: $('rl-summary').value || null,
         label: $('rl-label').value,
         background_filename: _bgSelected || null,
-        format_version: $('rl-format').value || null,  // null = use server default
+        format_version: $('rl-format').value || null,
       };
+
+      // Step 1: get copy + job_id immediately (fast, ~10 s)
       const r = await postJson('/api/reels/generate', payload);
-      seq.finish();
+
+      // Show copy right away while render runs in background
       $('rl-preview-card').style.display = '';
-      $('rl-preview-video').src = r.preview_url;
+      $('rl-preview-video').src = '';
       $('rl-preview-hook').textContent = r.copy.hook;
       $('rl-preview-body').textContent = r.copy.body;
       const captionTa = $('rl-preview-caption');
       captionTa.value = r.copy.caption || '';
       $('rl-cap-count').textContent = captionTa.value.length;
       captionTa.oninput = () => { $('rl-cap-count').textContent = captionTa.value.length; };
-      $('rl-preview-meta').textContent =
-        `${r.copy.label} · ${r.copy.topic_tag || ''} · ${r.copy.rhetorical_move || ''} · ${r.duration_sec}s`;
-      $('rl-pub-btn').dataset.reelId = r.reel_id;
-      status.textContent = `Reel ${r.reel_id} ready.`;
-      loadList();
+      $('rl-pub-btn').dataset.reelId = '';
+      status.textContent = 'Copy ready — rendering video…';
+
+      // Step 2: poll /api/reels/job/{job_id} every 3 s
+      const jobId = r.job_id;
+      let attempts = 0;
+      const maxAttempts = 40; // 40 × 3 s = 2 min max wait
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const job = await fetch(`/api/reels/job/${jobId}`, { credentials: 'include' }).then(x => x.json());
+          if (job.status === 'done') {
+            clearInterval(poll);
+            seq.finish();
+            $('rl-preview-video').src = job.preview_url;
+            $('rl-preview-meta').textContent =
+              `${r.copy.label} · ${r.copy.topic_tag || ''} · ${r.copy.rhetorical_move || ''} · ${job.duration_sec}s`;
+            $('rl-pub-btn').dataset.reelId = job.reel_id;
+            status.textContent = `Reel ${job.reel_id} ready.`;
+            loadList();
+            $('rl-gen-btn').disabled = false;
+          } else if (job.status === 'error') {
+            clearInterval(poll);
+            seq.fail();
+            status.textContent = `Render error: ${job.error || 'unknown'}`;
+            $('rl-gen-btn').disabled = false;
+          } else {
+            // still rendering — update counter
+            status.textContent = `Rendering video… ${attempts * 3}s`;
+          }
+        } catch (e) {
+          // transient network error — keep polling
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          seq.fail();
+          status.textContent = 'Render timed out — try again.';
+          $('rl-gen-btn').disabled = false;
+        }
+      }, 3000);
+
     } catch (e) {
       seq.fail();
       status.textContent = `Error: ${e.message}`;
-    } finally {
       $('rl-gen-btn').disabled = false;
     }
   });

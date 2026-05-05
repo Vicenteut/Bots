@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import psutil
+import threading
 from fastapi import FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -73,6 +74,11 @@ MONITOR_QUEUE      = BOT_DIR / "monitor_queue.json"
 MONITOR_QUEUE_LOCK = BOT_DIR / "monitor_queue.lock"
 MONITOR_QUEUE_MAX  = int(os.getenv("MONITOR_QUEUE_MAX", "100") or "100")
 MEDIA_DIR          = BOT_DIR / "media"
+
+# In-memory job store for async reel renders  {job_id -> dict}
+_REEL_JOBS: dict = {}
+_REEL_JOBS_LOCK = threading.Lock()
+
 SOURCE_CONFIG      = BOT_DIR / "source_config.json"
 CONTEXT_JSON    = BOT_DIR / "context.json"
 REPLY_PROMPT    = BOT_DIR / "reply_generator_prompt.txt"
@@ -3389,7 +3395,12 @@ async def api_reels_render(request: Request, payload: ReelsRenderPayload):
 
 @app.post("/api/reels/generate")
 async def api_reels_generate(request: Request, payload: ReelsGeneratePayload):
-    """Combined: copy + render in one call (convenience endpoint)."""
+    """Async generate: returns copy + job_id immediately; render runs in background.
+
+    The client should poll GET /api/reels/job/{job_id} every 3 s until
+    status == "done" (or "error").  The copy is available right away so the
+    UI can show it while the MP4 is being rendered.
+    """
     _require_csrf(request)
 
     if payload.alert_id:
@@ -3402,29 +3413,59 @@ async def api_reels_generate(request: Request, payload: ReelsGeneratePayload):
             raise HTTPException(422, "alert_id or title required")
         headline = {"title": payload.title, "summary": payload.summary or "", "source": payload.source or "manual"}
 
+    # Step 1 — generate copy synchronously (fast, ~5-10 s, well under CF timeout)
     try:
         copy = _ntr.generate_reel_copy(
             {"headline": headline}, label=payload.label, format_version=payload.format_version
         )
-        result = _ntr.render_reel(
-            copy,
-            alert_id=payload.alert_id,
-            background_filename=payload.background_filename,
-            format_version=payload.format_version,
-        )
     except Exception as exc:
-        raise HTTPException(500, f"reel generation failed: {exc}")
+        raise HTTPException(500, f"copy generation failed: {exc}")
+
+    # Step 2 — kick off ffmpeg render in background thread (~50 s)
+    import uuid as _uuid
+    job_id = _uuid.uuid4().hex[:16]
+    with _REEL_JOBS_LOCK:
+        _REEL_JOBS[job_id] = {"status": "rendering", "copy": copy, "alert_id": payload.alert_id}
+
+    def _bg_render():
+        try:
+            result = _ntr.render_reel(
+                copy,
+                alert_id=payload.alert_id,
+                background_filename=payload.background_filename,
+                format_version=payload.format_version,
+            )
+            with _REEL_JOBS_LOCK:
+                _REEL_JOBS[job_id].update({
+                    "status": "done",
+                    "reel_id": result["reel_id"],
+                    "preview_url": f"/media/{Path(result['local_path']).name}",
+                    "thumbnail_url": (f"/media/{Path(result['thumbnail_path']).name}"
+                                      if result.get("thumbnail_path") else None),
+                    "duration_sec": result["duration_sec"],
+                })
+        except Exception as exc:
+            with _REEL_JOBS_LOCK:
+                _REEL_JOBS[job_id].update({"status": "error", "error": str(exc)})
+
+    threading.Thread(target=_bg_render, daemon=True).start()
 
     return {
         "ok": True,
-        "reel_id": result["reel_id"],
-        "preview_url": f"/media/{Path(result['local_path']).name}",
-        "thumbnail_url": (f"/media/{Path(result['thumbnail_path']).name}"
-                          if result.get("thumbnail_path") else None),
-        "duration_sec": result["duration_sec"],
+        "job_id": job_id,
         "copy": copy,
         "alert_id": payload.alert_id,
     }
+
+
+@app.get("/api/reels/job/{job_id}")
+async def api_reels_job_status(job_id: str, request: Request):
+    """Poll render job status. Returns status: rendering | done | error."""
+    with _REEL_JOBS_LOCK:
+        job = _REEL_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(404, f"job {job_id} not found")
+    return job
 
 
 @app.post("/api/reels/publish")
