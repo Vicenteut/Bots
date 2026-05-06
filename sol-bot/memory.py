@@ -28,21 +28,16 @@ class SolMemory:
     # ------------------------------------------------------------------
 
     def _load(self):
-        if self.path.exists():
-            try:
-                self._entries = json.loads(self.path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"[memory] Could not load {self.path}: {e}")
-                self._entries = []
-        else:
-            self._entries = []
+        """Load entries from disk using json_store (lock-safe read)."""
+        from json_store import read_json
+        data = read_json(self.path, default=[])
+        self._entries = data if isinstance(data, list) else []
 
     def _save(self):
+        """Persist entries to disk atomically using json_store."""
         try:
-            self.path.write_text(
-                json.dumps(self._entries, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            from json_store import write_json
+            write_json(self.path, self._entries)
         except OSError as e:
             logger.error(f"[memory] Could not save {self.path}: {e}")
 
