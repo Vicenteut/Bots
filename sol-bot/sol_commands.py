@@ -35,6 +35,7 @@ from brain import call_brain, log_brain_action
 from generator import generate_tweet, generate_combinada_tweet
 from telegram_client import send_message
 from topic_utils import classify_topic
+from json_store import read_json, write_json, append_to_json_list
 
 load_environment()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -47,12 +48,6 @@ _fh = logging.FileHandler(_LOG_FILE)
 _fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 logging.getLogger().addHandler(_fh)
 
-
-def _atomic_write_json(path: Path, data) -> None:
-    """Write JSON atomically using a temp file + os.replace to prevent corruption on crash."""
-    tmp = path.parent / f".tmp_{path.name}"
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
 
 
 PENDING_FILE = BASE_DIR / "pending_tweet.json"
@@ -233,7 +228,7 @@ def handle_media_message(msg: dict, media_type: str):
         send_message(f"Error descargando {label}. Intenta de nuevo.")
         return
 
-    _atomic_write_json(PENDING_MEDIA_FILE, media_info)
+    write_json(PENDING_MEDIA_FILE, media_info)
 
     if caption:
         # Save caption as news text and show generation keyboard (media auto-attaches on generation)
@@ -414,7 +409,7 @@ def cmd_regen(tweet_type: str = "RANDOM", instruction: str = ""):
     pending["tweet"] = tweet
     pending["generated_at"] = datetime.now().isoformat()
     pending["tweet_type"] = tweet_type
-    PENDING_FILE.write_text(json.dumps(pending, ensure_ascii=False, indent=2))
+    write_json(PENDING_FILE, pending)
 
     send_publish_keyboard(tweet)
 
@@ -494,7 +489,7 @@ def cmd_mixed(text: str = "", reply_news: str = None, target: str = "both"):
         combo_payload["media_paths"] = media_paths_combo
         combo_payload["media_path"] = media_paths_combo[0]
         combo_payload["media_type"] = media_type_combo
-    COMBO_FILE.write_text(json.dumps(combo_payload, ensure_ascii=False, indent=2))
+    write_json(COMBO_FILE, combo_payload)
 
     send_publish_keyboard(tweet)
 
@@ -669,7 +664,7 @@ def cmd_generate_from_monitor(reply_news: str = None, tweet_type: str = None):
         pending["media_type"] = media_type
     media_path = media_paths[0] if media_paths else None
 
-    PENDING_FILE.write_text(json.dumps(pending, ensure_ascii=False, indent=2))
+    write_json(PENDING_FILE, pending)
     logger.warning("[MONITOR_PENDING_FILE] Deleting in cmd_generate_from_monitor()")
     MONITOR_PENDING_FILE.unlink(missing_ok=True)
 
@@ -772,7 +767,7 @@ def _do_generate(text: str):
         pending["media_paths"] = _media_paths
         pending["media_path"] = _media_paths[0]
         pending["media_type"] = _media_type
-    PENDING_FILE.write_text(json.dumps(pending, ensure_ascii=False, indent=2))
+    write_json(PENDING_FILE, pending)
 
     # Auto-attach any pending owner media (sent before the news text)
     media_note = ""
@@ -783,7 +778,7 @@ def _do_generate(text: str):
             pending["media_paths"] = [pm["local_path"]]
             pending["media_type"] = pm["media_type"]
             pending["tg_media_url"] = pm["tg_file_url"]
-            PENDING_FILE.write_text(json.dumps(pending, ensure_ascii=False, indent=2))
+            write_json(PENDING_FILE, pending)
             PENDING_MEDIA_FILE.unlink(missing_ok=True)
             label = "video" if pm["media_type"] == "video" else "imagen"
             media_note = f"\n📎 Con {label} adjunta."
@@ -810,7 +805,7 @@ def cmd_publish_from_sched(n: int):
     except Exception as e:
         send_message(f'Error leyendo post {n}: {e}')
         return
-    PENDING_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    write_json(PENDING_FILE, data)
     sched_file.unlink(missing_ok=True)
     tweet = data.get("tweet", "")
     media_type = data.get("media_type", "photo")
