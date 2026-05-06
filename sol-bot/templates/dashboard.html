@@ -3491,10 +3491,14 @@ document.querySelectorAll('.lin-side-item[data-k]').forEach(it => {
 
 // On load, restore the panel from URL hash (e.g. #analytics). Falls back
 // to whatever's marked active in the HTML (Command Center by default).
-(function restorePanelFromHash(){
+// Deferred to window.load so all mount* functions and initial polling
+// (startCommandPolling, etc., declared further down the script) have
+// already been wired up — otherwise switchScreen() would call mount fns
+// that haven't been defined yet and the panel would render blank.
+window.addEventListener('load', () => {
   const key = (location.hash || '').slice(1);
-  if (key && SCREEN_TITLES[key]) switchScreen(key);
-})();
+  if (key && key !== 'command' && SCREEN_TITLES[key]) switchScreen(key);
+}, { once: true });
 
 // Drop first-paint after the entry cascade finishes (~660ms worst case);
 // pad to 1500ms for safety. Subsequent innerHTML re-renders during polling
