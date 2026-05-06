@@ -1645,7 +1645,7 @@ async def api_generate(request: Request, payload: GeneratePayload):
     tweet_type = None if payload.tweet_type == "RANDOM" else payload.tweet_type
     headline_dict = {"title": payload.headline, "summary": payload.headline, "source": "manual"}
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     tweet_text = await loop.run_in_executor(
         None, lambda: _generate_tweet(headline_dict, tweet_type=tweet_type, manual=payload.manual,
                                        model_override=payload.model_override)
@@ -1683,7 +1683,7 @@ async def api_mixed(request: Request, payload: MixedPayload):
         raise HTTPException(503, f"generator.py unavailable: {_GENERATOR_ERROR}")
 
     headline_dict = {"title": payload.headline, "summary": payload.headline, "source": "manual"}
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Generate single combined post: headline + blank line + analysis
     tweet = await loop.run_in_executor(
@@ -1742,7 +1742,7 @@ async def api_regenerate(request: Request, payload: RegeneratePayload):
     if tweet_type == "RANDOM":
         tweet_type = None
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     tweet_text = await loop.run_in_executor(
         None, lambda: _generate_tweet(headline_dict, tweet_type=tweet_type, manual=True)
     )
@@ -1793,7 +1793,7 @@ async def api_pending_combo_regenerate(request: Request, payload: RegeneratePayl
     if payload.instruction:
         headline_dict = dict(headline_dict, instruction=payload.instruction)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     tweet = await loop.run_in_executor(
         None, lambda: _generate_combinada_tweet(headline_dict, manual=True)
     )
@@ -2430,7 +2430,7 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
             tweet_type = (payload.tweet_type or _suggest_monitor_format(entry) or "WIRE").upper()
             if tweet_type == "COMBINADA":
                 tweet_type = "ANALISIS"
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             tweet = await loop.run_in_executor(
                 None, lambda: _generate_tweet(headline_dict, tweet_type=tweet_type, manual=True)
             )
@@ -2449,7 +2449,7 @@ async def api_monitor_action(request: Request, alert_id: str, payload: MonitorAc
             pending_target = "pending_tweet_b" if slot == "b" else "pending_tweet"
 
         elif action == "mixed":
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             tweet = await loop.run_in_executor(
                 None, lambda: _generate_combinada_tweet(headline_dict, manual=True)
             )
@@ -2658,7 +2658,7 @@ async def api_replies_generate(request: Request, payload: ReplyPayload):
     model_id = REPLY_MODEL_MAP.get(override, REPLY_DEFAULT_MODEL)
 
     try:
-        raw = await asyncio.get_event_loop().run_in_executor(
+        raw = await asyncio.get_running_loop().run_in_executor(
             None, lambda: _reply_call(system_prompt, user_msg, model_id)
         )
         parsed = _reply_parse(raw)
@@ -2698,7 +2698,7 @@ async def api_replies_regenerate_one(request: Request, payload: ReplyRegenPayloa
     model_id = REPLY_MODEL_MAP.get(override, REPLY_DEFAULT_MODEL)
 
     try:
-        raw = await asyncio.get_event_loop().run_in_executor(
+        raw = await asyncio.get_running_loop().run_in_executor(
             None, lambda: _reply_call(system_prompt, user_msg, model_id)
         )
         cleaned = re.sub(r"```json\s*|```\s*", "", raw).strip()
@@ -2731,7 +2731,7 @@ async def api_replies_chats_create(request: Request, payload: ReplyChatNewPayloa
             context_extra=payload.context_extra,
             orig_url=payload.orig_url,
         )
-        await asyncio.get_event_loop().run_in_executor(None, lambda: generate_variants(cid))
+        await asyncio.get_running_loop().run_in_executor(None, lambda: generate_variants(cid))
     except Exception as e:
         raise HTTPException(500, f"Create chat failed: {e}")
     return JSONResponse(get_chat(cid))
@@ -2742,7 +2742,7 @@ async def api_replies_chats_iterate(chat_id: str, request: Request, payload: Rep
     _require_csrf(request)
     from reply_workbench import iterate, get_chat
     try:
-        await asyncio.get_event_loop().run_in_executor(
+        await asyncio.get_running_loop().run_in_executor(
             None, lambda: iterate(chat_id, payload.user_msg)
         )
     except Exception as e:
@@ -2757,7 +2757,7 @@ async def api_replies_chats_publish(chat_id: str, request: Request, payload: Rep
     try:
         if payload.variant_idx is not None:
             set_chosen_variant(chat_id, int(payload.variant_idx))
-        await asyncio.get_event_loop().run_in_executor(None, lambda: publish(chat_id))
+        await asyncio.get_running_loop().run_in_executor(None, lambda: publish(chat_id))
     except Exception as e:
         raise HTTPException(500, f"Publish failed: {e}")
     return JSONResponse(get_chat(chat_id))
