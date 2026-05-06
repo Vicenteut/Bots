@@ -3426,6 +3426,9 @@ function _withViewTransition(updateFn) {
 
 function switchScreen(key) {
   if (!SCREEN_TITLES[key]) return;
+  // Persist active panel in URL hash so F5 lands on the same screen.
+  // replaceState avoids polluting browser history on every nav click.
+  try { history.replaceState(null, '', '#' + key); } catch (e) {}
   _withViewTransition(() => {
     document.querySelectorAll('.screen').forEach(s => {
       s.classList.toggle('active', s.dataset.screen === key);
@@ -3484,6 +3487,13 @@ document.querySelectorAll('.lin-side-item[data-k]').forEach(it => {
     switchScreen(it.dataset.k);
   });
 });
+
+// On load, restore the panel from URL hash (e.g. #analytics). Falls back
+// to whatever's marked active in the HTML (Command Center by default).
+(function restorePanelFromHash(){
+  const key = (location.hash || '').slice(1);
+  if (key && SCREEN_TITLES[key]) switchScreen(key);
+})();
 
 /* ============================================================
    MOBILE NAV (F1) — bottom tabs + drawer for "Más"
