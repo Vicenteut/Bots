@@ -102,10 +102,18 @@ def _call_api(client, model: str, system: str, user_prompt: str, max_tokens: int
         )
         return response.choices[0].message.content.strip()
     else:
+        # Anthropic prompt caching: marca el system block como ephemeral
+        # para cachearlo entre llamadas (reduce coste ~50-70% en repetidas).
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            system=system,
+            system=[
+                {
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": user_prompt}],
         )
         return response.content[0].text.strip()
