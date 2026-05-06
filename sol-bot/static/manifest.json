@@ -1,13 +1,19 @@
 {
-  "name": "SOL Command Center",
-  "short_name": "SOL",
-  "description": "Sol bot geopolitical publishing dashboard",
+  "name": "The Clam — Command Center",
+  "short_name": "The Clam",
+  "description": "The Clam Letter publishing dashboard",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080808",
-  "theme_color": "#f59e0b",
+  "background_color": "#0f1011",
+  "theme_color": "#5e6ad2",
   "orientation": "landscape",
   "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/static/icon-192.png",
       "sizes": "192x192",
