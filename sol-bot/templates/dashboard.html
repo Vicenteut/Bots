@@ -18,7 +18,7 @@
 
 <link rel="stylesheet" href="/static/dashboard.css?v=1777900200">
 </head>
-<body data-side="expanded">
+<body data-side="expanded" class="first-paint">
 
 <div class="lin-app">
 
@@ -114,6 +114,7 @@
       <div class="lin-top-right">
         <button class="lin-icn-btn" id="top-refresh" title="Refresh" aria-label="Refresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
         <span class="lin-clock" id="sb-clock-top">--:--<small>BZE</small></span>
+        <span class="lin-live" id="sb-live" role="status" aria-live="polite" title="Live — auto-refreshing"><span class="lin-live-dot"></span><span class="lin-live-txt">Live</span></span>
         <button class="lin-icn-btn" type="button" title="Share" aria-label="Share">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
         </button>
@@ -3494,6 +3495,12 @@ document.querySelectorAll('.lin-side-item[data-k]').forEach(it => {
   const key = (location.hash || '').slice(1);
   if (key && SCREEN_TITLES[key]) switchScreen(key);
 })();
+
+// Drop first-paint after the entry cascade finishes (~660ms worst case);
+// pad to 1500ms for safety. Subsequent innerHTML re-renders during polling
+// no longer trigger the slide-up animation, so the UI feels live instead
+// of "resetting" every refresh cycle.
+setTimeout(() => document.body.classList.remove('first-paint'), 1500);
 
 /* ============================================================
    MOBILE NAV (F1) — bottom tabs + drawer for "Más"
