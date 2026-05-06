@@ -36,6 +36,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, priority_rank, score_alert_details
 from recommendation_engine import get_learning_summary, recommend_for_alert
 from topic_utils import classify_topic
+from json_store import read_json, write_json, append_to_json_list
 
 try:
     from gdeltdoc import GdeltDoc, Filters as GdeltFilters
@@ -495,9 +496,7 @@ def _read_json_safe(path: Path):
 
 
 def _save_json(path: Path, data: dict) -> None:
-    tmp = path.parent / f".tmp_{path.name}"
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    write_json(path, data)
 
 
 _PRESERVE_PENDING_KEYS = {
@@ -578,29 +577,7 @@ def _append_publish_log(platform: str, success: bool, tweet: str,
             "fbtrace_id": fbtrace_id,
             "public_media_urls": public_media_urls or [],
         }
-        if PUBLISH_LOG.exists():
-            try:
-                history = json.loads(PUBLISH_LOG.read_text())
-                if not isinstance(history, list):
-                    history = []
-            except Exception:
-                history = []
-        else:
-            PUBLISH_LOG.parent.mkdir(parents=True, exist_ok=True)
-            history = []
-        history.append(entry)
-        import tempfile
-        fd, tmp = tempfile.mkstemp(dir=str(PUBLISH_LOG.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(history, ensure_ascii=False, indent=2))
-            os.replace(tmp, str(PUBLISH_LOG))
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except Exception:
-                pass
-            raise
+        append_to_json_list(PUBLISH_LOG, entry)
     except Exception as e:
         logger.warning(f"[publish_log] Failed to append: {e}")
 

@@ -953,7 +953,6 @@ def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str 
                          fbtrace_id: str = None, public_media_urls: list = None):
     """Append one publish event to logs/publish_log.json. Never raises."""
     try:
-        import tempfile
         log_path = BASE_DIR.parent / "logs" / "publish_log.json"
         entry = {
             "published_at": datetime.now().isoformat(),
@@ -974,29 +973,7 @@ def _append_publish_log(platform: str, success: bool, tweet: str, tweet_id: str 
             "fbtrace_id": fbtrace_id,
             "public_media_urls": public_media_urls or [],
         }
-        if log_path.exists():
-            try:
-                history = json.loads(log_path.read_text())
-                if not isinstance(history, list):
-                    history = []
-            except Exception:
-                history = []
-        else:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            history = []
-        history.append(entry)
-        # Atomic write: write to temp file then rename to avoid corruption on crash
-        fd, tmp = tempfile.mkstemp(dir=str(log_path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(history, ensure_ascii=False, indent=2))
-            os.replace(tmp, str(log_path))
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except Exception:
-                pass
-            raise
+        append_to_json_list(log_path, entry)
     except Exception as e:
         logger.error(f"[publish_log] Failed to append entry: {e}")
 
