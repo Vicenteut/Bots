@@ -75,6 +75,37 @@ button { font-family: inherit; cursor: pointer; }
 input, textarea { font-family: inherit; }
 
 /* ============================================================
+   LIVE INDICATOR — small green pulsing dot in the topbar that
+   conveys the dashboard is auto-refreshing. Single low-amplitude
+   element instead of full-list re-render flashes.
+   ============================================================ */
+.lin-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font: 500 11px var(--font-sans);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.lin-live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--status-done);
+  box-shadow: 0 0 0 0 var(--status-done);
+  animation: lin-live-pulse 2s ease-in-out infinite;
+}
+@keyframes lin-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(95, 184, 120, 0.50); opacity: 1; }
+  50%      { box-shadow: 0 0 0 5px rgba(95, 184, 120, 0);    opacity: 0.75; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lin-live-dot { animation: none; }
+}
+
+/* ============================================================
    GLOBAL FOCUS RING — applies regardless of motion preference.
    Inputs and buttons that use `outline: none` in their base styles
    are intentionally allowed to do so; this rule re-establishes the
@@ -4468,21 +4499,24 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  #rl-list > div,
-  #recent-posts-body > tr,
-  .feed-row,
-  .alerts-list > * {
+  /* Entry animation: ONLY on first paint. body.first-paint is removed by JS
+     ~1.5s after load, so subsequent innerHTML re-renders during polling
+     don't replay the slide-up cascade and cause perceived "blink/reset". */
+  body.first-paint #rl-list > div,
+  body.first-paint #recent-posts-body > tr,
+  body.first-paint .feed-row,
+  body.first-paint .alerts-list > * {
     animation: solSlideUp 320ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
   }
-  #rl-list > div:nth-child(1),  #recent-posts-body > tr:nth-child(1),  .feed-row:nth-child(1)  { animation-delay: 0ms; }
-  #rl-list > div:nth-child(2),  #recent-posts-body > tr:nth-child(2),  .feed-row:nth-child(2)  { animation-delay: 50ms; }
-  #rl-list > div:nth-child(3),  #recent-posts-body > tr:nth-child(3),  .feed-row:nth-child(3)  { animation-delay: 100ms; }
-  #rl-list > div:nth-child(4),  #recent-posts-body > tr:nth-child(4),  .feed-row:nth-child(4)  { animation-delay: 150ms; }
-  #rl-list > div:nth-child(5),  #recent-posts-body > tr:nth-child(5),  .feed-row:nth-child(5)  { animation-delay: 200ms; }
-  #rl-list > div:nth-child(6),  #recent-posts-body > tr:nth-child(6),  .feed-row:nth-child(6)  { animation-delay: 240ms; }
-  #rl-list > div:nth-child(7),  #recent-posts-body > tr:nth-child(7),  .feed-row:nth-child(7)  { animation-delay: 280ms; }
-  #rl-list > div:nth-child(8),  #recent-posts-body > tr:nth-child(8),  .feed-row:nth-child(8)  { animation-delay: 310ms; }
-  #rl-list > div:nth-child(n+9),#recent-posts-body > tr:nth-child(n+9),.feed-row:nth-child(n+9){ animation-delay: 340ms; }
+  body.first-paint #rl-list > div:nth-child(1),  body.first-paint #recent-posts-body > tr:nth-child(1),  body.first-paint .feed-row:nth-child(1)  { animation-delay: 0ms; }
+  body.first-paint #rl-list > div:nth-child(2),  body.first-paint #recent-posts-body > tr:nth-child(2),  body.first-paint .feed-row:nth-child(2)  { animation-delay: 50ms; }
+  body.first-paint #rl-list > div:nth-child(3),  body.first-paint #recent-posts-body > tr:nth-child(3),  body.first-paint .feed-row:nth-child(3)  { animation-delay: 100ms; }
+  body.first-paint #rl-list > div:nth-child(4),  body.first-paint #recent-posts-body > tr:nth-child(4),  body.first-paint .feed-row:nth-child(4)  { animation-delay: 150ms; }
+  body.first-paint #rl-list > div:nth-child(5),  body.first-paint #recent-posts-body > tr:nth-child(5),  body.first-paint .feed-row:nth-child(5)  { animation-delay: 200ms; }
+  body.first-paint #rl-list > div:nth-child(6),  body.first-paint #recent-posts-body > tr:nth-child(6),  body.first-paint .feed-row:nth-child(6)  { animation-delay: 240ms; }
+  body.first-paint #rl-list > div:nth-child(7),  body.first-paint #recent-posts-body > tr:nth-child(7),  body.first-paint .feed-row:nth-child(7)  { animation-delay: 280ms; }
+  body.first-paint #rl-list > div:nth-child(8),  body.first-paint #recent-posts-body > tr:nth-child(8),  body.first-paint .feed-row:nth-child(8)  { animation-delay: 310ms; }
+  body.first-paint #rl-list > div:nth-child(n+9),body.first-paint #recent-posts-body > tr:nth-child(n+9),body.first-paint .feed-row:nth-child(n+9){ animation-delay: 340ms; }
 
   /* 1.4 — Button micro-interactions: lift on hover, press on click */
   button:not(:disabled),
@@ -4523,10 +4557,11 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
 /* Fallback for users with prefers-reduced-motion: reduce — no transforms,
    only quick fades. Respects accessibility. */
 @media (prefers-reduced-motion: reduce) {
-  #rl-list > div,
-  #recent-posts-body > tr,
-  .feed-row,
-  .alerts-list > * {
+  /* Same first-paint-only gate as the no-preference variant above. */
+  body.first-paint #rl-list > div,
+  body.first-paint #recent-posts-body > tr,
+  body.first-paint .feed-row,
+  body.first-paint .alerts-list > * {
     animation: solFadeIn 200ms ease both;
   }
 }
