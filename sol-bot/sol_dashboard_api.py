@@ -37,6 +37,12 @@ from ingestion_utils import append_or_merge_queue, normalize_ingest_payload, pri
 from recommendation_engine import get_learning_summary, recommend_for_alert
 from topic_utils import classify_topic
 from json_store import read_json, write_json, append_to_json_list
+from publish_service import (
+    extract_threads_result as _extract_threads_result,
+    classify_publish_result as _classify_publish_result,
+    media_kind as _media_kind_from_args,
+    append_publish_log as _append_publish_log,
+)
 
 try:
     from gdeltdoc import GdeltDoc, Filters as GdeltFilters
@@ -549,105 +555,6 @@ def _attach_media_to_pending(data: dict) -> dict:
             print(f"[generate] pending_media.json read error: {e}", flush=True)
 
     return data
-
-
-def _append_publish_log(platform: str, success: bool, tweet: str,
-                        tweet_id: str = None, tweet_type: str = None,
-                        has_media: bool = False, media_type: str = "",
-                        media_count: int = 0, status: str = None,
-                        error_category: str = None, error_message: str = None,
-                        fbtrace_id: str = None, public_media_urls: list[str] = None) -> None:
-    """Append a publish event to logs/publish_log.json (same format as sol_commands.py)."""
-    try:
-        entry = {
-            "published_at": datetime.now().isoformat(),
-            "platform": platform,
-            "success": success,
-            "tweet_id": tweet_id,
-            "text_preview": (tweet or "")[:80],
-            "tweet_type": tweet_type,
-            "topic_tag": classify_topic(tweet),
-            "char_count": len(tweet) if tweet else 0,
-            "has_media": has_media,
-            "media_type": media_type,
-            "media_count": media_count,
-            "status": status or ("OK" if success else "FAILED"),
-            "error_category": error_category,
-            "error_message": (error_message or "")[:500] if error_message else None,
-            "fbtrace_id": fbtrace_id,
-            "public_media_urls": public_media_urls or [],
-        }
-        append_to_json_list(PUBLISH_LOG, entry)
-    except Exception as e:
-        logger.warning(f"[publish_log] Failed to append: {e}")
-
-
-def _extract_threads_result(output: str) -> dict:
-    """Parse the structured result emitted by threads_publisher.py."""
-    result = {}
-    for line in (output or "").splitlines():
-        if line.startswith("[THREADS_RESULT]"):
-            raw = line.split("]", 1)[1].strip()
-            try:
-                parsed = json.loads(raw)
-                if isinstance(parsed, dict):
-                    result = parsed
-            except Exception:
-                pass
-    return result
-
-
-def _classify_publish_result(output: str, returncode: int, media_kind: str) -> dict:
-    parsed = _extract_threads_result(output)
-    post_id = parsed.get("post_id") if parsed else None
-    success = returncode == 0 and bool(post_id or parsed.get("success"))
-    category = parsed.get("category") if parsed else None
-    message = parsed.get("message") if parsed else None
-    stage = parsed.get("stage") if parsed else None
-
-    if not success and not category:
-        lower = (output or "").lower()
-        if "csrf" in lower:
-            category = "AUTH_ERROR"
-        elif "token" in lower or "permission" in lower or "unauthorized" in lower:
-            category = "AUTH_ERROR"
-        elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
-            category = "MEDIA_ERROR"
-        elif "timed out" in lower or "timeout" in lower:
-            category = "TIMEOUT"
-        elif "http error" in lower or "meta error" in lower or "fbtrace_id" in lower:
-            category = "META_ERROR"
-        else:
-            category = "FAILED"
-
-    if not message and not success:
-        lines = [ln.strip() for ln in (output or "").splitlines() if ln.strip()]
-        interesting = [ln for ln in lines if "[ERROR]" in ln or "[META ERROR]" in ln or "Container failed" in ln]
-        message = (interesting[-1] if interesting else (lines[-1] if lines else "Threads publish failed"))
-
-    status = "OK" if success else (category or "FAILED")
-    return {
-        "success": success,
-        "post_id": post_id,
-        "status": status,
-        "error_category": None if success else category,
-        "error_message": None if success else message,
-        "stage": stage,
-        "http_code": parsed.get("http_code") if parsed else None,
-        "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
-        "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
-        "media_kind": parsed.get("media_type") or media_kind,
-    }
-
-
-def _media_kind_from_args(media_type: str, media_paths: list[str]) -> str:
-    if media_type == "video" and media_paths:
-        return "video"
-    if len(media_paths) > 1:
-        return "carousel"
-    if len(media_paths) == 1:
-        return "image"
-    return "text"
 
 
 def _tail_file(path: Path, n: int) -> list[str]:

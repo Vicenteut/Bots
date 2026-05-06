@@ -50,7 +50,7 @@ def classify_publish_result(output: str, returncode: int, media_kind_str: str) -
 
     if not success and not category:
         lower = (output or "").lower()
-        if "token" in lower or "permission" in lower or "unauthorized" in lower:
+        if "csrf" in lower or "token" in lower or "permission" in lower or "unauthorized" in lower:
             category = "AUTH_ERROR"
         elif "content-type" in lower or "media url" in lower or "no valid image" in lower or "container failed" in lower:
             category = "MEDIA_ERROR"
@@ -72,6 +72,8 @@ def classify_publish_result(output: str, returncode: int, media_kind_str: str) -
         "status": "OK" if success else (category or "FAILED"),
         "error_category": None if success else category,
         "error_message": None if success else message,
+        "stage": parsed.get("stage") if parsed else None,
+        "http_code": parsed.get("http_code") if parsed else None,
         "fbtrace_id": parsed.get("fbtrace_id") if parsed else None,
         "public_media_urls": parsed.get("media_urls") if isinstance(parsed.get("media_urls"), list) else [],
         "media_kind": parsed.get("media_type") or media_kind_str,
