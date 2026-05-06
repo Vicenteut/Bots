@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy · The Clam Letter</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.65; background: #fafafa; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  h2 { font-size: 18px; margin-top: 32px; color: #2a2a2a; }
+  .meta { color: #666; font-size: 14px; margin-bottom: 32px; }
+  p, li { font-size: 15px; }
+  a { color: #0366d6; }
+  hr { border: 0; border-top: 1px solid #e1e4e8; margin: 32px 0; }
+  footer { color: #777; font-size: 13px; margin-top: 48px; text-align: center; }
+</style>
+</head>
+<body>
+
+<a href="/" aria-label="The Clam Letter — home"><img src="/static/logo-white.svg" alt="The Clam" width="56" height="56" style="display:block;margin-bottom:24px;filter:invert(1);opacity:0.85" /></a>
+<h1>Privacy Policy</h1>
+<p class="meta">Sol Dashboard · Last updated: April 28, 2026</p>
+
+<p>This Privacy Policy explains how Sol Dashboard ("the Service"), operated by Vicente Uzcategui in support of editorial publishing for <strong>The Clam Letter</strong> (@theclamletter), collects, uses, and stores information.</p>
+
+<p><strong>The Service is a private, single-operator tool.</strong> It is not offered to the general public, does not register external users, and does not collect personal information from third parties.</p>
+
+<h2>1. Information We Collect</h2>
+<p>The Service stores only the data necessary to operate. This includes:</p>
+<ul>
+  <li><strong>OAuth access tokens and refresh tokens</strong> for the social media accounts the operator has connected (TikTok, Instagram, YouTube, Threads, X), stored as environment variables or encrypted at rest on the server.</li>
+  <li><strong>Content drafts and published metadata</strong>: headlines, generated copy, rendered video files, publish timestamps, network identifiers, and analytics counters (views, likes, comments) returned by the destination platforms.</li>
+  <li><strong>Operator session data</strong>: an HTTP-only session cookie used to authenticate the operator, and Cloudflare Access JWT tokens.</li>
+  <li><strong>Server logs</strong>: standard request logs (IP, User-Agent, timestamp, path) retained by systemd/journald and Cloudflare for operational purposes.</li>
+</ul>
+
+<h2>2. How We Use Information</h2>
+<p>Information is used solely to:</p>
+<ul>
+  <li>Authenticate the operator and persist sessions.</li>
+  <li>Generate and publish content to connected social platforms at the operator's direction.</li>
+  <li>Track the published status and engagement of posts for editorial review.</li>
+  <li>Diagnose errors and operate the Service.</li>
+</ul>
+
+<h2>3. Information We Do Not Collect</h2>
+<p>The Service does not collect, store, or process information from end users of the connected social platforms beyond the public engagement metrics returned by their respective APIs (e.g., follower counts, view counts on the operator's own posts). It does not run advertising, tracking pixels, or third-party analytics.</p>
+
+<h2>4. Sharing and Disclosure</h2>
+<p>We do not sell, rent, or share information with third parties for marketing purposes. Information is transmitted to the third-party APIs you authorize (TikTok, Instagram, YouTube, Threads, X) only as necessary to publish content and retrieve insights at your request.</p>
+
+<h2>5. Data Retention</h2>
+<p>Operational data (drafts, metadata, logs) is retained for as long as it is useful for editorial workflows. The operator may delete it at any time. OAuth tokens are deleted upon disconnection of the corresponding social account or upon revocation by the issuing platform.</p>
+
+<h2>6. Data Security</h2>
+<p>The Service is hosted on a private VPS, protected by Cloudflare Access (Zero Trust) for the dashboard domain, and uses HTTPS for all external communications. OAuth secrets are stored with restrictive file permissions. No system is perfectly secure; we make commercially reasonable efforts to protect data.</p>
+
+<h2>7. Third-Party Services</h2>
+<p>By connecting a social media account, you consent to the Service exchanging tokens and content with that platform under its own privacy policy. See:</p>
+<ul>
+  <li><a href="https://www.tiktok.com/legal/page/row/privacy-policy/en" target="_blank" rel="noopener">TikTok Privacy Policy</a></li>
+  <li><a href="https://privacycenter.instagram.com/policy" target="_blank" rel="noopener">Instagram Privacy Policy</a></li>
+  <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google / YouTube Privacy Policy</a></li>
+  <li><a href="https://privacycenter.instagram.com/policy" target="_blank" rel="noopener">Threads Privacy Policy</a></li>
+  <li><a href="https://x.com/privacy" target="_blank" rel="noopener">X Privacy Policy</a></li>
+</ul>
+
+<h2>8. Cookies</h2>
+<p>The Service uses a single HTTP-only session cookie for operator authentication and a Cloudflare Access cookie. No tracking or advertising cookies are used.</p>
+
+<h2>9. Children's Privacy</h2>
+<p>The Service is not directed to children under 13 and does not knowingly collect information from them.</p>
+
+<h2>10. Your Rights</h2>
+<p>As the sole operator of the Service, you may export, modify, or delete any data stored by the Service at any time, directly via the underlying database or by contacting the operator.</p>
+
+<h2>11. Changes to This Policy</h2>
+<p>We may update this Privacy Policy at any time. Material changes will be posted on this page with an updated "Last updated" date.</p>
+
+<h2>12. Contact</h2>
+<p>Questions about this Privacy Policy may be sent to <a href="mailto:vcnts28@gmail.com">vcnts28@gmail.com</a>.</p>
+
+<footer>© 2026 The Clam Letter · Sol Dashboard</footer>
+
+</body>
+</html>
