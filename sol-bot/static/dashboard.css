@@ -237,6 +237,12 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
 .lin-side-icn.green  { color: var(--hue-green); }
 .lin-side-icn.violet { color: var(--accent); }
 
+/* Sidebar nav: monochrome by default. Active item picks up accent.
+   Decorative hue classes above remain available for badges/other UI. */
+.lin-side-item .lin-side-icn { color: var(--text-secondary); }
+.lin-side-item:hover .lin-side-icn { color: var(--text); }
+.lin-side-item.active .lin-side-icn { color: var(--accent); }
+
 .lin-side-bottom {
   border-top: 1px solid var(--border);
   padding: var(--sp-2);
