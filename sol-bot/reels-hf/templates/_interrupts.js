@@ -28,20 +28,39 @@
     );
   }
 
-  /** Rehook punch at second 5: bg zooms, rehook stamp slides up. */
-  function rehookPunch(tl, t, opts) {
+  /** Background-only zoom punch (no stamp). Used at hard interrupt moments. */
+  function bgPunch(tl, t, opts) {
     opts = opts || {};
     var bg = opts.bgSelector || "#bg";
-    var stamp = opts.stampSelector || "#rehook-stamp";
-    tl.to(bg, { scale: 1.18, duration: 0.4, ease: "back.out(2)" }, t);
-    tl.to(bg, { scale: 1.05, duration: 0.4, ease: "power2.inOut" }, t + 0.4);
+    var peak = opts.peak != null ? opts.peak : 1.18;
+    var rest = opts.rest != null ? opts.rest : 1.05;
+    tl.to(bg, { scale: peak, duration: 0.4, ease: "back.out(2)" }, t);
+    tl.to(bg, { scale: rest, duration: 0.4, ease: "power2.inOut" }, t + 0.4);
+  }
+
+  /** Slide-up + fade-out animation for a stamp-style element. Reusable for
+   *  rehook stamps and per-beat stamps. opts.hold = seconds visible before
+   *  fade-out (default 2.4). opts.fromY = enter y offset (default 200). */
+  function stampPunch(tl, t, selector, opts) {
+    opts = opts || {};
+    var fromY = opts.fromY != null ? opts.fromY : 200;
+    var hold = opts.hold != null ? opts.hold : 2.4;
     tl.fromTo(
-      stamp,
-      { y: 200, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.35, ease: "back.out(2.4)" },
-      t + 0.05,
+      selector,
+      { y: fromY, opacity: 0, scale: 0.92 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.4)" },
+      t,
     );
-    tl.to(stamp, { opacity: 0, duration: 0.3, ease: "power2.in" }, t + 2.6);
+    tl.to(selector, { opacity: 0, duration: 0.3, ease: "power2.in" }, t + 0.4 + hold);
+  }
+
+  /** Rehook punch at second 5: bg zooms + stamp slides up.
+   *  Kept for backwards compat with templates that haven't migrated to the
+   *  bgPunch + stampPunch combo yet. */
+  function rehookPunch(tl, t, opts) {
+    opts = opts || {};
+    bgPunch(tl, t, opts);
+    stampPunch(tl, t + 0.05, opts.stampSelector || "#rehook-stamp", { hold: 2.2 });
   }
 
   /** Freeze stamp: pause #bg video for `hold` seconds with a text overlay. */
@@ -105,6 +124,8 @@
 
   global.SolInterrupts = {
     microcut: microcut,
+    bgPunch: bgPunch,
+    stampPunch: stampPunch,
     rehookPunch: rehookPunch,
     freezeStamp: freezeStamp,
     colorFlash: colorFlash,

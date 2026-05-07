@@ -82,6 +82,24 @@ def _karaoke_html(words: list[AlignWord]) -> str:
     return " ".join(spans)
 
 
+def _beats_payload(spec: dict) -> tuple[list[str], list[float | None]]:
+    """Extract up to 3 beat texts + their times for the {{BEAT1..3}} stamps.
+    Pads with empty strings / None so templates don't render '{{BEAT3}}'
+    literal placeholders if the spec has fewer beats."""
+    beats = spec.get("beats") or []
+    texts: list[str] = []
+    times: list[float | None] = []
+    for i in range(3):
+        if i < len(beats) and isinstance(beats[i], dict):
+            texts.append(str(beats[i].get("text") or ""))
+            t = beats[i].get("t")
+            times.append(float(t) if isinstance(t, (int, float)) else None)
+        else:
+            texts.append("")
+            times.append(None)
+    return texts, times
+
+
 def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dict:
     hook = spec.get("hook")
     if isinstance(hook, dict):
@@ -95,11 +113,17 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
     else:
         rehook_text = ""
 
+    beat_texts, beat_times = _beats_payload(spec)
+
     return {
         "LABEL": spec.get("label", "BREAKING"),
         "HOOK": hook_text,
         "HOOK_HTML": hook_text,
         "REHOOK": rehook_text,
+        "BEAT1": beat_texts[0],
+        "BEAT2": beat_texts[1],
+        "BEAT3": beat_texts[2],
+        "BEATS_TIMES_JSON": json.dumps(beat_times),
         "BG": spec.get("background") or DEFAULT_BG,
         "TTS": tts_filename,
         "BIG_NUM": (spec.get("numeric_highlights") or [""])[0],

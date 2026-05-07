@@ -37,6 +37,9 @@
       <div class="badge" id="badge">{{LABEL}}</div>
       <div class="hook-shock" id="hook">{{HOOK_HTML}}</div>
       <div id="rehook-stamp">{{REHOOK}}</div>
+      <div class="beat-stamp" id="beat-stamp-1">{{BEAT1}}</div>
+      <div class="beat-stamp" id="beat-stamp-2">{{BEAT2}}</div>
+      <div class="beat-stamp" id="beat-stamp-3">{{BEAT3}}</div>
       <div id="karaoke">{{KARAOKE_HTML}}</div>
 
       <div id="cut-flash"></div>
@@ -78,7 +81,17 @@
 
       // Trash-edit interrupts
       [2.0, 4.0, 6.0, 9.0, 12.0].forEach((t) => I.microcut(tl, t));
-      I.rehookPunch(tl, 5.0);
+
+      // Beat stamps — yellow-bordered cards slide in at each beat's t,
+      // hold ~2.5s then fade. Server pre-fills BEATS_TIMES_JSON aligned to
+      // the (BEAT1, BEAT2, BEAT3) text divs above.
+      const BEATS_TIMES = {{BEATS_TIMES_JSON}};
+      BEATS_TIMES.forEach((t, i) => {
+        if (t == null) return;
+        I.stampPunch(tl, t, "#beat-stamp-" + (i + 1), { hold: 2.4 });
+        // Pair the middle beat with a bg zoom to keep the s5 rehook feel.
+        if (i === 1) I.bgPunch(tl, t);
+      });
 
       // Color flash on each emphasis word time (server fills array)
       const EMPHASIS_TIMES = {{EMPHASIS_TIMES_JSON}};
