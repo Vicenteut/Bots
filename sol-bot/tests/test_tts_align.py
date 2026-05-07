@@ -105,6 +105,67 @@ def test_redistribute_no_collapse_passes_through():
     assert _redistribute_collapsed_tail(words, audio_duration=2.0) == words
 
 
+def test_merge_subword_splits_concatenates_continuations():
+    """Tokens without a leading space concatenate onto the previous word."""
+    from tts_align import _merge_subword_splits
+    parsed = [
+        (AlignWord("H", 0.0, 0.10), True),     # ` H` — word start
+        (AlignWord("orm", 0.10, 0.18), False), # `orm` — continuation
+        (AlignWord("uz", 0.18, 0.28), False),  # `uz` — continuation
+        (AlignWord("is", 0.30, 0.45), True),   # ` is` — new word
+    ]
+    merged = _merge_subword_splits(parsed)
+    assert len(merged) == 2
+    assert merged[0].word == "Hormuz"
+    assert merged[0].start == 0.0
+    assert merged[0].end == 0.28
+    assert merged[1].word == "is"
+
+
+def test_merge_subword_splits_preserves_normal_words():
+    """When every token has a leading space, nothing should merge."""
+    from tts_align import _merge_subword_splits
+    parsed = [
+        (AlignWord("Hello", 0.0, 0.4), True),
+        (AlignWord("world", 0.5, 0.9), True),
+    ]
+    merged = _merge_subword_splits(parsed)
+    assert len(merged) == 2
+    assert merged[0].word == "Hello"
+
+
+def test_align_words_merges_subwords_end_to_end(tmp_path, monkeypatch):
+    """Full pipeline: whisper.cpp emits subword splits → align_words returns merged."""
+    payload = {
+        "transcription": [
+            {"offsets": {"from": 0, "to": 100}, "text": " H"},
+            {"offsets": {"from": 100, "to": 180}, "text": "orm"},
+            {"offsets": {"from": 180, "to": 280}, "text": "uz"},
+            {"offsets": {"from": 300, "to": 450}, "text": " is"},
+        ]
+    }
+    audio = tmp_path / "fake.mp3"
+    audio.write_bytes(b"\x00")
+
+    def fake_run(*args, **kwargs):
+        argv = args[0] if args else kwargs.get("args", [])
+        if argv and argv[0] == "/fake/main":
+            prefix = argv[argv.index("-of") + 1]
+            Path(prefix + ".json").write_text(json.dumps(payload))
+        return mock.Mock(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("tts_align.subprocess.run", fake_run)
+    monkeypatch.setenv("WHISPER_CPP_MAIN", "/fake/main")
+    monkeypatch.setenv("WHISPER_CPP_MODEL", "/fake/model")
+    monkeypatch.setattr("tts_align._binary_ok", lambda: True)
+    monkeypatch.setenv("TTS_ALIGN_CACHE_DIR", str(tmp_path / "cache"))
+
+    words = align_words(audio)
+    assert len(words) == 2
+    assert words[0].word == "Hormuz"
+    assert words[1].word == "is"
+
+
 def test_align_words_caches_by_audio_hash(fake_whisper_json, tmp_path, monkeypatch):
     """Second call on same audio must not invoke whisper a second time."""
     audio = tmp_path / "fake.mp3"

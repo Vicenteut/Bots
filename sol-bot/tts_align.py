@@ -49,19 +49,45 @@ def _binary_ok() -> bool:
     return bool(main and model and Path(main).exists() and Path(model).exists())
 
 
-def _parse_whisper_json(payload: dict) -> list[AlignWord]:
-    """Walk whisper.cpp JSON transcription segments into AlignWord list."""
-    words: list[AlignWord] = []
+def _parse_whisper_json(payload: dict) -> list[tuple[AlignWord, bool]]:
+    """Walk whisper.cpp JSON transcription segments into (AlignWord, has_leading_space).
+
+    The leading-space flag distinguishes word starts from BPE subword
+    continuations: whisper.cpp's --max-len 1 mode emits tokens with a leading
+    space when they begin a new word (` Breaking`) and without one when they
+    continue the previous token (e.g. `Hormuz` → ` H` + `orm` + `uz`).
+    """
+    out: list[tuple[AlignWord, bool]] = []
     for seg in payload.get("transcription", []):
         offsets = seg.get("offsets", {})
         start_ms = offsets.get("from", 0)
         end_ms = offsets.get("to", 0)
         raw_text = seg.get("text", "")
+        has_space = raw_text.startswith(" ") or len(out) == 0
         word = raw_text.strip().rstrip(".,;:!?")
         if not word:
             continue
-        words.append(AlignWord(word=word, start=start_ms / 1000.0, end=end_ms / 1000.0))
-    return words
+        aw = AlignWord(word=word, start=start_ms / 1000.0, end=end_ms / 1000.0)
+        out.append((aw, has_space))
+    return out
+
+
+def _merge_subword_splits(parsed: list[tuple[AlignWord, bool]]) -> list[AlignWord]:
+    """Concatenate BPE subword continuations into single words.
+
+    Tokens without a leading space are continuations of the previous word.
+    Whisper.cpp does this on tokens like `Hormuz` (→ H + orm + uz) and
+    `posturing` (→ post + uring). We collapse the run keeping the first
+    token's start and the last token's end.
+    """
+    out: list[AlignWord] = []
+    for aw, has_space in parsed:
+        if not out or has_space:
+            out.append(aw)
+        else:
+            prev = out[-1]
+            out[-1] = AlignWord(word=prev.word + aw.word, start=prev.start, end=aw.end)
+    return out
 
 
 def _audio_duration_sec(path: Path) -> float:
@@ -218,7 +244,8 @@ def align_words(audio_path: Path) -> list[AlignWord]:
 
         payload = json.loads(json_file.read_text())
 
-    words = _parse_whisper_json(payload)
+    parsed = _parse_whisper_json(payload)
+    words = _merge_subword_splits(parsed)
 
     # Repair whisper.cpp's collapsed-tail bug (silent on dense second halves)
     duration = _audio_duration_sec(audio_path)

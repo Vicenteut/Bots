@@ -105,6 +105,93 @@
   }
 
   /**
+   * Rolling karaoke: show ~chunkSize words at a time (default 2). Each chunk
+   * fades in at its first word's start, holds while every word inside it
+   * gets a yellow + scale punch synced to whisper timestamps, then fades out
+   * before the next chunk arrives.
+   *
+   * Server-side `_karaoke_html_chunked` emits `<div class="kchunk" data-c="N">
+   *   <span class="kw" data-i="K">word</span> ...</div>` per chunk; all chunks
+   * stack at the same absolute position so only one is visible at a time.
+   *
+   * opts.offset (s)  — shift for TTS data-start (e.g. 0.4)
+   * opts.pad (s)     — pre-roll so highlight lands a hair early (default 0.04)
+   * opts.chunkSize   — must match server-side chunk size (default 2)
+   * opts.exitGap (s) — extra hold after last word before fade-out (default 0.10)
+   */
+  function karaokeRolling(tl, words, opts) {
+    if (!words || !words.length) return;
+    opts = opts || {};
+    var offset = opts.offset != null ? opts.offset : 0;
+    var pad = opts.pad != null ? opts.pad : 0.04;
+    var chunkSize = opts.chunkSize || 2;
+    var exitGap = opts.exitGap != null ? opts.exitGap : 0.10;
+
+    var totalChunks = Math.ceil(words.length / chunkSize);
+
+    // Hide every chunk at t=0 so nothing leaks before its turn.
+    for (var c0 = 0; c0 < totalChunks; c0++) {
+      tl.set('.kchunk[data-c="' + c0 + '"]', { opacity: 0, visibility: "hidden" }, 0);
+    }
+
+    for (var c = 0; c < totalChunks; c++) {
+      var startIdx = c * chunkSize;
+      var endIdx = Math.min(startIdx + chunkSize, words.length);
+      var firstStart = words[startIdx].start + offset - pad;
+      var lastEnd = words[endIdx - 1].end + offset + exitGap;
+      var sel = '.kchunk[data-c="' + c + '"]';
+
+      // Reveal chunk
+      tl.set(sel, { visibility: "visible" }, firstStart);
+      tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: 0.10, ease: "power1.out" }, firstStart);
+
+      // Per-word punch (yellow + scale up at start, white + scale down at end)
+      for (var wi = startIdx; wi < endIdx; wi++) {
+        var w = words[wi];
+        var wsel = sel + ' .kw[data-i="' + wi + '"]';
+        tl.fromTo(
+          wsel,
+          { color: "#ffffff", scale: 1.0 },
+          { color: "#ffd500", scale: 1.12, duration: 0.10, ease: "back.out(2)" },
+          w.start + offset - pad,
+        );
+        tl.to(
+          wsel,
+          { color: "#ffffff", scale: 1.0, duration: 0.18, ease: "power1.in" },
+          w.end + offset,
+        );
+      }
+
+      // Hide chunk before the next one shows
+      tl.to(sel, { opacity: 0, duration: 0.10, ease: "power1.in" }, lastEnd);
+      tl.set(sel, { visibility: "hidden" }, lastEnd + 0.01);  // CRITICAL: kill leak
+    }
+  }
+
+  /**
+   * CTA stamp: slide-in card distinct from the karaoke band so the closing
+   * "Follow The Clam Letter" reads as a deliberate ask, not just another
+   * highlighted word. Pairs with #cta-stamp div in the template (positioned
+   * at y=1400 to stay above the IG/TikTok bottom UI safe zone).
+   */
+  function ctaStamp(tl, t, selector, opts) {
+    opts = opts || {};
+    var hold = opts.hold != null ? opts.hold : 1.5;
+    var fromY = opts.fromY != null ? opts.fromY : 120;
+
+    tl.fromTo(
+      selector,
+      { y: fromY, opacity: 0, scale: 0.85 },
+      { y: 0, opacity: 1, scale: 1.0, duration: 0.35, ease: "back.out(2.6)" },
+      t,
+    );
+    // small breathing pulse so the card draws the eye
+    tl.to(selector, { scale: 1.05, duration: 0.14, ease: "power2.out" }, t + 0.45);
+    tl.to(selector, { scale: 1.0, duration: 0.14, ease: "power2.in" }, t + 0.59);
+    tl.to(selector, { opacity: 0, y: -30, duration: 0.30, ease: "power2.in" }, t + 0.35 + hold);
+  }
+
+  /**
    * Loop bridge: cross-fade last frame's hook block and the first frame's badge
    * during the final 1s, so the loop reads as continuous.
    */
@@ -130,6 +217,8 @@
     freezeStamp: freezeStamp,
     colorFlash: colorFlash,
     karaoke: karaoke,
+    karaokeRolling: karaokeRolling,
+    ctaStamp: ctaStamp,
     loopBridge: loopBridge,
   };
 })(window);

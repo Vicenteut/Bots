@@ -55,13 +55,37 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; 
 
 #karaoke {
   position: absolute; left: 60px; right: 60px; bottom: 320px;
-  font-family: "Bebas Neue", sans-serif; font-size: 64px; line-height: 1.1;
-  text-align: center; letter-spacing: 1.5px; z-index: 30;
-  text-shadow: 3px 3px 10px rgba(0,0,0,0.85);
+  height: 180px;  /* fixed band; chunks stack inside */
+  z-index: 30;
 }
-#karaoke span {
-  display: inline-block; margin: 0 8px; color: #ffffff; opacity: 0.55;
+/* Each rolling-karaoke chunk is absolutely positioned so all chunks stack at
+   the same place — only one is visible at a time (managed by GSAP). */
+.kchunk {
+  position: absolute; left: 0; right: 0; top: 0;
+  font-family: "Bebas Neue", sans-serif; font-size: 96px; line-height: 1.05;
+  text-align: center; letter-spacing: 2px;
+  text-shadow: 4px 4px 12px rgba(0,0,0,0.95), 0 0 20px rgba(0,0,0,0.6);
+  -webkit-text-stroke: 4px #000; paint-order: stroke fill;
+  text-transform: uppercase;
+  opacity: 0; visibility: hidden;
+}
+.kchunk .kw {
+  display: inline-block; margin: 0 14px; color: #ffffff;
   transform-origin: center center;
+}
+
+/* CTA stamp — distinct from karaoke band so closing CTA reads as a deliberate
+   ask. Yellow on dark pill, sits above IG/TikTok bottom UI safe zone. */
+#cta-stamp {
+  position: absolute; left: 50%; top: 1400px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.92); color: #ffd500;
+  padding: 26px 42px; border: 3px solid #ffd500; border-radius: 14px;
+  font-family: "Bebas Neue", sans-serif; font-size: 64px; letter-spacing: 3px;
+  text-align: center; white-space: nowrap;
+  box-shadow: 0 0 30px rgba(255,213,0,0.45), 0 8px 24px rgba(0,0,0,0.6);
+  text-transform: uppercase;
+  opacity: 0; z-index: 35;
 }
 
 .brand {

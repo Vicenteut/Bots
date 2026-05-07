@@ -72,14 +72,48 @@ def _emphasis_times(spec: dict, words: list[AlignWord]) -> list[float]:
     return times
 
 
-def _karaoke_html(words: list[AlignWord]) -> str:
+CTA_PHRASE = ["follow", "the", "clam", "letter"]
+KARAOKE_CHUNK_SIZE = 2
+
+
+def _split_cta_tail(words: list[AlignWord]) -> tuple[list[AlignWord], list[AlignWord]]:
+    """Return (body_words, cta_words). The CTA tail is the trailing run of
+    words matching CTA_PHRASE (case-insensitive, punctuation-stripped). If
+    not present, cta_words is empty and body_words = words.
+    """
+    if len(words) < len(CTA_PHRASE):
+        return words, []
+    n = len(CTA_PHRASE)
+    # Search from right so nested matches don't fool us.
+    for start in range(len(words) - n, -1, -1):
+        candidate = [w.word.lower().strip(".,;:!?") for w in words[start:start + n]]
+        if candidate == CTA_PHRASE:
+            return words[:start], words[start:start + n]
+    return words, []
+
+
+def _escape_word(w: str) -> str:
+    return (w or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _karaoke_html_chunked(words: list[AlignWord], chunk_size: int = KARAOKE_CHUNK_SIZE) -> str:
+    """Render words as <div class="kchunk" data-c="N"> blocks of `chunk_size`
+    words each; karaokeRolling() in GSAP shows one chunk at a time.
+    """
     if not words:
         return ""
-    spans = []
-    for i, w in enumerate(words):
-        safe = (w.word or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        spans.append(f'<span data-i="{i}">{safe}</span>')
-    return " ".join(spans)
+    chunks_html: list[str] = []
+    for ci_start in range(0, len(words), chunk_size):
+        chunk = words[ci_start:ci_start + chunk_size]
+        chunk_idx = ci_start // chunk_size
+        spans = []
+        for offset, w in enumerate(chunk):
+            global_i = ci_start + offset
+            spans.append(f'<span class="kw" data-i="{global_i}">{_escape_word(w.word)}</span>')
+        chunks_html.append(
+            f'<div class="kchunk" data-c="{chunk_idx}">' + " ".join(spans) + "</div>"
+        )
+    return "".join(chunks_html)
 
 
 def _beats_payload(spec: dict) -> tuple[list[str], list[float | None]]:
@@ -115,6 +149,13 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
 
     beat_texts, beat_times = _beats_payload(spec)
 
+    body_words, cta_words = _split_cta_tail(words)
+    # If we found the CTA phrase, the body karaoke excludes it and we expose
+    # CTA_TIME for the dedicated #cta-stamp slide-in. Otherwise CTA_TIME is
+    # null and the template skips the stamp gracefully.
+    cta_time = cta_words[0].start if cta_words else None
+    cta_text = "Follow The Clam Letter" if cta_words else ""
+
     return {
         "LABEL": spec.get("label", "BREAKING"),
         "HOOK": hook_text,
@@ -128,9 +169,11 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
         "TTS": tts_filename,
         "BIG_NUM": (spec.get("numeric_highlights") or [""])[0],
         "TICKER_TEXT": (spec.get("topic_tag") or "").upper() + "  •  THE CLAM LETTER  •  ",
-        "KARAOKE_HTML": _karaoke_html(words),
+        "KARAOKE_HTML": _karaoke_html_chunked(body_words),
         "EMPHASIS_TIMES_JSON": json.dumps(_emphasis_times(spec, words)),
-        "KARAOKE_WORDS_JSON": json.dumps([w.__dict__ for w in words]),
+        "KARAOKE_WORDS_JSON": json.dumps([w.__dict__ for w in body_words]),
+        "CTA_TIME": "null" if cta_time is None else f"{cta_time:.3f}",
+        "CTA_TEXT": cta_text,
     }
 
 
