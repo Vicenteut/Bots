@@ -86,7 +86,7 @@ def _pick_suggested_bg(headline: dict) -> tuple[str, int]:
 # Length budgets (tight enough to fit visual layout)
 HOOK_MAX_CHARS = 80
 STAT_MAX_CHARS = 80
-TTS_MAX_CHARS = 280  # ~30 words = ~12s narration
+TTS_MAX_CHARS = 340  # ~36 words = ~13s narration (raised from 280 to fit CTA)
 CAPTION_MIN_CHARS = 500
 CAPTION_MAX_CHARS = 1200
 VALID_LABELS = {"BREAKING", "DEVELOPING", "ANALYSIS", "MARKETS"}
@@ -111,7 +111,15 @@ Your discipline:
     "$119/barrel" → "Oil at ~$120 a barrel"
     "OPEC+ produces 43M b/d" → "OPEC nations control ~40% of world oil"
     "Russia signed Iran defense pact 2025" → "Russia and Iran signed a defense pact in 2025"
-- TTS narration: headline + 1 short synthesis sentence. ~30 words total. The voice fills 12-13 seconds; on-screen text reinforces visually.
+- TTS narration: headline + 1 short synthesis sentence + closing CTA. ~30 words total. The voice fills 12-13 seconds; on-screen text reinforces visually.
+- CTA (mandatory, last sentence of tts_text): a short contrarian question
+  about the news + the literal phrase "Follow The Clam Letter."
+  Format: "<6-10 word question, no hedges>. Follow The Clam Letter."
+  Examples:
+    "Real blockade, or political theater? Follow The Clam Letter."
+    "Will markets buy this? Follow The Clam Letter."
+    "Bluff or actual move? Follow The Clam Letter."
+  The question must echo the SPECIFIC story, not be generic.
 - Caption: 500-1200 chars, contrarian Clam Letter style. Three paragraphs typically:
     1. Restate news + key context
     2. The contrarian/analytical angle (this is the brand's voice)
@@ -131,7 +139,7 @@ EXAMPLE 1 , Input: "President Trump says UAE exiting OPEC will lower gas and oil
   "stat1": "UAE = ~7 of every 100 OPEC barrels",
   "stat2": "Half a US gas price = taxes + refining",
   "stat3": "OPEC nations control ~40% of world oil",
-  "tts_text": "Breaking. President Trump says the UAE exiting OPEC will lower gas and oil prices. The math behind that claim doesn't add up.",
+  "tts_text": "Breaking. President Trump says the UAE exiting OPEC will lower gas and oil prices. The math behind that claim doesn't add up. Real fix or political theater? Follow The Clam Letter.",
   "caption": "Trump just claimed the UAE will exit OPEC , and that gas prices will fall as a result.\\n\\nWorth adding context:\\n\\nThe UAE pumps roughly 3 million barrels a day. OPEC+ pumps over 40 million. One member walking changes the cartel's politics, not the global supply curve.\\n\\nUS retail gas isn't priced off OPEC anymore. It moves with refining capacity, regional demand, and federal+state taxes.\\n\\n, The Clam Letter\\n\\n#breaking #iran #oil #opec #trump",
   "numeric_highlights": ["7%", "40%"]
 }
@@ -144,7 +152,7 @@ EXAMPLE 2 , Input: "Iranian Parliament Speaker Ghalibaf says President Trump cra
   "stat1": "20% of world oil passes through Hormuz daily",
   "stat2": "US 5th Fleet patrols the strait from Bahrain",
   "stat3": "Iran has threatened blockade for 40+ years",
-  "tts_text": "Breaking. Iran's Parliament Speaker says President Trump pushed oil prices to one hundred twenty dollars per barrel, with the U.S. blockade of the Strait of Hormuz. Twenty percent of the world's oil flows through this waterway.",
+  "tts_text": "Breaking. Iran's Parliament Speaker says President Trump pushed oil prices to one hundred twenty dollars per barrel, with the U.S. blockade of the Strait of Hormuz. Twenty percent of the world's oil flows through this waterway. Real blockade, or political theater? Follow The Clam Letter.",
   "caption": "Iran's Parliament Speaker Ghalibaf says Trump 'cranked oil up to $120' via the US blockade of the Strait of Hormuz.\\n\\nA few asterisks worth adding:\\n\\nThe Strait of Hormuz carries roughly 20 percent of global oil shipments daily , about 17 million barrels.\\n\\nThe US 5th Fleet patrols the strait from a base in Bahrain. There is no formal US blockade in place; what's being called a blockade is enhanced naval presence and inspections.\\n\\nIran has threatened to close Hormuz for over four decades and has never executed a full closure.\\n\\n, The Clam Letter\\n\\n#breaking #iran #oil #hormuz #brentcrude",
   "numeric_highlights": ["$120", "20%", "40 years"]
 }
@@ -241,6 +249,13 @@ Constraints:
     stat2 = _clip(parsed.get("stat2"), STAT_MAX_CHARS)
     stat3 = _clip(parsed.get("stat3"), STAT_MAX_CHARS)
     tts_text = (parsed.get("tts_text") or "").strip()
+    # Guard: brand sign-off must close the narration. If the LLM forgot it,
+    # tack it on. Avoids wasted reels with no follow-CTA.
+    if "Follow The Clam Letter" not in tts_text:
+        sep = " " if (tts_text and not tts_text.endswith((".", "?", "!"))) else " "
+        tts_text = (tts_text.rstrip() + (
+            "." if tts_text and tts_text[-1].isalpha() else ""
+        ) + sep + "Follow The Clam Letter.").strip()
     if len(tts_text) > TTS_MAX_CHARS:
         tts_text = tts_text[:TTS_MAX_CHARS].rstrip()
     caption = (parsed.get("caption") or "").strip().strip('"')

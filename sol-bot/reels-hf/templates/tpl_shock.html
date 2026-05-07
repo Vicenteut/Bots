@@ -89,8 +89,8 @@
       BEATS_TIMES.forEach((t, i) => {
         if (t == null) return;
         I.stampPunch(tl, t, "#beat-stamp-" + (i + 1), { hold: 2.4 });
-        // Pair the middle beat with a bg zoom to keep the s5 rehook feel.
-        if (i === 1) I.bgPunch(tl, t);
+        // Every beat gets the bg zoom punch alongside the stamp.
+        I.bgPunch(tl, t);
       });
 
       // Color flash on each emphasis word time (server fills array)
