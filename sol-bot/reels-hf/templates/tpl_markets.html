@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="_shared.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="_interrupts.js"></script>
+    <style>
+      .ticker {
+        position: absolute; left: 0; right: 0; bottom: 60px;
+        background: #000; color: #00ff88;
+        font-family: "Bebas Neue", sans-serif; font-size: 44px;
+        padding: 12px 40px; letter-spacing: 3px; z-index: 24;
+        white-space: nowrap; overflow: hidden;
+      }
+      .big-num {
+        position: absolute; left: 60px; right: 60px; top: 700px;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 320px; line-height: 0.9; color: #ffd500;
+        text-align: center; z-index: 23;
+        text-shadow: 6px 6px 24px rgba(0,0,0,0.95);
+      }
+      .hook-line {
+        position: absolute; left: 60px; right: 60px; top: 1080px;
+        font-family: "Bebas Neue", sans-serif; font-size: 70px; line-height: 1.05;
+        color: #ffffff; text-align: center; z-index: 22;
+        text-shadow: 4px 4px 14px rgba(0,0,0,0.9);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"
+      data-composition-id="ReelMarkets"
+      data-start="0" data-duration="15" data-fps="30"
+      data-width="1080" data-height="1920">
+
+      <video id="bg" class="clip"
+        data-start="0" data-duration="15" data-track-index="0"
+        src="../assets/{{BG}}" muted playsinline></video>
+
+      <div class="overlay"></div>
+      <div class="alarm-strip alarm-strip-top"></div>
+      <div class="alarm-strip alarm-strip-bottom"></div>
+
+      <div class="badge" id="badge">{{LABEL}}</div>
+      <div class="big-num" id="bignum">{{BIG_NUM}}</div>
+      <div class="hook-line" id="hook">{{HOOK}}</div>
+      <div id="rehook-stamp">{{REHOOK}}</div>
+      <div id="karaoke">{{KARAOKE_HTML}}</div>
+      <div class="ticker" id="ticker">{{TICKER_TEXT}}</div>
+
+      <div id="cut-flash"></div>
+      <div id="color-flash"></div>
+
+      <div class="brand">
+        <div class="brand-name">THE CLAM LETTER</div>
+        <div class="brand-tag">MARKETS</div>
+      </div>
+
+      <audio id="tts" class="clip"
+        data-start="0.4" data-duration="14.5" data-track-index="9"
+        data-volume="1.0" src="../assets/{{TTS}}"></audio>
+      <audio id="music" class="clip"
+        data-start="0" data-duration="15" data-track-index="10"
+        data-volume="0.22" src="../assets/this_is_news_baked.mp3"></audio>
+      <audio id="sfx-loop" class="clip"
+        data-start="14.5" data-duration="0.5" data-track-index="12"
+        data-volume="0.8" src="../assets/sfx/loop_thump.wav"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const I = window.SolInterrupts;
+
+      gsap.set("#bg", { scale: 1.0 });
+      gsap.set("#badge", { scale: 0.4, opacity: 0 });
+      gsap.set("#bignum", { opacity: 0, scale: 0.4 });
+      gsap.set("#hook", { opacity: 0, y: 40 });
+      gsap.set("#ticker", { x: 1080 });
+      gsap.set("#cut-flash", { opacity: 0 });
+      gsap.set("#color-flash", { opacity: 0, backgroundColor: "rgba(0,255,136,0.4)" });
+
+      tl.to("#badge", { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2.5)" }, 0);
+      tl.to("#bignum", { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(2.2)" }, 0.6);
+      tl.to("#hook", { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 1.0);
+      tl.to("#ticker", { x: -1080, duration: 14, ease: "linear" }, 1.0);
+
+      [3.0, 5.0, 8.0, 11.0, 13.5].forEach((t) => I.microcut(tl, t));
+      I.rehookPunch(tl, 5.0);
+
+      const EMPHASIS_TIMES = {{EMPHASIS_TIMES_JSON}};
+      EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(0,255,136,0.4)"));
+
+      const WORDS = {{KARAOKE_WORDS_JSON}};
+      I.karaoke(tl, WORDS);
+
+      I.loopBridge(tl, 15.0);
+
+      window.__timelines["ReelMarkets"] = tl;
+    </script>
+  </body>
+</html>
