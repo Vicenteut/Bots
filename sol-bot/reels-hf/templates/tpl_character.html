@@ -48,6 +48,7 @@
       <div class="beat-stamp" id="beat-stamp-2">{{BEAT2}}</div>
       <div class="beat-stamp" id="beat-stamp-3">{{BEAT3}}</div>
       <div id="karaoke">{{KARAOKE_HTML}}</div>
+      <div id="cta-stamp">{{CTA_TEXT}}</div>
 
       <div id="cut-flash"></div>
       <div id="color-flash"></div>
@@ -100,7 +101,11 @@
       EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(255,213,0,0.45)"));
 
       const WORDS = {{KARAOKE_WORDS_JSON}};
-      I.karaoke(tl, WORDS, { offset: 0.4 });
+      I.karaokeRolling(tl, WORDS, { offset: 0.4, chunkSize: 2 });
+      const CTA_TIME = {{CTA_TIME}};
+      if (CTA_TIME != null) {
+        I.ctaStamp(tl, CTA_TIME + 0.4, "#cta-stamp", { hold: 1.4 });
+      }
 
       I.loopBridge(tl, 15.0);
 
