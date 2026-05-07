@@ -156,6 +156,14 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
     cta_time = cta_words[0].start if cta_words else None
     cta_text = "Follow The Clam Letter" if cta_words else ""
 
+    # Reel duration is flexible per spec. 15s default for shock/character (impact),
+    # 18s recommended for analysis variants (more breathing room for argument).
+    duration = float(spec.get("duration_sec") or DEFAULT_DURATION_SEC)
+    tts_start = 0.4
+    loop_tail = 0.5  # sfx-loop sits in the last loop_tail seconds
+    tts_duration = max(duration - tts_start - 0.1, 1.0)
+    loop_start = max(duration - loop_tail, 0.0)
+
     return {
         "LABEL": spec.get("label", "BREAKING"),
         "HOOK": hook_text,
@@ -174,6 +182,9 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
         "KARAOKE_WORDS_JSON": json.dumps([w.__dict__ for w in body_words]),
         "CTA_TIME": "null" if cta_time is None else f"{cta_time:.3f}",
         "CTA_TEXT": cta_text,
+        "DURATION": f"{duration:g}",
+        "TTS_DURATION": f"{tts_duration:g}",
+        "LOOP_START": f"{loop_start:g}",
     }
 
 
@@ -381,7 +392,7 @@ def render_reel(
             "reel_id": reel_id,
             "local_path": str(output_mp4),
             "thumbnail_path": str(output_jpg) if thumb_ok else None,
-            "duration_sec": DEFAULT_DURATION_SEC,
+            "duration_sec": int(copy_data.get("duration_sec") or DEFAULT_DURATION_SEC),
             "format_version": "v3_hyperframes",
         }
     finally:
