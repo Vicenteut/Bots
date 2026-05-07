@@ -21,6 +21,9 @@
         text-shadow: 4px 4px 14px rgba(0,0,0,0.9);
       }
       .quote::before { content: "\""; font-size: 110px; color: #ffd500; line-height: 0; vertical-align: -0.4em; }
+      #beat-stamp-1 { top: 1500px; }
+      #beat-stamp-2 { top: 1500px; }
+      #beat-stamp-3 { top: 1500px; font-size: 60px; }
     </style>
   </head>
   <body>
@@ -41,6 +44,9 @@
       <div id="freeze-stamp">WHAT HE SAID:</div>
       <div class="quote" id="hook">{{HOOK}}</div>
       <div id="rehook-stamp">{{REHOOK}}</div>
+      <div class="beat-stamp" id="beat-stamp-1">{{BEAT1}}</div>
+      <div class="beat-stamp" id="beat-stamp-2">{{BEAT2}}</div>
+      <div class="beat-stamp" id="beat-stamp-3">{{BEAT3}}</div>
       <div id="karaoke">{{KARAOKE_HTML}}</div>
 
       <div id="cut-flash"></div>
@@ -79,7 +85,16 @@
       tl.to("#hook", { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 2.3);
 
       [3.5, 5.0, 7.5, 10.5, 13.0].forEach((t) => I.microcut(tl, t));
-      I.rehookPunch(tl, 5.0);
+      // Beat stamps — yellow-bordered cards slide in at each beat's t,
+      // hold ~2.4s then fade. Server pre-fills BEATS_TIMES_JSON aligned to
+      // (BEAT1, BEAT2, BEAT3) text divs above. Every beat also gets a bg
+      // zoom punch.
+      const BEATS_TIMES = {{BEATS_TIMES_JSON}};
+      BEATS_TIMES.forEach((t, i) => {
+        if (t == null) return;
+        I.stampPunch(tl, t, "#beat-stamp-" + (i + 1), { hold: 2.4 });
+        I.bgPunch(tl, t);
+      });
 
       const EMPHASIS_TIMES = {{EMPHASIS_TIMES_JSON}};
       EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(255,213,0,0.45)"));
