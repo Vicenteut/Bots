@@ -125,28 +125,52 @@
     var offset = opts.offset != null ? opts.offset : 0;
     var pad = opts.pad != null ? opts.pad : 0.04;
     var chunkSize = opts.chunkSize || 2;
-    var exitGap = opts.exitGap != null ? opts.exitGap : 0.10;
+    var fadeIn = opts.fadeIn != null ? opts.fadeIn : 0.10;
+    var fadeOut = opts.fadeOut != null ? opts.fadeOut : 0.08;
+    var gap = opts.gap != null ? opts.gap : 0.04;  // dead air between chunks
+    var minVisible = opts.minVisible != null ? opts.minVisible : 0.05;
 
     var totalChunks = Math.ceil(words.length / chunkSize);
+
+    // Pre-compute chunk windows so chunk N+1 only fades in AFTER chunk N has
+    // finished its fade-out. Without this the karaoke briefly double-renders
+    // at chunk transitions (~80ms of overlap when whisper words are tight).
+    var chunks = [];
+    for (var c = 0; c < totalChunks; c++) {
+      var s = c * chunkSize;
+      var e = Math.min(s + chunkSize, words.length);
+      chunks.push({
+        idx: c,
+        startIdx: s,
+        endIdx: e,
+        firstStart: words[s].start + offset - pad,
+        lastEnd: words[e - 1].end + offset,
+      });
+    }
+    for (var i = 0; i < chunks.length; i++) {
+      var ch = chunks[i];
+      var nextEnter = i + 1 < chunks.length ? chunks[i + 1].firstStart : Infinity;
+      // hide must finish before next chunk's fade-in starts (with `gap` dead air)
+      ch.hideStart = Math.min(ch.lastEnd + 0.10, nextEnter - fadeOut - gap);
+      // but never hide before the last word's punch is at least minVisible old
+      ch.hideStart = Math.max(ch.hideStart, ch.lastEnd + minVisible);
+    }
 
     // Hide every chunk at t=0 so nothing leaks before its turn.
     for (var c0 = 0; c0 < totalChunks; c0++) {
       tl.set('.kchunk[data-c="' + c0 + '"]', { opacity: 0, visibility: "hidden" }, 0);
     }
 
-    for (var c = 0; c < totalChunks; c++) {
-      var startIdx = c * chunkSize;
-      var endIdx = Math.min(startIdx + chunkSize, words.length);
-      var firstStart = words[startIdx].start + offset - pad;
-      var lastEnd = words[endIdx - 1].end + offset + exitGap;
-      var sel = '.kchunk[data-c="' + c + '"]';
+    for (var ci = 0; ci < chunks.length; ci++) {
+      var cur = chunks[ci];
+      var sel = '.kchunk[data-c="' + cur.idx + '"]';
 
       // Reveal chunk
-      tl.set(sel, { visibility: "visible" }, firstStart);
-      tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: 0.10, ease: "power1.out" }, firstStart);
+      tl.set(sel, { visibility: "visible" }, cur.firstStart);
+      tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: fadeIn, ease: "power1.out" }, cur.firstStart);
 
       // Per-word punch (yellow + scale up at start, white + scale down at end)
-      for (var wi = startIdx; wi < endIdx; wi++) {
+      for (var wi = cur.startIdx; wi < cur.endIdx; wi++) {
         var w = words[wi];
         var wsel = sel + ' .kw[data-i="' + wi + '"]';
         tl.fromTo(
@@ -163,8 +187,8 @@
       }
 
       // Hide chunk before the next one shows
-      tl.to(sel, { opacity: 0, duration: 0.10, ease: "power1.in" }, lastEnd);
-      tl.set(sel, { visibility: "hidden" }, lastEnd + 0.01);  // CRITICAL: kill leak
+      tl.to(sel, { opacity: 0, duration: fadeOut, ease: "power1.in" }, cur.hideStart);
+      tl.set(sel, { visibility: "hidden" }, cur.hideStart + fadeOut + 0.01);
     }
   }
 

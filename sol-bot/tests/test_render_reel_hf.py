@@ -119,6 +119,26 @@ def test_build_payload_substitutes_all_placeholders(fixture_spec):
     assert payload["CTA_TEXT"] == ""
 
 
+def test_build_payload_default_duration_15s():
+    spec = {"label": "BREAKING", "hook": "X", "background": "grok_01.mp4",
+            "beats": [], "topic_tag": "x", "numeric_highlights": []}
+    payload = rrhf._build_payload(spec, words=[], tts_filename="x.mp3")
+    assert payload["DURATION"] == "15"
+    assert payload["TTS_DURATION"] == "14.5"
+    assert payload["LOOP_START"] == "14.5"
+
+
+def test_build_payload_custom_duration_18s():
+    """Analysis-variant reels can opt into 18s for breathing room."""
+    spec = {"label": "ANALYSIS", "hook": "X", "background": "grok_01.mp4",
+            "beats": [], "topic_tag": "x", "numeric_highlights": [],
+            "duration_sec": 18}
+    payload = rrhf._build_payload(spec, words=[], tts_filename="x.mp3")
+    assert payload["DURATION"] == "18"
+    assert payload["TTS_DURATION"] == "17.5"
+    assert payload["LOOP_START"] == "17.5"
+
+
 def test_build_payload_extracts_cta_time_when_phrase_present():
     spec = {"label": "BREAKING", "hook": "X", "background": "grok_01.mp4",
             "beats": [], "topic_tag": "x", "numeric_highlights": []}

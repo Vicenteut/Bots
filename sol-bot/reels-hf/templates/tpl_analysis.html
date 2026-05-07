@@ -36,12 +36,12 @@
   <body>
     <div id="root"
       data-composition-id="ReelAnalysis"
-      data-start="0" data-duration="15" data-fps="30"
+      data-start="0" data-duration="{{DURATION}}" data-fps="30"
       data-width="1080" data-height="1920">
 
       <div class="top-half">
         <video id="bg" class="clip"
-          data-start="0" data-duration="15" data-track-index="0"
+          data-start="0" data-duration="{{DURATION}}" data-track-index="0"
           src="assets/{{BG}}" muted playsinline></video>
         <div class="overlay"></div>
       </div>
@@ -69,13 +69,13 @@
       </div>
 
       <audio id="tts" class="clip"
-        data-start="0.4" data-duration="14.5" data-track-index="9"
+        data-start="0.4" data-duration="{{TTS_DURATION}}" data-track-index="9"
         data-volume="1.0" src="assets/{{TTS}}"></audio>
       <audio id="music" class="clip"
-        data-start="0" data-duration="15" data-track-index="10"
+        data-start="0" data-duration="{{DURATION}}" data-track-index="10"
         data-volume="0.20" src="assets/this_is_news_baked.mp3"></audio>
       <audio id="sfx-loop" class="clip"
-        data-start="14.5" data-duration="0.5" data-track-index="12"
+        data-start="{{LOOP_START}}" data-duration="0.5" data-track-index="12"
         data-volume="0.7" src="assets/sfx/loop_thump.wav"></audio>
     </div>
 
@@ -118,7 +118,7 @@
         I.ctaStamp(tl, CTA_TIME + 0.4, "#cta-stamp", { hold: 1.4 });
       }
 
-      I.loopBridge(tl, 15.0);
+      I.loopBridge(tl, {{DURATION}});
 
       window.__timelines["ReelAnalysis"] = tl;
     </script>
