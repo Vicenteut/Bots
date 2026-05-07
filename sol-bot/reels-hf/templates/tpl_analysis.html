@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="templates/_shared.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="templates/_interrupts.js"></script>
+    <style>
+      .top-half {
+        position: absolute; top: 0; left: 0; right: 0; height: 960px;
+        overflow: hidden; z-index: 1;
+      }
+      #bg { /* re-target to top-half */
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover;
+      }
+      .bottom-half {
+        position: absolute; top: 960px; left: 0; right: 0; height: 960px;
+        background: #0a0a0a; z-index: 5;
+      }
+      .takeaway {
+        position: absolute; left: 60px; right: 60px; top: 1080px;
+        font-family: "Bebas Neue", sans-serif; font-size: 92px; line-height: 1.0;
+        color: #ffffff; letter-spacing: 1px; z-index: 22;
+      }
+      .divider {
+        position: absolute; left: 60px; right: 60px; top: 1000px;
+        height: 4px; background: #ffd500; z-index: 22;
+      }
+      #beat-stamp-1 { top: 1420px; }
+      #beat-stamp-2 { top: 1420px; }
+      #beat-stamp-3 { top: 1420px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"
+      data-composition-id="ReelAnalysis"
+      data-start="0" data-duration="15" data-fps="30"
+      data-width="1080" data-height="1920">
+
+      <div class="top-half">
+        <video id="bg" class="clip"
+          data-start="0" data-duration="15" data-track-index="0"
+          src="assets/{{BG}}" muted playsinline></video>
+        <div class="overlay"></div>
+      </div>
+      <div class="bottom-half"></div>
+
+      <div class="alarm-strip alarm-strip-top"></div>
+      <div class="alarm-strip alarm-strip-bottom"></div>
+
+      <div class="badge" id="badge">{{LABEL}}</div>
+      <div class="divider"></div>
+      <div class="takeaway" id="hook">{{HOOK}}</div>
+      <div id="rehook-stamp">{{REHOOK}}</div>
+      <div class="beat-stamp" id="beat-stamp-1">{{BEAT1}}</div>
+      <div class="beat-stamp" id="beat-stamp-2">{{BEAT2}}</div>
+      <div class="beat-stamp" id="beat-stamp-3">{{BEAT3}}</div>
+      <div id="karaoke">{{KARAOKE_HTML}}</div>
+
+      <div id="cut-flash"></div>
+      <div id="color-flash"></div>
+
+      <div class="brand">
+        <div class="brand-name">THE CLAM LETTER</div>
+        <div class="brand-tag">ANALYSIS</div>
+      </div>
+
+      <audio id="tts" class="clip"
+        data-start="0.4" data-duration="14.5" data-track-index="9"
+        data-volume="1.0" src="assets/{{TTS}}"></audio>
+      <audio id="music" class="clip"
+        data-start="0" data-duration="15" data-track-index="10"
+        data-volume="0.20" src="assets/this_is_news_baked.mp3"></audio>
+      <audio id="sfx-loop" class="clip"
+        data-start="14.5" data-duration="0.5" data-track-index="12"
+        data-volume="0.7" src="assets/sfx/loop_thump.wav"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const I = window.SolInterrupts;
+
+      gsap.set("#bg", { scale: 1.0 });
+      gsap.set("#badge", { scale: 0.4, opacity: 0 });
+      gsap.set("#hook", { opacity: 0, y: 50 });
+      gsap.set("#cut-flash", { opacity: 0 });
+      gsap.set("#color-flash", { opacity: 0, backgroundColor: "rgba(255,213,0,0.35)" });
+
+      tl.to("#badge", { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2.5)" }, 0);
+      tl.to("#hook", { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 0.5);
+
+      // Analysis is more restrained — fewer cuts, gentler scale
+      [4.0, 8.0, 12.0].forEach((t) =>
+        I.microcut(tl, t, { scaleTo: 1.04 })
+      );
+      // Beat stamps — yellow-bordered cards slide in at each beat's t,
+      // hold ~2.4s then fade. Server pre-fills BEATS_TIMES_JSON aligned to
+      // (BEAT1, BEAT2, BEAT3) text divs above. Every beat also gets a bg
+      // zoom punch.
+      const BEATS_TIMES = {{BEATS_TIMES_JSON}};
+      BEATS_TIMES.forEach((t, i) => {
+        if (t == null) return;
+        I.stampPunch(tl, t, "#beat-stamp-" + (i + 1), { hold: 2.4 });
+        I.bgPunch(tl, t);
+      });
+
+      const EMPHASIS_TIMES = {{EMPHASIS_TIMES_JSON}};
+      EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(255,213,0,0.35)"));
+
+      const WORDS = {{KARAOKE_WORDS_JSON}};
+      I.karaoke(tl, WORDS, { offset: 0.4 });
+
+      I.loopBridge(tl, 15.0);
+
+      window.__timelines["ReelAnalysis"] = tl;
+    </script>
+  </body>
+</html>

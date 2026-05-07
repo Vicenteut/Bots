@@ -1,0 +1,87 @@
+/* _shared.css — common chrome for Phase 1 trash-edit templates. */
+
+@font-face {
+  font-family: "Bebas Neue";
+  src: url("../assets/BebasNeue-Regular.ttf") format("truetype");
+  font-display: block;
+}
+@font-face {
+  font-family: "DM Serif Display";
+  src: url("../assets/DMSerifDisplay-Regular.ttf") format("truetype");
+  font-display: block;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; }
+
+#root { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+
+#bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; transform-origin: center center; z-index: 1;
+}
+
+.overlay {
+  position: absolute; inset: 0; z-index: 2;
+  background: linear-gradient(to bottom,
+    rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.7) 100%);
+}
+
+#cut-flash, #color-flash {
+  position: absolute; inset: 0; z-index: 90;
+  pointer-events: none; opacity: 0;
+  background: #000;
+}
+
+.badge {
+  position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
+  background: #b41e1e; color: #fff;
+  font-family: "Bebas Neue", sans-serif; font-size: 40px; letter-spacing: 4px;
+  padding: 14px 32px; border-radius: 4px;
+  display: flex; align-items: center; gap: 14px; z-index: 20;
+}
+.badge::before {
+  content: ""; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+}
+
+#rehook-stamp,
+.beat-stamp {
+  position: absolute; left: 60px; right: 60px; top: 980px;
+  background: rgba(0,0,0,0.82); padding: 22px 28px; border-left: 6px solid #ffd500;
+  font-family: "Bebas Neue", sans-serif; font-size: 54px; line-height: 1.05;
+  color: #ffd500; letter-spacing: 1px; opacity: 0; z-index: 25;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.85);
+}
+
+#karaoke {
+  position: absolute; left: 60px; right: 60px; bottom: 320px;
+  font-family: "Bebas Neue", sans-serif; font-size: 64px; line-height: 1.1;
+  text-align: center; letter-spacing: 1.5px; z-index: 30;
+  text-shadow: 3px 3px 10px rgba(0,0,0,0.85);
+}
+#karaoke span {
+  display: inline-block; margin: 0 8px; color: #ffffff; opacity: 0.55;
+  transform-origin: center center;
+}
+
+.brand {
+  position: absolute; top: 1740px; left: 50%; transform: translateX(-50%);
+  text-align: center; font-family: "Bebas Neue", sans-serif;
+  color: #ffffff; letter-spacing: 4px; z-index: 20;
+}
+.brand-name { font-size: 38px; line-height: 1.1; }
+.brand-tag { font-size: 20px; opacity: 0.7; margin-top: 6px; letter-spacing: 6px; }
+
+.alarm-strip {
+  position: absolute; pointer-events: none; z-index: 100;
+}
+.alarm-strip-top {
+  top: 0; left: 0; right: 0; height: 12px;
+  background: linear-gradient(to bottom, #ff0020 0%, #c80018 100%);
+  box-shadow: 0 0 28px rgba(255,0,30,0.8);
+}
+.alarm-strip-bottom {
+  bottom: 0; left: 0; right: 0; height: 12px;
+  background: linear-gradient(to top, #ff0020 0%, #c80018 100%);
+  box-shadow: 0 0 28px rgba(255,0,30,0.8);
+}

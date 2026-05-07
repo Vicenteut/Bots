@@ -20,6 +20,7 @@ old/
 
 # Python
 __pycache__/
+.tts_align_cache/
 *.pyc
 *.pyo
 .env

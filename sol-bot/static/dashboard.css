@@ -1062,7 +1062,12 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .mb-header-actions { display: flex; gap: 4px; }
-  .mb-header-actions .lin-icn-btn { width: 40px; height: 40px; }
+  .mb-header-actions .lin-icn-btn { width: 44px; height: 44px; }
+  .mb-header-actions .lin-icn-btn.is-spinning { animation: solRefreshSpin 600ms cubic-bezier(0.4,0,0.2,1); }
+  @keyframes solRefreshSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .mb-header-actions .lin-icn-btn.is-spinning { animation: none; }
+  }
 
   /* Bottom tabs (5 slots, home-indicator-aware) */
   .mb-tabs {
@@ -1086,6 +1091,13 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
   }
   .mb-tab .mb-tab-icn { font-size: 18px; line-height: 1; }
   .mb-tab.active { color: var(--accent-hover); }
+  /* Press feedback (touch) — flash bg + subtle scale */
+  .mb-tab:active { background: var(--surface-2); }
+  @media (prefers-reduced-motion: no-preference) {
+    .mb-tab { transition: background 120ms ease, color 180ms ease, transform 120ms ease; }
+    .mb-tab:active { transform: scale(0.97); }
+    .mb-tab:active .mb-tab-icn { transform: scale(0.92); }
+  }
   .mb-tab .mb-tab-badge {
     position: absolute; top: 4px; right: calc(50% - 16px);
     min-width: 16px; height: 16px; padding: 0 4px;
@@ -4485,11 +4497,14 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
   .lin-card {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   }
-  .lin-card:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.35),
-      0 12px 32px rgba(0, 0, 0, 0.25);
+  /* Hover gated to real pointers — touch devices fire :hover on tap and stick. */
+  @media (hover: hover) and (pointer: fine) {
+    .lin-card:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.35),
+        0 12px 32px rgba(0, 0, 0, 0.25);
+    }
   }
 
   /* 1.3 — Stagger reveal for list rows. Used by #rl-list (Recent Reels),
@@ -4526,21 +4541,22 @@ body[data-side="collapsed"] .lin-user { justify-content: center; padding: 6px 0;
   [role="button"] {
     cursor: pointer;
   }
-  button:not(:disabled):hover,
-  .lin-btn:hover,
-  [role="button"]:hover {
-    transform: translateY(-1px);
+  /* Hover gated to real pointers — prevents stuck-elevated state on touch tap. */
+  @media (hover: hover) and (pointer: fine) {
+    button:not(:disabled):hover,
+    .lin-btn:hover,
+    [role="button"]:hover {
+      transform: translateY(-1px);
+    }
+    .lin-side-item:hover {
+      transform: translateX(2px);
+    }
   }
   button:not(:disabled):active,
   .lin-btn:active,
   [role="button"]:active {
     transform: translateY(0);
     transition-duration: 80ms;
-  }
-
-  /* Sidebar items get a subtle slide on hover */
-  .lin-side-item:hover {
-    transform: translateX(2px);
   }
 
   /* 1.5 — Page entry animation (fade in the main shell on load) */

@@ -1,0 +1,40 @@
+{
+  "reel_id": "fixture_phase1",
+  "label": "BREAKING",
+  "hook": {
+    "variant": "shock",
+    "text": "OIL JUMPS TO $120 OVERNIGHT",
+    "tts_lead": "Oil prices jumped to one hundred twenty dollars overnight."
+  },
+  "rehook": {
+    "text": "20% of the world's oil flows through one strait.",
+    "interrupt_kind": "zoom_punch"
+  },
+  "beats": [
+    {"t": 2.0, "type": "stat", "text": "17 million barrels per day pass through Hormuz",
+     "emphasis_words": ["17", "million"]},
+    {"t": 7.5, "type": "contradiction", "text": "There is no formal blockade in place",
+     "emphasis_words": ["no", "blockade"]},
+    {"t": 11.0, "type": "twist", "text": "Iran has threatened this for 40+ years",
+     "emphasis_words": ["40"]}
+  ],
+  "cta": {
+    "variant": "comment_bait",
+    "text": "Real blockade or political theater?",
+    "tts_close": "Real blockade or political theater?"
+  },
+  "voice_profile": "urgent",
+  "tts_text": "Oil prices jumped to one hundred twenty dollars overnight. Twenty percent of the world's oil flows through one strait. Real blockade or political theater?",
+  "template_variant": "shock",
+  "background": "grok_01.mp4",
+  "stat1": "17M barrels/day pass through Hormuz",
+  "stat2": "No formal US blockade in place",
+  "stat3": "Iran threatened this for 40+ years",
+  "body": "17M barrels/day pass through Hormuz · No formal US blockade in place",
+  "rhetorical_move": "data_card_5beat",
+  "topic_tag": "iran",
+  "numeric_highlights": ["$120", "20%"],
+  "suggested_bg": "grok_01.mp4",
+  "suggested_bg_score": 0,
+  "caption": "Test fixture caption."
+}
