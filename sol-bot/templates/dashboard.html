@@ -1306,7 +1306,7 @@ POSTURE
   <button class="mb-burger" id="mb-burger" aria-label="Open menu">☰</button>
   <div class="mb-title" id="mb-title">Command Center</div>
   <div class="mb-header-actions">
-    <button class="lin-icn-btn" title="Refresh">↻</button>
+    <button class="lin-icn-btn" id="mb-refresh" title="Refresh" aria-label="Refresh">↻</button>
   </div>
 </header>
 
@@ -3536,6 +3536,25 @@ setTimeout(() => document.body.classList.remove('first-paint'), 1500);
   burger   && burger.addEventListener('click', openDrawer);
   closeBtn && closeBtn.addEventListener('click', closeDrawer);
   backdrop && backdrop.addEventListener('click', closeDrawer);
+
+  // Mobile header refresh button — fires custom event for screen-aware refresh,
+  // falls back to location.reload() if no listener handled it.
+  const refreshBtn = $('mb-refresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      const ev = new CustomEvent('sol:mobile-refresh', { cancelable: true });
+      const dispatched = document.dispatchEvent(ev);
+      // Visual: spin animation feedback (re-trigger by toggling class).
+      refreshBtn.classList.remove('is-spinning');
+      void refreshBtn.offsetWidth;
+      refreshBtn.classList.add('is-spinning');
+      setTimeout(() => refreshBtn.classList.remove('is-spinning'), 600);
+      if (dispatched) {
+        // No handler called preventDefault — do a hard reload as the safe fallback.
+        setTimeout(() => location.reload(), 120);
+      }
+    });
+  }
 
   // Bottom tab buttons
   document.querySelectorAll('.mb-tab').forEach(btn => {
