@@ -34,7 +34,7 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; 
 }
 
 .badge {
-  position: absolute; top: 220px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
   background: #b41e1e; color: #fff;
   font-family: "Bebas Neue", sans-serif; font-size: 40px; letter-spacing: 4px;
   padding: 14px 32px; border-radius: 4px;

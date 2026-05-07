@@ -7,17 +7,22 @@
  * Hyperframes constraint: deterministic only. No Date.now(), no Math.random().
  */
 (function (global) {
-  /** Microcut: 60ms black flash + tiny scale punch on #bg at time t. */
+  /** Microcut: subtle scale punch on #bg at time t. The original "black flash"
+   *  variant felt like a glitch/blink, so by default the flash is off. Pass
+   *  opts.flashOpacity (0..1) to bring it back. */
   function microcut(tl, t, opts) {
     opts = opts || {};
     var flash = opts.flashSelector || "#cut-flash";
     var bg = opts.bgSelector || "#bg";
-    var scaleTo = opts.scaleTo != null ? opts.scaleTo : 1.06;
-    tl.to(flash, { opacity: 1, duration: 0.04, ease: "power1.out" }, t);
-    tl.to(flash, { opacity: 0, duration: 0.06, ease: "power1.in" }, t + 0.04);
+    var scaleTo = opts.scaleTo != null ? opts.scaleTo : 1.05;
+    var flashOpacity = opts.flashOpacity != null ? opts.flashOpacity : 0;
+    if (flashOpacity > 0) {
+      tl.to(flash, { opacity: flashOpacity, duration: 0.04, ease: "power1.out" }, t);
+      tl.to(flash, { opacity: 0, duration: 0.08, ease: "power1.in" }, t + 0.04);
+    }
     tl.to(
       bg,
-      { scale: scaleTo, duration: 0.08, yoyo: true, repeat: 1,
+      { scale: scaleTo, duration: 0.12, yoyo: true, repeat: 1,
         ease: "power2.inOut", overwrite: "auto" },
       t,
     );
@@ -66,13 +71,17 @@
    * Karaoke captions: scale + color the active word.
    * words = [{word, start, end}, ...]
    * Container #karaoke holds <span data-i="N">word</span> elements (rendered server-side).
+   * opts.offset (seconds) shifts all timestamps; pass the audio's data-start so
+   * karaoke lines up with when the TTS actually starts playing in the timeline.
    */
-  function karaoke(tl, words) {
+  function karaoke(tl, words, opts) {
     if (!words || !words.length) return;
+    opts = opts || {};
+    var offset = opts.offset != null ? opts.offset : 0;
     words.forEach(function (w, i) {
       var sel = "#karaoke span[data-i=\"" + i + "\"]";
-      tl.set(sel, { color: "#ffd500", scale: 1.15, opacity: 1.0 }, w.start);
-      tl.set(sel, { color: "#ffffff", scale: 1.0, opacity: 0.55 }, w.end);
+      tl.set(sel, { color: "#ffd500", scale: 1.15, opacity: 1.0 }, w.start + offset);
+      tl.set(sel, { color: "#ffffff", scale: 1.0, opacity: 0.55 }, w.end + offset);
     });
   }
 

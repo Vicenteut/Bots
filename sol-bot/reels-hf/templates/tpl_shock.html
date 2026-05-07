@@ -8,8 +8,8 @@
     <script src="templates/_interrupts.js"></script>
     <style>
       .hook-shock {
-        position: absolute; left: 60px; right: 60px; top: 600px;
-        font-family: "Bebas Neue", sans-serif; font-size: 140px;
+        position: absolute; left: 60px; right: 60px; top: 380px;
+        font-family: "Bebas Neue", sans-serif; font-size: 108px;
         line-height: 0.95; color: #ffffff; letter-spacing: 1px;
         text-align: center; z-index: 22;
         text-shadow: 6px 6px 18px rgba(0,0,0,0.95);
@@ -86,7 +86,7 @@
 
       // Karaoke
       const WORDS = {{KARAOKE_WORDS_JSON}};
-      I.karaoke(tl, WORDS);
+      I.karaoke(tl, WORDS, { offset: 0.4 });
 
       // Loop bridge
       I.loopBridge(tl, 15.0);

@@ -64,6 +64,98 @@ def _parse_whisper_json(payload: dict) -> list[AlignWord]:
     return words
 
 
+def _audio_duration_sec(path: Path) -> float:
+    """ffprobe wrapper. Returns 0.0 if it fails (caller should treat as unknown)."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True, text=True, check=True, timeout=10,
+        )
+        return float(result.stdout.strip())
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+        return 0.0
+
+
+def _spread_evenly(words: list[AlignWord], duration: float) -> list[AlignWord]:
+    """Distribute words uniformly across [0, duration]."""
+    if not words or duration <= 0:
+        return words
+    per = duration / len(words)
+    return [
+        AlignWord(word=w.word, start=i * per, end=(i + 0.9) * per)
+        for i, w in enumerate(words)
+    ]
+
+
+def _redistribute_collapsed_tail(
+    words: list[AlignWord], audio_duration: float
+) -> list[AlignWord]:
+    """whisper.cpp --max-len 1 frequently misaligns the tail of dense
+    transcriptions: it collapses many words onto identical timestamps near
+    the audio end while the actual speech is much earlier.
+
+    Strategy: detect any zero-duration word (collapse signature). When found,
+    walk back to the last word with strictly increasing timestamps; redistribute
+    everything from there onward across the remaining audio. If the resulting
+    per-word slot would be too small (< 0.18s, i.e. faster than legible
+    karaoke), fall back to even-spreading ALL words across audio_duration.
+    """
+    if len(words) < 3 or audio_duration <= 0:
+        return words
+
+    # Locate the first collapsed (zero-duration) word.
+    first_zero = None
+    for i, w in enumerate(words):
+        if w.start == w.end:
+            first_zero = i
+            break
+    if first_zero is None:
+        return words
+
+    # Walk back to find the last word whose end < collapse value (truly
+    # distinct timestamp), since whisper often poisons a few words before the
+    # collapse with timestamps near the audio end.
+    collapse_value = words[first_zero].start
+    real_head = first_zero - 1
+    while real_head >= 0 and words[real_head].end >= collapse_value - 0.01:
+        real_head -= 1
+
+    if real_head < 0:
+        # No reliable prefix — even-spread the whole thing.
+        logger.info("alignment unreliable from word 0; spreading %d evenly across %.2fs",
+                    len(words), audio_duration)
+        return _spread_evenly(words, audio_duration)
+
+    head = words[: real_head + 1]
+    tail = words[real_head + 1:]
+    last_good_end = head[-1].end
+    span = max(audio_duration - last_good_end, 0.0)
+    per_word = span / max(len(tail), 1)
+
+    # If per-word slot is below legibility floor, even-spread everything.
+    if per_word < 0.18:
+        logger.info("collapsed-tail slot too small (%.3fs/word); spreading all %d evenly across %.2fs",
+                    per_word, len(words), audio_duration)
+        return _spread_evenly(words, audio_duration)
+
+    new_tail = [
+        AlignWord(
+            word=w.word,
+            start=last_good_end + i * per_word,
+            end=last_good_end + (i + 0.85) * per_word,
+        )
+        for i, w in enumerate(tail)
+    ]
+    logger.info("redistributed %d collapsed-tail words across %.2fs (after %.2fs)",
+                len(tail), span, last_good_end)
+    return head + new_tail
+
+
 def align_words(audio_path: Path) -> list[AlignWord]:
     """Return word-level timestamps for *audio_path* via whisper.cpp.
 
@@ -127,6 +219,10 @@ def align_words(audio_path: Path) -> list[AlignWord]:
         payload = json.loads(json_file.read_text())
 
     words = _parse_whisper_json(payload)
+
+    # Repair whisper.cpp's collapsed-tail bug (silent on dense second halves)
+    duration = _audio_duration_sec(audio_path)
+    words = _redistribute_collapsed_tail(words, duration)
 
     # --- Write cache ---
     try:

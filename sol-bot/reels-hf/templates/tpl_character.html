@@ -85,7 +85,7 @@
       EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(255,213,0,0.45)"));
 
       const WORDS = {{KARAOKE_WORDS_JSON}};
-      I.karaoke(tl, WORDS);
+      I.karaoke(tl, WORDS, { offset: 0.4 });
 
       I.loopBridge(tl, 15.0);
 

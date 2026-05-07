@@ -67,18 +67,58 @@ def test_align_words_falls_back_when_whisper_missing(monkeypatch, tmp_path):
     assert align_words(audio) == []
 
 
+def test_redistribute_collapsed_tail_spreads_words():
+    """When whisper.cpp collapses the tail to identical timestamps, redistribute."""
+    from tts_align import _redistribute_collapsed_tail
+    words = [
+        AlignWord("Hello", 0.0, 0.5),
+        AlignWord("world", 0.5, 1.0),
+        AlignWord("the", 1.0, 1.5),
+        # collapsed tail: all at 2.0
+        AlignWord("rest", 2.0, 2.0),
+        AlignWord("of", 2.0, 2.0),
+        AlignWord("this", 2.0, 2.0),
+        AlignWord("sentence", 2.0, 2.0),
+    ]
+    fixed = _redistribute_collapsed_tail(words, audio_duration=10.0)
+    assert len(fixed) == 7
+    # Head is preserved
+    assert fixed[0] == words[0]
+    assert fixed[2] == words[2]
+    # Tail is spread between last_good_end (1.5) and audio_duration (10.0)
+    tail = fixed[3:]
+    assert tail[0].start >= 1.5
+    assert tail[-1].end <= 10.0 + 0.01
+    # Strictly increasing starts
+    for a, b in zip(tail, tail[1:]):
+        assert b.start > a.start
+
+
+def test_redistribute_no_collapse_passes_through():
+    """If timestamps are healthy, redistribute should be a no-op."""
+    from tts_align import _redistribute_collapsed_tail
+    words = [
+        AlignWord("a", 0.0, 0.4),
+        AlignWord("b", 0.4, 0.8),
+        AlignWord("c", 0.8, 1.2),
+    ]
+    assert _redistribute_collapsed_tail(words, audio_duration=2.0) == words
+
+
 def test_align_words_caches_by_audio_hash(fake_whisper_json, tmp_path, monkeypatch):
     """Second call on same audio must not invoke whisper a second time."""
     audio = tmp_path / "fake.mp3"
     audio.write_bytes(b"abc")
-    calls = {"n": 0}
+    whisper_calls = {"n": 0}
 
     def fake_run(*args, **kwargs):
-        calls["n"] += 1
-        argv = args[0]
-        prefix = argv[argv.index("-of") + 1]
-        Path(prefix + ".json").write_text(fake_whisper_json.read_text())
-        return mock.Mock(returncode=0, stdout="", stderr="")
+        argv = args[0] if args else kwargs.get("args", [])
+        # Count only whisper invocations, not ffprobe duration probes.
+        if argv and argv[0] == "/fake/main":
+            whisper_calls["n"] += 1
+            prefix = argv[argv.index("-of") + 1]
+            Path(prefix + ".json").write_text(fake_whisper_json.read_text())
+        return mock.Mock(returncode=0, stdout="0", stderr="")
 
     monkeypatch.setattr("tts_align.subprocess.run", fake_run)
     monkeypatch.setenv("WHISPER_CPP_MAIN", "/fake/main")
@@ -89,4 +129,4 @@ def test_align_words_caches_by_audio_hash(fake_whisper_json, tmp_path, monkeypat
     align_words(audio)
     align_words(audio)
 
-    assert calls["n"] == 1
+    assert whisper_calls["n"] == 1
