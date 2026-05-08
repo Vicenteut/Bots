@@ -2,10 +2,30 @@
 """
 gen_tts_sol.py — ElevenLabs TTS wrapper for Sol Bot v3 reels.
 
-Generates MP3 narration files (Joe Stokes — News Radio Narrator) into the
+Generates MP3 narration files (Mark — Natural Conversations) into the
 reels-hf assets directory, ready for the Hyperframes renderer to consume.
 
 Used by render_reel_hf.py during the v3 pipeline.
+
+──────────────────────────────────────────────────────────────────────
+SCRIPT STRUCTURE RULES (Mark voice ~150 wpm)
+──────────────────────────────────────────────────────────────────────
+For a 20s reel (= 19s TTS budget after pre-roll/tail):
+  - Total: 38–44 words, ≤270 chars including the CTA.
+  - Structure:
+      1. Opener   (5–8 words)   one declarative; sets the scene
+      2. Fact     (8–12 words)  the news
+      3. Contrast (8–12 words)  the twist or stakes
+      4. So-what  (6–10 words)  implication
+      5. CTA      (5 words)     "Follow The Clam Letter."
+  - Avoid: acronyms without expansion, back-to-back numbers in one
+    breath, long clauses without commas — Mark needs micro-pauses.
+  - Encourage: short sentences ending in periods (250–400ms pause),
+    commas as breath markers, em-dashes for emphasis pivots.
+
+For shorter reels, scale down proportionally: a 15s reel ≈ 14s budget
+≈ 30–34 words. Going past these caps triggers the auto-fit speedup,
+which desyncs karaoke and erases natural emphasis.
 """
 
 from __future__ import annotations
@@ -90,6 +110,7 @@ def generate_tts(
     output_path: Path,
     voice_id: str = DEFAULT_VOICE_ID,
     auto_fit: bool = True,
+    max_duration_sec: float | None = None,
 ) -> Path:
     """
     Generate TTS MP3 from text and save to output_path.
@@ -97,13 +118,18 @@ def generate_tts(
     Args:
         text: Words to synthesize. Should already be ≤280 chars (~30 words).
         output_path: Where to write the MP3.
-        voice_id: ElevenLabs voice. Default = Joe Stokes.
-        auto_fit: If True and resulting audio exceeds TTS_MAX_DURATION_SEC,
-                  apply ffmpeg atempo speedup to fit. Better than truncating.
+        voice_id: ElevenLabs voice. Default = Mark - Natural Conversations.
+        auto_fit: If True and audio exceeds the cap, apply ffmpeg atempo
+                  speedup to fit. Better than truncating.
+        max_duration_sec: Override for the auto-fit cap. None falls back to
+                          the module default (TTS_MAX_DURATION_SEC). Renderer
+                          passes spec.duration_sec - 1.0 so a 20s reel gets
+                          a 19s TTS budget.
 
     Returns:
         Path to the produced MP3.
     """
+    cap = max_duration_sec if max_duration_sec is not None else TTS_MAX_DURATION_SEC
     if not text or not text.strip():
         raise ValueError("TTS text is empty")
 
@@ -127,14 +153,14 @@ def generate_tts(
         output_path.name, duration, len(text),
     )
 
-    if auto_fit and duration > TTS_MAX_DURATION_SEC:
+    if auto_fit and duration > cap:
         # Slight speedup so it fits the reel without truncating the last word.
         # atempo > 1.4 starts to sound rushed for radio-narrator tone — cap there.
-        target_factor = duration / TTS_MAX_DURATION_SEC
+        target_factor = duration / cap
         factor = min(target_factor, 1.4)
         logger.info(
             "TTS too long (%.2fs > %.2fs), applying atempo=%.2f",
-            duration, TTS_MAX_DURATION_SEC, factor,
+            duration, cap, factor,
         )
         _apply_speedup(output_path, factor)
         if target_factor > 1.4:
@@ -146,10 +172,21 @@ def generate_tts(
     return output_path
 
 
-def generate_tts_for_reel(reel_id: str, tts_text: str, voice_id: str = DEFAULT_VOICE_ID) -> Path:
+def generate_tts_for_reel(
+    reel_id: str,
+    tts_text: str,
+    voice_id: str = DEFAULT_VOICE_ID,
+    max_duration_sec: float | None = None,
+) -> Path:
     """
     Convenience wrapper: write to reels-hf/assets/tts_<reel_id>.mp3.
-    Returns the path to the produced MP3.
+
+    `max_duration_sec` is forwarded to generate_tts so the renderer can scale
+    the auto-fit cap by reel duration_sec. Returns the path to the produced MP3.
     """
     output_path = REELS_HF_ASSETS / f"tts_{reel_id}.mp3"
-    return generate_tts(tts_text, output_path, voice_id=voice_id, auto_fit=True)
+    return generate_tts(
+        tts_text, output_path,
+        voice_id=voice_id, auto_fit=True,
+        max_duration_sec=max_duration_sec,
+    )

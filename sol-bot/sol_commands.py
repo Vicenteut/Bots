@@ -470,13 +470,17 @@ def cmd_mixed(text: str = "", reply_news: str = None, target: str = "both"):
         send_message(f"Error generando mixed: {e}")
         return
 
-    # Extract media from the pending source (if any)
+    # Extract media from the pending source only when its headline matches
     media_paths_combo = []
     media_type_combo = "photo"
+    headline_title = (headline.get("title") or "") if isinstance(headline, dict) else ""
     for src_file in (PENDING_FILE, MONITOR_PENDING_FILE):
         if src_file.exists():
             try:
                 src_data = json.loads(src_file.read_text())
+                src_title = (src_data.get("headline") or {}).get("title", "")
+                if not _headlines_match(headline_title, src_title):
+                    continue
                 _paths, _type = _load_media_from_pending(src_data)
                 if _paths:
                     media_paths_combo = _paths

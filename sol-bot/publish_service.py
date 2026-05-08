@@ -16,6 +16,24 @@ logger = logging.getLogger(__name__)
 PUBLISH_LOG = Path("/root/x-bot/logs/publish_log.json")
 
 
+def headlines_match(a: str, b: str) -> bool:
+    """Return True if two headline strings refer to the same news item.
+
+    Accepts exact match, substring containment, or ≥50% word overlap of the
+    shorter headline. Used to gate media attachment from monitor_pending /
+    pending_tweet so we never paste an image onto an unrelated story.
+    """
+    if not a or not b:
+        return False
+    a_c, b_c = a.lower().strip(), b.lower().strip()
+    if a_c == b_c or a_c in b_c or b_c in a_c:
+        return True
+    a_w = set(a_c.split())
+    b_w = set(b_c.split())
+    shorter = min(len(a_w), len(b_w))
+    return shorter > 0 and len(a_w & b_w) / shorter >= 0.5
+
+
 def extract_threads_result(output: str) -> dict:
     """Parse the structured [THREADS_RESULT] line emitted by threads_publisher.py."""
     for line in (output or "").splitlines():

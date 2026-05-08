@@ -3081,7 +3081,7 @@ document.querySelectorAll('.combo-card .combo-actions .btn.primary').forEach(btn
     try {
       let r;
       if (fmt === 'MIXED' || fmt === 'COMBINADA') {
-        r = await apiPost('/api/mixed', { headline });
+        r = await apiPost('/api/mixed', { headline, source_ids: srcIds });
         apiToast('Combinada generated · ' + (r.char_count || '?') + 'ch', 'ok');
       } else {
         r = await apiPost('/api/generate', { headline, tweet_type: fmt, manual: true });

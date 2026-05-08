@@ -138,17 +138,16 @@ Hay 21 tests de utilidades base (`test_json_store.py`, `test_publish_service.py`
 
 `threads_publisher.py` se invoca como **subprocess** desde `sol_commands.py` y `sol_dashboard_api.py`. Devuelve resultado vía `[THREADS_RESULT]` en stdout que parsea `extract_threads_result`.
 
-**Hosting de imágenes/videos:** desde 2026-05 usamos self-hosted, no Litterbox.
+**Hosting de imágenes/videos:** Litterbox (`litter.catbox.moe`, TTL 1h).
 
 ```bash
 # .env
-THREADS_MEDIA_HOST=https://media.theclamletter.com
-THREADS_IMAGE_HOST=self
+THREADS_IMAGE_HOST=litterbox
 ```
 
-`threads_publisher.py:get_public_url()` construye URLs como `{THREADS_MEDIA_HOST}/media/<filename>`. La ruta pasa por Cloudflare tunnel → nginx → FastAPI dashboard que sirve `/media/`. Meta requiere HTTPS, por eso no usamos el IP directo.
+Probamos brevemente self-hosted vía `media.theclamletter.com` (Cloudflare → nginx → FastAPI `/media/`) en 2026-05 pero Meta no lograba ingerir las imágenes desde ese host (probablemente bloqueo de IP/bot por Cloudflare incluso con WAF skip y BIC apagado). Decisión: volver a Litterbox por simplicidad. El TTL de 1h es suficiente porque Meta hace el fetch en el momento de crear el contenedor.
 
-**Si `THREADS_IMAGE_HOST=litterbox`** (default si no está set), vuelve al modo legacy con `litterbox.catbox.moe` (TTL 1h, sin SLA — evítalo en producción).
+`threads_publisher.py:get_public_url()` sigue existiendo para el modo `THREADS_IMAGE_HOST=self` por si en el futuro se quiere reintentar, pero **no usar en producción** sin re-validar end-to-end con Meta antes.
 
 ---
 
@@ -174,7 +173,7 @@ Lista de archivos JSON con escritura por más de un proceso. **Todos deben pasar
 - ❌ Usar `path.write_text(json.dumps(...))` para JSON compartido. Usa `json_store`.
 - ❌ Añadir `import tempfile` dentro de funciones para hacer escritura atómica manual. `json_store` ya lo hace.
 - ❌ Añadir un nuevo proceso/servicio que escriba a un JSON existente sin actualizar este CLAUDE.md.
-- ❌ Volver a `litterbox` para hosting de media (sin SLA, TTL 1h).
+- ❌ Reactivar `THREADS_IMAGE_HOST=self` sin re-validar con Meta primero — falló en 2026-05 (ver sección "Publicación de media en Threads").
 - ❌ Mockear la base de datos en tests — los integration tests del flujo de publicación deben usar SQLite real.
 - ❌ Commitear `.env` ni archivos `*.bak.*` ni `__pycache__`.
 - ❌ Reiniciar `sol-commands` mientras hay un post pendiente sin antes guardar `pending_tweet.json` (lo hace automáticamente, pero no abortes a la fuerza).

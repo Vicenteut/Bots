@@ -14,22 +14,32 @@
         padding: 12px 40px; letter-spacing: 3px; z-index: 24;
         white-space: nowrap; overflow: hidden;
       }
-      .big-num {
-        position: absolute; left: 60px; right: 60px; top: 700px;
+      /* Title — promoted to dominant text above the leader's head.
+         Lives in the safe zone between the badge (top:178) and the head
+         zone (~y=500-1080) so screenshots read clean. */
+      .hook-line {
+        position: absolute; left: 50px; right: 50px; top: 240px;
         font-family: "Bebas Neue", sans-serif;
-        font-size: 320px; line-height: 0.9; color: #ffd500;
+        font-size: 104px; line-height: 0.95; letter-spacing: 1px;
+        color: #ffffff; text-align: center; z-index: 24;
+        text-shadow: 5px 5px 16px rgba(0,0,0,0.95);
+        -webkit-text-stroke: 3px #000; paint-order: stroke fill;
+        text-transform: uppercase;
+      }
+      /* One word per title gets the gold accent. Renderer wraps it server-side. */
+      .hook-line .gold { color: #ffd500; }
+      /* Numeric stat — demoted to a yellow accent below the speaker's chest.
+         Smaller than the title so it doesn't compete for attention. */
+      .big-num {
+        position: absolute; left: 60px; right: 60px; top: 1080px;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 180px; line-height: 0.9; color: #ffd500;
         text-align: center; z-index: 23;
         text-shadow: 6px 6px 24px rgba(0,0,0,0.95);
       }
-      .hook-line {
-        position: absolute; left: 60px; right: 60px; top: 1080px;
-        font-family: "Bebas Neue", sans-serif; font-size: 70px; line-height: 1.05;
-        color: #ffffff; text-align: center; z-index: 22;
-        text-shadow: 4px 4px 14px rgba(0,0,0,0.9);
-      }
-      #beat-stamp-1 { top: 1240px; }
-      #beat-stamp-2 { top: 1240px; }
-      #beat-stamp-3 { top: 1240px; }
+      #beat-stamp-1 { top: 1290px; }
+      #beat-stamp-2 { top: 1290px; }
+      #beat-stamp-3 { top: 1290px; }
     </style>
   </head>
   <body>
@@ -40,7 +50,7 @@
 
       <video id="bg" class="clip"
         data-start="0" data-duration="{{DURATION}}" data-track-index="0"
-        src="assets/{{BG}}" muted playsinline></video>
+        src="assets/{{BG}}" muted playsinline loop></video>
 
       <div class="overlay"></div>
       <div class="alarm-strip alarm-strip-top"></div>
@@ -62,7 +72,7 @@
 
       <div class="brand">
         <div class="brand-name">THE CLAM LETTER</div>
-        <div class="brand-tag">MARKETS</div>
+        <div class="brand-tag">{{BRAND_TAG}}</div>
       </div>
 
       <audio id="tts" class="clip"
@@ -91,20 +101,46 @@
 
       tl.to("#badge", { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2.5)" }, 0);
       tl.to("#bignum", { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(2.2)" }, 0.6);
+      // Bignum exits at t=4 — it served the hook, now stop competing with karaoke.
+      tl.to("#bignum", { opacity: 0, scale: 0.85, duration: 0.5, ease: "power2.in" }, 4.0);
       tl.to("#hook", { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 1.0);
-      tl.to("#ticker", { x: -1080, duration: 14, ease: "linear" }, 1.0);
+      tl.to("#ticker", { x: -1080, duration: {{TICKER_DURATION}}, ease: "linear" }, 1.0);
 
       [3.0, 5.0, 8.0, 11.0, 13.5].forEach((t) => I.microcut(tl, t));
-      // Beat stamps — yellow-bordered cards slide in at each beat's t,
-      // hold ~2.4s then fade. Server pre-fills BEATS_TIMES_JSON aligned to
-      // (BEAT1, BEAT2, BEAT3) text divs above. Every beat also gets a bg
-      // zoom punch.
+
+      // Beat-stamps stack upward instead of replacing. Stamp-1 enters at base,
+      // slides up -110 when stamp-2 enters, slides up -220 when stamp-3 enters.
+      // All three stay visible until the end-of-video fade.
       const BEATS_TIMES = {{BEATS_TIMES_JSON}};
-      BEATS_TIMES.forEach((t, i) => {
-        if (t == null) return;
-        I.stampPunch(tl, t, "#beat-stamp-" + (i + 1), { hold: 2.4 });
+      function _enterStamp(idx, t) {
+        const sel = "#beat-stamp-" + idx;
+        tl.fromTo(
+          sel,
+          { y: 220, opacity: 0, scale: 0.92 },
+          { y: 0,   opacity: 1, scale: 1.0, duration: 0.4, ease: "back.out(2.4)" },
+          t,
+        );
         I.bgPunch(tl, t);
-      });
+      }
+      function _shiftStamp(idx, t, newY) {
+        tl.to(
+          "#beat-stamp-" + idx,
+          { y: newY, duration: 0.4, ease: "power2.out" },
+          t,
+        );
+      }
+      if (BEATS_TIMES[0] != null) _enterStamp(1, BEATS_TIMES[0]);
+      if (BEATS_TIMES[1] != null) {
+        _shiftStamp(1, BEATS_TIMES[1], -110);
+        _enterStamp(2, BEATS_TIMES[1]);
+      }
+      if (BEATS_TIMES[2] != null) {
+        _shiftStamp(1, BEATS_TIMES[2], -220);
+        _shiftStamp(2, BEATS_TIMES[2], -110);
+        _enterStamp(3, BEATS_TIMES[2]);
+      }
+      // Final fade so the band is empty when the CTA stamp slides in.
+      tl.to(".beat-stamp", { opacity: 0, y: "-=30", duration: 0.5, ease: "power2.in" }, 17.0);
 
       const EMPHASIS_TIMES = {{EMPHASIS_TIMES_JSON}};
       EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(0,255,136,0.4)"));

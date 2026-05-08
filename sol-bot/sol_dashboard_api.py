@@ -42,6 +42,7 @@ from publish_service import (
     classify_publish_result as _classify_publish_result,
     media_kind as _media_kind_from_args,
     append_publish_log as _append_publish_log,
+    headlines_match as _headlines_match,
 )
 
 try:
@@ -521,21 +522,26 @@ def _attach_media_to_pending(data: dict) -> dict:
     Mirrors the media-attachment logic in sol_commands.py:_do_generate()."""
     PENDING_MEDIA = BOT_DIR / "pending_media.json"
 
-    # 1. Check monitor_pending.json for media
+    # 1. Check monitor_pending.json for media — only if its headline matches
     if MONITOR_PENDING.exists():
         try:
             mp_data = json.loads(MONITOR_PENDING.read_text())
-            paths = mp_data.get("media_paths") or (
-                [mp_data["media_path"]] if mp_data.get("media_path") else []
-            )
-            paths = [p for p in paths if Path(p).exists()]
-            if paths:
-                data["media_paths"] = paths
-                data["media_path"] = paths[0]
-                data["media_type"] = mp_data.get("media_type", "photo")
-                print(f"[generate] attached {len(paths)} media file(s) from monitor_pending", flush=True)
-                MONITOR_PENDING.unlink(missing_ok=True)
-                print("[generate] cleared monitor_pending.json after attaching media", flush=True)
+            data_title = (data.get("headline") or {}).get("title", "") if isinstance(data.get("headline"), dict) else ""
+            mp_title = (mp_data.get("headline") or {}).get("title", "") if isinstance(mp_data.get("headline"), dict) else ""
+            if not _headlines_match(data_title, mp_title):
+                print(f"[generate] skipped monitor_pending media — headline mismatch", flush=True)
+            else:
+                paths = mp_data.get("media_paths") or (
+                    [mp_data["media_path"]] if mp_data.get("media_path") else []
+                )
+                paths = [p for p in paths if Path(p).exists()]
+                if paths:
+                    data["media_paths"] = paths
+                    data["media_path"] = paths[0]
+                    data["media_type"] = mp_data.get("media_type", "photo")
+                    print(f"[generate] attached {len(paths)} media file(s) from monitor_pending", flush=True)
+                    MONITOR_PENDING.unlink(missing_ok=True)
+                    print("[generate] cleared monitor_pending.json after attaching media", flush=True)
         except Exception as e:
             print(f"[generate] monitor_pending media read error: {e}", flush=True)
 
@@ -1313,6 +1319,7 @@ class GeneratePayload(BaseModel):
 
 class MixedPayload(BaseModel):
     headline: str
+    source_ids: list[str] = Field(default_factory=list)
 
 
 class ComboSavePayload(BaseModel):
@@ -1696,23 +1703,43 @@ async def api_mixed(request: Request, payload: MixedPayload):
         "generated_at": datetime.now().isoformat(),
         "tweet_type": "COMBINADA",
     }
-    # Carry media from pending_tweet.json or monitor_pending.json (mirrors cmd_mixed in sol_commands.py)
-    for src in (PENDING_TWEET, MONITOR_PENDING):
-        if src.exists():
-            try:
-                src_data = json.loads(src.read_text())
-                paths = src_data.get("media_paths") or (
-                    [src_data["media_path"]] if src_data.get("media_path") else []
-                )
-                paths = [p for p in paths if Path(p).exists()]
-                if paths:
-                    data["media_paths"] = paths
-                    data["media_path"] = paths[0]
-                    data["media_type"] = src_data.get("media_type", "photo")
-                    print(f"[mixed] attached {len(paths)} media file(s) from {src.name}", flush=True)
-                    break
-            except Exception:
-                pass
+    # Preferred path: caller supplied source_ids → look them up in monitor_queue and
+    # attach media from the first matching entry (correct association by construction).
+    if payload.source_ids:
+        try:
+            queue = _read_queue()
+            by_id = {e.get("id"): e for e in queue if e.get("id")}
+            for sid in payload.source_ids:
+                entry = by_id.get(sid)
+                if entry:
+                    _attach_entry_media(data, entry, "mixed")
+                    if data.get("media_paths"):
+                        break
+        except Exception as e:
+            print(f"[mixed] source_ids lookup error: {e}", flush=True)
+
+    # Fallback: try pending_tweet/monitor_pending — only if the headline matches
+    if not data.get("media_paths"):
+        headline_title = headline_dict.get("title", "")
+        for src in (PENDING_TWEET, MONITOR_PENDING):
+            if src.exists():
+                try:
+                    src_data = json.loads(src.read_text())
+                    src_title = (src_data.get("headline") or {}).get("title", "") if isinstance(src_data.get("headline"), dict) else ""
+                    if not _headlines_match(headline_title, src_title):
+                        continue
+                    paths = src_data.get("media_paths") or (
+                        [src_data["media_path"]] if src_data.get("media_path") else []
+                    )
+                    paths = [p for p in paths if Path(p).exists()]
+                    if paths:
+                        data["media_paths"] = paths
+                        data["media_path"] = paths[0]
+                        data["media_type"] = src_data.get("media_type", "photo")
+                        print(f"[mixed] attached {len(paths)} media file(s) from {src.name}", flush=True)
+                        break
+                except Exception:
+                    pass
     _save_json(PENDING_COMBO, data)
 
     return {
