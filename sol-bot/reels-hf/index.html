@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="stylesheet" href="templates/_shared.css" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="templates/_interrupts.js"></script>
+    <style>
+      .ticker {
+        position: absolute; left: 0; right: 0; bottom: 60px;
+        background: #000; color: #00ff88;
+        font-family: "Bebas Neue", sans-serif; font-size: 44px;
+        padding: 12px 40px; letter-spacing: 3px; z-index: 24;
+        white-space: nowrap; overflow: hidden;
+      }
+      /* Title — promoted to dominant text above the leader's head.
+         Lives in the safe zone between the badge (top:178) and the head
+         zone (~y=500-1080) so screenshots read clean. */
+      .hook-line {
+        position: absolute; left: 50px; right: 50px; top: 240px;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 104px; line-height: 0.95; letter-spacing: 1px;
+        color: #ffffff; text-align: center; z-index: 24;
+        text-shadow: 5px 5px 16px rgba(0,0,0,0.95);
+        -webkit-text-stroke: 3px #000; paint-order: stroke fill;
+        text-transform: uppercase;
+      }
+      /* One word per title gets the gold accent. Renderer wraps it server-side. */
+      .hook-line .gold { color: #ffd500; }
+      /* Numeric stat — demoted to a yellow accent below the speaker's chest.
+         Smaller than the title so it doesn't compete for attention. */
+      .big-num {
+        position: absolute; left: 60px; right: 60px; top: 1080px;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 180px; line-height: 0.9; color: #ffd500;
+        text-align: center; z-index: 23;
+        text-shadow: 6px 6px 24px rgba(0,0,0,0.95);
+      }
+      #beat-stamp-1 { top: 1290px; }
+      #beat-stamp-2 { top: 1290px; }
+      #beat-stamp-3 { top: 1290px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"
+      data-composition-id="ReelMarkets"
+      data-start="0" data-duration="20" data-fps="30"
+      data-width="1080" data-height="1920">
+
+      <video id="bg" class="clip"
+        data-start="0" data-duration="20" data-track-index="0"
+        src="assets/grok_01.mp4" muted playsinline loop></video>
+
+      <div class="overlay"></div>
+      <div class="alarm-strip alarm-strip-top"></div>
+      <div class="alarm-strip alarm-strip-bottom"></div>
+
+      <div class="badge" id="badge">BREAKING</div>
+      <div class="big-num" id="bignum">VOID</div>
+      <div class="hook-line" id="hook">TRUMP JUST <span class="gold">LOST</span> HIS TARIFFS</div>
+      <div id="rehook-stamp">24 STATES FILED THE CASE</div>
+      <div class="beat-stamp" id="beat-stamp-1">STRUCK DOWN BY US TRADE COURT</div>
+      <div class="beat-stamp" id="beat-stamp-2">FIRST IEEPA · NOW SECTION 122</div>
+      <div class="beat-stamp" id="beat-stamp-3">BOTH LEGAL LEVERS GONE</div>
+      <div id="karaoke"><div class="kchunk" data-c="0"><span class="kw" data-i="0">Breaking</span> <span class="kw" data-i="1">The</span></div><div class="kchunk" data-c="1"><span class="kw" data-i="2">Federal</span> <span class="kw kw-key" data-i="3">Court</span></div><div class="kchunk" data-c="2"><span class="kw" data-i="4">of</span> <span class="kw" data-i="5">International</span></div><div class="kchunk" data-c="3"><span class="kw" data-i="6">Trade</span> <span class="kw" data-i="7">just</span></div><div class="kchunk" data-c="4"><span class="kw kw-key" data-i="8">struck</span> <span class="kw" data-i="9">down</span></div><div class="kchunk" data-c="5"><span class="kw" data-i="10">Trump's</span> <span class="kw" data-i="11">10%</span></div><div class="kchunk" data-c="6"><span class="kw" data-i="12">global</span> <span class="kw" data-i="13">tariffs</span></div><div class="kchunk" data-c="7"><span class="kw" data-i="14">24</span> <span class="kw" data-i="15">states</span></div><div class="kchunk" data-c="8"><span class="kw" data-i="16">filed</span> <span class="kw" data-i="17">the</span></div><div class="kchunk" data-c="9"><span class="kw" data-i="18">case</span> <span class="kw" data-i="19">First</span></div><div class="kchunk" data-c="10"><span class="kw" data-i="20">the</span> <span class="kw kw-key" data-i="21">Supreme</span></div><div class="kchunk" data-c="11"><span class="kw kw-key" data-i="22">Court</span> <span class="kw" data-i="23">killed</span></div><div class="kchunk" data-c="12"><span class="kw" data-i="24">the</span> <span class="kw" data-i="25">IEPA</span></div><div class="kchunk" data-c="13"><span class="kw" data-i="26">basis</span> <span class="kw" data-i="27">Now</span></div><div class="kchunk" data-c="14"><span class="kw" data-i="28">Section</span> <span class="kw" data-i="29">122</span></div><div class="kchunk" data-c="15"><span class="kw" data-i="30">is</span> <span class="kw" data-i="31">dead</span></div><div class="kchunk" data-c="16"><span class="kw" data-i="32">too</span> <span class="kw" data-i="33">Both</span></div><div class="kchunk" data-c="17"><span class="kw" data-i="34">legal</span> <span class="kw" data-i="35">levers</span></div><div class="kchunk" data-c="18"><span class="kw" data-i="36">gone</span> <span class="kw" data-i="37">What's</span></div><div class="kchunk" data-c="19"><span class="kw" data-i="38">left</span></div></div>
+      <div id="cta-stamp">Follow The Clam Letter</div>
+      <div class="ticker" id="ticker">BREAKING  •  TRUMP  •  COURT RULING  •  THE CLAM LETTER  •  </div>
+
+      <div id="cut-flash"></div>
+      <div id="color-flash"></div>
+
+      <div class="brand">
+        <div class="brand-name">THE CLAM LETTER</div>
+        <div class="brand-tag">BREAKING</div>
+      </div>
+
+      <audio id="tts" class="clip"
+        data-start="0.4" data-duration="19.5" data-track-index="9"
+        data-volume="1.0" src="assets/tts_06_court_kills_tariffs.mp3"></audio>
+      <audio id="music" class="clip"
+        data-start="0" data-duration="20" data-track-index="10"
+        data-volume="0.22" src="assets/this_is_news_baked.mp3"></audio>
+      <audio id="sfx-loop" class="clip"
+        data-start="19.5" data-duration="0.5" data-track-index="12"
+        data-volume="0.8" src="assets/sfx/loop_thump.wav"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const I = window.SolInterrupts;
+
+      gsap.set("#bg", { scale: 1.0 });
+      gsap.set("#badge", { scale: 0.4, opacity: 0 });
+      gsap.set("#bignum", { opacity: 0, scale: 0.4 });
+      gsap.set("#hook", { opacity: 0, y: 40 });
+      gsap.set("#ticker", { x: 1080 });
+      gsap.set("#cut-flash", { opacity: 0 });
+      gsap.set("#color-flash", { opacity: 0, backgroundColor: "rgba(0,255,136,0.4)" });
+
+      tl.to("#badge", { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(2.5)" }, 0);
+      tl.to("#bignum", { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(2.2)" }, 0.6);
+      // Bignum exits at t=4 — it served the hook, now stop competing with karaoke.
+      tl.to("#bignum", { opacity: 0, scale: 0.85, duration: 0.5, ease: "power2.in" }, 4.0);
+      tl.to("#hook", { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 1.0);
+      tl.to("#ticker", { x: -1080, duration: 19, ease: "linear" }, 1.0);
+
+      [3.0, 5.0, 8.0, 11.0, 13.5].forEach((t) => I.microcut(tl, t));
+
+      // Beat-stamps stack upward instead of replacing. Stamp-1 enters at base,
+      // slides up -110 when stamp-2 enters, slides up -220 when stamp-3 enters.
+      // All three stay visible until the end-of-video fade.
+      const BEATS_TIMES = [4.5, 9.0, 13.0];
+      function _enterStamp(idx, t) {
+        const sel = "#beat-stamp-" + idx;
+        tl.fromTo(
+          sel,
+          { y: 220, opacity: 0, scale: 0.92 },
+          { y: 0,   opacity: 1, scale: 1.0, duration: 0.4, ease: "back.out(2.4)" },
+          t,
+        );
+        I.bgPunch(tl, t);
+      }
+      function _shiftStamp(idx, t, newY) {
+        tl.to(
+          "#beat-stamp-" + idx,
+          { y: newY, duration: 0.4, ease: "power2.out" },
+          t,
+        );
+      }
+      if (BEATS_TIMES[0] != null) _enterStamp(1, BEATS_TIMES[0]);
+      if (BEATS_TIMES[1] != null) {
+        _shiftStamp(1, BEATS_TIMES[1], -110);
+        _enterStamp(2, BEATS_TIMES[1]);
+      }
+      if (BEATS_TIMES[2] != null) {
+        _shiftStamp(1, BEATS_TIMES[2], -220);
+        _shiftStamp(2, BEATS_TIMES[2], -110);
+        _enterStamp(3, BEATS_TIMES[2]);
+      }
+      // Final fade so the band is empty when the CTA stamp slides in.
+      tl.to(".beat-stamp", { opacity: 0, y: "-=30", duration: 0.5, ease: "power2.in" }, 17.0);
+
+      const EMPHASIS_TIMES = [3.4797531162790696, 14.353981604651162, 15.658889023255814];
+      EMPHASIS_TIMES.forEach((t) => I.colorFlash(tl, t, "rgba(0,255,136,0.4)"));
+
+      const WORDS = [{"word": "Breaking", "start": 0.0, "end": 0.39147222558139533}, {"word": "The", "start": 0.4349691395348837, "end": 0.826441365116279}, {"word": "Federal", "start": 0.8699382790697674, "end": 1.2614105046511628}, {"word": "Court", "start": 1.304907418604651, "end": 1.6963796441860464}, {"word": "of", "start": 1.7398765581395348, "end": 2.1313487837209304}, {"word": "International", "start": 2.1748456976744186, "end": 2.5663179232558138}, {"word": "Trade", "start": 2.609814837209302, "end": 3.0012870627906976}, {"word": "just", "start": 3.0447839767441858, "end": 3.4362562023255814}, {"word": "struck", "start": 3.4797531162790696, "end": 3.871225341860465}, {"word": "down", "start": 3.9147222558139534, "end": 4.306194481395349}, {"word": "Trump's", "start": 4.349691395348837, "end": 4.741163620930233}, {"word": "10%", "start": 4.784660534883721, "end": 5.176132760465116}, {"word": "global", "start": 5.219629674418604, "end": 5.6111018999999995}, {"word": "tariffs", "start": 5.654598813953488, "end": 6.046071039534883}, {"word": "24", "start": 6.0895679534883715, "end": 6.481040179069767}, {"word": "states", "start": 6.524537093023255, "end": 6.916009318604651}, {"word": "filed", "start": 6.959506232558139, "end": 7.350978458139534}, {"word": "the", "start": 7.394475372093023, "end": 7.785947597674418}, {"word": "case", "start": 7.829444511627907, "end": 8.2209167372093}, {"word": "First", "start": 8.26441365116279, "end": 8.655885876744184}, {"word": "the", "start": 8.699382790697674, "end": 9.090855016279068}, {"word": "Supreme", "start": 9.134351930232558, "end": 9.525824155813952}, {"word": "Court", "start": 9.569321069767442, "end": 9.960793295348836}, {"word": "killed", "start": 10.004290209302326, "end": 10.39576243488372}, {"word": "the", "start": 10.439259348837208, "end": 10.830731574418603}, {"word": "IEPA", "start": 10.874228488372092, "end": 11.265700713953487}, {"word": "basis", "start": 11.309197627906975, "end": 11.700669853488371}, {"word": "Now", "start": 11.74416676744186, "end": 12.135638993023255}, {"word": "Section", "start": 12.179135906976743, "end": 12.570608132558139}, {"word": "122", "start": 12.614105046511627, "end": 13.005577272093023}, {"word": "is", "start": 13.04907418604651, "end": 13.440546411627906}, {"word": "dead", "start": 13.484043325581395, "end": 13.87551555116279}, {"word": "too", "start": 13.919012465116278, "end": 14.310484690697672}, {"word": "Both", "start": 14.353981604651162, "end": 14.745453830232556}, {"word": "legal", "start": 14.788950744186046, "end": 15.18042296976744}, {"word": "levers", "start": 15.22391988372093, "end": 15.615392109302324}, {"word": "gone", "start": 15.658889023255814, "end": 16.05036124883721}, {"word": "What's", "start": 16.093858162790696, "end": 16.48533038837209}, {"word": "left", "start": 16.52882730232558, "end": 16.920299527906977}];
+      I.karaokeRolling(tl, WORDS, { offset: 0.4, chunkSize: 2 });
+      const CTA_TIME = 16.964;
+      if (CTA_TIME != null) {
+        I.ctaStamp(tl, CTA_TIME + 0.4, "#cta-stamp", { hold: 1.4 });
+      }
+
+      I.loopBridge(tl, 20);
+
+      window.__timelines["ReelMarkets"] = tl;
+    </script>
+  </body>
+</html>
