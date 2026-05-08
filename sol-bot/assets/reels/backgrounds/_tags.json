@@ -1,0 +1,82 @@
+{
+  "ancient_map.mp4": {
+    "label": "Ancient Map (default)",
+    "tags": ["map", "neutral", "default"],
+    "notes": "Mixkit ancient map — universal fallback. Works for any topic."
+  },
+  "grok_01.mp4": {
+    "label": "Trump · control room",
+    "tags": ["trump", "us", "control_room", "geopolitics"],
+    "notes": "Trump gesturing in control room with IRAN WAR monitors."
+  },
+  "grok_02.mp4": {
+    "label": "Putin · control room",
+    "tags": ["putin", "russia", "control_room", "geopolitics"],
+    "notes": "Putin in control room with red-themed monitors."
+  },
+  "grok_03.mp4": {
+    "label": "Netanyahu · control room",
+    "tags": ["netanyahu", "israel", "control_room", "geopolitics"],
+    "notes": "Netanyahu shouting in control room with world map monitors."
+  },
+  "xi.mp4": {
+    "label": "Xi Jinping · war room",
+    "tags": ["xi", "china", "asia", "geopolitics", "control_room"],
+    "notes": "Xi Jinping gesturing in war room with stock and breaking-news monitors."
+  },
+  "powell.mp4": {
+    "label": "Jerome Powell · Fed press",
+    "tags": ["powell", "fed", "rates", "markets", "finance", "control_room"],
+    "notes": "Powell at podium with breaking-news + market monitors. Use for Fed/macro/rates."
+  },
+  "mbs.mp4": {
+    "label": "MBS · war room",
+    "tags": ["mbs", "saudi", "middle_east", "oil", "opec", "control_room"],
+    "notes": "Mohammed bin Salman in keffiyeh with red-themed monitors."
+  },
+  "delcy_rodriguez.mp4": {
+    "label": "Delcy Rodríguez · crisis",
+    "tags": ["delcy", "venezuela", "latam", "crisis", "control_room"],
+    "notes": "VP Venezuela gesturing with CRISIS ESCALATES + WORLD LEADERS RESPOND headlines."
+  },
+  "zelensky.mp4": {
+    "label": "Zelensky · war room",
+    "tags": ["zelensky", "ukraine", "russia", "geopolitics", "control_room"],
+    "notes": "Zelensky in olive shirt, intense expression with breaking-news red panels."
+  },
+  "vance.mp4": {
+    "label": "JD Vance · markets crash",
+    "tags": ["vance", "us", "politics", "markets", "control_room"],
+    "notes": "Vance with US flag pin, MARKET COLLAPSE + CRITICAL APSE monitors."
+  },
+  "maria_corina_machado.mp4": {
+    "label": "María Corina Machado · alert",
+    "tags": ["machado", "venezuela", "latam", "opposition", "democracy", "control_room"],
+    "notes": "MCM in white blazer with shh gesture, CRITICAL ALERT panels."
+  },
+  "rubio.mp4": {
+    "label": "Marco Rubio · State Dept",
+    "tags": ["rubio", "us", "foreign_policy", "control_room"],
+    "notes": "Rubio in suit looking down, NEW PLUNGES + market monitors."
+  },
+  "petro.mp4": {
+    "label": "Gustavo Petro · breaking",
+    "tags": ["petro", "colombia", "latam", "control_room"],
+    "notes": "Colombian president in white shirt, BREAKING ALERTS panels."
+  },
+  "modi.mp4": {
+    "label": "Modi · world alert",
+    "tags": ["modi", "india", "asia", "brics", "control_room"],
+    "notes": "Modi in saffron with traditional shawl, WORLD SHOWS URGENT panels."
+  },
+  "starmer.mp4": {
+    "label": "Keir Starmer · breaking news",
+    "tags": ["starmer", "uk", "europe", "nato", "control_room"],
+    "notes": "Starmer in glasses + suit, gesturing with both hands."
+  },
+  "khamenei.mp4": {
+    "label": "Khamenei · Iran",
+    "tags": ["khamenei", "iran", "middle_east", "geopolitics", "control_room"],
+    "notes": "Iranian Supreme Leader in black turban (sayyid) with GLOBAL ALERT panels."
+  }
+}

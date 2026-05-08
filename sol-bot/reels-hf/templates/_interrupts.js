@@ -165,23 +165,35 @@
       var cur = chunks[ci];
       var sel = '.kchunk[data-c="' + cur.idx + '"]';
 
-      // Reveal chunk
+      // Reveal chunk — slide up + fade in (more cinematic than pure fade)
       tl.set(sel, { visibility: "visible" }, cur.firstStart);
-      tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: fadeIn, ease: "power1.out" }, cur.firstStart);
+      tl.fromTo(sel,
+        { opacity: 0, y: 30 },
+        { opacity: 1, y: 0, duration: fadeIn, ease: "power2.out" },
+        cur.firstStart,
+      );
 
-      // Per-word punch (yellow + scale up at start, white + scale down at end)
+      // Per-word punch. Keyword words (`.kw-key`, pre-painted gold) get a
+      // bigger scale punch and stay gold; normal words flash gold and return
+      // to white. Detected at init by querying the DOM since chunks are
+      // server-rendered.
       for (var wi = cur.startIdx; wi < cur.endIdx; wi++) {
         var w = words[wi];
         var wsel = sel + ' .kw[data-i="' + wi + '"]';
+        var node = document.querySelector(wsel);
+        var isKey = !!(node && node.classList.contains("kw-key"));
+        var peakScale = isKey ? 1.22 : 1.12;
+        var restColor = isKey ? "#ffd500" : "#ffffff";
+
         tl.fromTo(
           wsel,
-          { color: "#ffffff", scale: 1.0 },
-          { color: "#ffd500", scale: 1.12, duration: 0.10, ease: "back.out(2)" },
+          { color: restColor, scale: 1.0 },
+          { color: "#ffd500", scale: peakScale, duration: 0.10, ease: "back.out(2)" },
           w.start + offset - pad,
         );
         tl.to(
           wsel,
-          { color: "#ffffff", scale: 1.0, duration: 0.18, ease: "power1.in" },
+          { color: restColor, scale: 1.0, duration: 0.18, ease: "power1.in" },
           w.end + offset,
         );
       }

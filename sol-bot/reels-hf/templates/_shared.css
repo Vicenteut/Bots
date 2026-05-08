@@ -73,6 +73,12 @@ html, body { width: 1080px; height: 1920px; overflow: hidden; background: #000; 
   display: inline-block; margin: 0 14px; color: #ffffff;
   transform-origin: center center;
 }
+/* Keyword words — headline-defining tokens that the eye should latch onto.
+   Pre-painted gold and punched harder by GSAP (scale 1.20 vs 1.12). */
+.kchunk .kw.kw-key {
+  color: #ffd500;
+  text-shadow: 4px 4px 14px rgba(0,0,0,0.95), 0 0 28px rgba(255,213,0,0.55);
+}
 
 /* CTA stamp — distinct from karaoke band so closing CTA reads as a deliberate
    ask. Yellow on dark pill, sits above IG/TikTok bottom UI safe zone. */

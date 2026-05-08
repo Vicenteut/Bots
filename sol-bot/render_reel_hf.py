@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 import time
@@ -96,12 +97,38 @@ def _escape_word(w: str) -> str:
     return (w or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _karaoke_html_chunked(words: list[AlignWord], chunk_size: int = KARAOKE_CHUNK_SIZE) -> str:
+def _apply_gold(hook: str, gold: str | None) -> str:
+    """Wrap the first case-insensitive occurrence of `gold` in the hook with
+    <span class="gold">…</span>. Markets template's `.hook-line .gold` rule
+    paints it #ffd500 so the eye has a clear focal point. No-op if `gold`
+    is empty or not found.
+    """
+    if not gold or not hook:
+        return hook
+    pattern = re.compile(re.escape(gold), re.IGNORECASE)
+    return pattern.sub(lambda m: f'<span class="gold">{m.group(0)}</span>', hook, count=1)
+
+
+def _normalize_kw(s: str) -> str:
+    """Lowercase + strip surrounding punctuation for keyword matching."""
+    return (s or "").lower().strip(".,;:!?\"'()[]")
+
+
+def _karaoke_html_chunked(
+    words: list[AlignWord],
+    chunk_size: int = KARAOKE_CHUNK_SIZE,
+    keyword_words: list[str] | None = None,
+) -> str:
     """Render words as <div class="kchunk" data-c="N"> blocks of `chunk_size`
     words each; karaokeRolling() in GSAP shows one chunk at a time.
+
+    Words whose normalized form is in `keyword_words` get an extra `kw-key`
+    class — CSS pre-paints them gold and JS punches them harder (scale 1.20
+    vs 1.12) so the eye latches onto the headline-defining tokens.
     """
     if not words:
         return ""
+    keys = {_normalize_kw(k) for k in (keyword_words or []) if k}
     chunks_html: list[str] = []
     for ci_start in range(0, len(words), chunk_size):
         chunk = words[ci_start:ci_start + chunk_size]
@@ -109,7 +136,10 @@ def _karaoke_html_chunked(words: list[AlignWord], chunk_size: int = KARAOKE_CHUN
         spans = []
         for offset, w in enumerate(chunk):
             global_i = ci_start + offset
-            spans.append(f'<span class="kw" data-i="{global_i}">{_escape_word(w.word)}</span>')
+            cls = "kw"
+            if keys and _normalize_kw(w.word) in keys:
+                cls = "kw kw-key"
+            spans.append(f'<span class="{cls}" data-i="{global_i}">{_escape_word(w.word)}</span>')
         chunks_html.append(
             f'<div class="kchunk" data-c="{chunk_idx}">' + " ".join(spans) + "</div>"
         )
@@ -164,9 +194,13 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
     tts_duration = max(duration - tts_start - 0.1, 1.0)
     loop_start = max(duration - loop_tail, 0.0)
 
+    # Gold word treatment for the markets template title — wraps a single
+    # word in <span class="gold">. Other templates ignore the markup safely.
+    hook_with_gold = _apply_gold(hook_text, spec.get("gold_word"))
+
     return {
         "LABEL": spec.get("label", "BREAKING"),
-        "HOOK": hook_text,
+        "HOOK": hook_with_gold,
         "HOOK_HTML": hook_text,
         "REHOOK": rehook_text,
         "BEAT1": beat_texts[0],
@@ -177,7 +211,9 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
         "TTS": tts_filename,
         "BIG_NUM": (spec.get("numeric_highlights") or [""])[0],
         "TICKER_TEXT": (spec.get("topic_tag") or "").upper() + "  •  THE CLAM LETTER  •  ",
-        "KARAOKE_HTML": _karaoke_html_chunked(body_words),
+        "KARAOKE_HTML": _karaoke_html_chunked(
+            body_words, keyword_words=spec.get("keyword_words")
+        ),
         "EMPHASIS_TIMES_JSON": json.dumps(_emphasis_times(spec, words)),
         "KARAOKE_WORDS_JSON": json.dumps([w.__dict__ for w in body_words]),
         "CTA_TIME": "null" if cta_time is None else f"{cta_time:.3f}",
@@ -185,6 +221,12 @@ def _build_payload(spec: dict, words: list[AlignWord], tts_filename: str) -> dic
         "DURATION": f"{duration:g}",
         "TTS_DURATION": f"{tts_duration:g}",
         "LOOP_START": f"{loop_start:g}",
+        # Markets template — brand-tag is the small line under "THE CLAM LETTER".
+        # Defaults to spec.brand_tag → spec.label → "BREAKING".
+        "BRAND_TAG": (spec.get("brand_tag") or spec.get("label") or "BREAKING").upper(),
+        # Markets template — ticker scrolls left for TICKER_DURATION seconds.
+        # We use duration-1 so the scroll spans the whole reel less the entrance.
+        "TICKER_DURATION": f"{max(duration - 1.0, 1.0):g}",
     }
 
 
@@ -327,14 +369,26 @@ def render_reel(
 
     _acquire_lock()
     try:
-        # 1. Generate TTS narration
+        # 1. Generate TTS narration. Auto-fit cap scales with the reel's
+        # duration_sec — a 20s reel gets a 19s budget, so Mark can deliver
+        # ~44 words at natural pace without atempo speedup desync'ing the
+        # karaoke. See script structure rules in gen_tts_sol.py.
+        # Re-uses tts_<reel_id>.mp3 if it already exists on disk so iterations
+        # on layout don't burn ElevenLabs credits.
         tts_text = copy_data.get("tts_text", "").strip()
         tts_path = None
         if not tts_text:
             logger.warning("No tts_text in copy_data; reel will have no narration")
         else:
-            tts_path = generate_tts_for_reel(reel_id, tts_text)
-            logger.info("Generated TTS: %s", tts_path.name)
+            cached = REELS_HF_ASSETS / f"tts_{reel_id}.mp3"
+            if cached.exists() and cached.stat().st_size > 1024:
+                logger.info("Reusing cached TTS: %s", cached.name)
+                tts_path = cached
+            else:
+                duration_sec = float(copy_data.get("duration_sec") or DEFAULT_DURATION_SEC)
+                tts_cap = max(duration_sec - 1.0, 1.0)
+                tts_path = generate_tts_for_reel(reel_id, tts_text, max_duration_sec=tts_cap)
+                logger.info("Generated TTS: %s (cap %.1fs)", tts_path.name, tts_cap)
 
         # 2. Word-level alignment for karaoke (best-effort; empty list on failure)
         words: list[AlignWord] = []

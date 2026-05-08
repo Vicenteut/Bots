@@ -46,3 +46,11 @@ gdelt_baseline.json
 
 # n8n workflows (no longer used)
 n8n_*
+
+# Generated/cache
+reels-hf/.waveform-cache/
+reels-hf/renders/
+default=noprint_wrappers=1:nokey=1.json
+
+# Design files (separate repo)
+../sol-design-files/
